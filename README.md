@@ -97,3 +97,53 @@ cd frontend
 npm run dev
 ```
 然后即可通过本地浏览器 `http://localhost:3000` 尽情测试。
+
+---
+
+## 3. 云服务器部署与运维指引 (CentOS 7.6 / 2G 内存)
+
+本项目已成功部署在 CentOS 7.6 阿里云服务器上，其公网 IP 地址为 `114.55.55.110`，绑定公网域名为 `lovestory1314.fun`。为了让系统在此低物理配置与旧系统环境下长效稳定运行，做了以下关键实施与技术处理，请在未来维护时作为参考：
+
+### 3.1 内存优化与虚拟内存 (Swap)
+- **挑战**：云服务器仅有 2GB 物理内存，而在执行前端 `npm run build` 打包构建以及数据库并发请求时，极易因内存耗尽引发 OOM 导致服务器崩溃。
+- **解决**：在系统中配置并启用了 **4GB Swap 虚拟内存**。
+- **路径**：`/var/swapfile`。
+
+### 3.2 操作系统 Glibc 2.17 与 Node.js 20+ 的兼容解决
+- **挑战**：CentOS 7.6 系统的 `glibc` 版本过低（仅为 `2.17`），无法直接运行官方编译的 Node.js 18+ 运行时包。
+- **解决**：安装了基于 `glibc-2.17` 重新编译生成的 Node.js v20.15.1 补丁包，通过 NVM 进行全局环境变量管理。
+
+### 3.3 数据库升级与低内存配置 (MariaDB 10.6)
+- **挑战**：CentOS 7 自带的 MariaDB 5.5 太旧，无法支持表结构的 `DATETIME DEFAULT CURRENT_TIMESTAMP` 语法；若使用国外官方归档源升级，下载极其缓慢经常卡死。
+- **解决**：
+  1. 移除了旧版数据库，配置了 **阿里云国内 MariaDB 10.6.19 软件源** 进行免 GPG 校验安装。
+  2. 针对 2G 低内存环境，向 `/etc/my.cnf.d/server.cnf` 中写入了优化配置，限制内存开销：
+     ```ini
+     [mysqld]
+     innodb_buffer_pool_size = 128M
+     max_connections = 50
+     key_buffer_size = 16M
+     ```
+  3. 创建了数据库 `lumino` 并为后端配置了授权用户 `username`，密码：`134679werLQ@`。
+
+### 3.4 初始管理员用户与 Bcrypt 降级
+- **数据库迁移**：后端在虚拟环境下使用 `alembic upgrade head` 执行了全部迁移规则。
+- **Bcrypt 降级**：因为 Python 安全库 `passlib` 的 bcrypt 后端与新版的 `bcrypt 5.0.0+` 存在严重不兼容（引发 `ValueError: password cannot be longer than 72 bytes`），我们强制将服务器后端虚拟环境中的依赖降级锁死为了 **`bcrypt==4.0.1`**。
+- **管理员账号**：通过 `python scripts/init_db.py` 完成了初始化：
+  - 用户名：`admin`
+  - 密码：`AdminLumino@2026!Secret` （生产环境建议及时修改）
+
+### 3.5 Nginx 反向代理与多域名自适应
+- **配置文件**：`/etc/nginx/conf.d/lumino.conf`。
+- **域名匹配**：`server_name` 开启了强大的正则表达式模糊匹配：
+  ```nginx
+  server_name 114.55.55.110 ~^(www\\.)?lovestory1314\\..*$;
+  ```
+  该配置让服务器能够自动适配并解析所有以 `lovestory1314` 开头的任何后缀（如当前生效的 `.fun` 以及未来可能扩充的 `.com`、`.cn` 等），绑定 IP 即可直接使用。
+
+### 3.6 服务进程守护 (PM2)
+前端与后端服务均使用 PM2 在服务器后台守护：
+- **查看服务状态**：`pm2 status`
+- **重启所有服务**：`pm2 restart all`
+- **服务应用名**：`lumino-frontend`（监听 3000），`lumino-backend`（监听 8000）
+
