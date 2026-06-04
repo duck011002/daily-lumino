@@ -25,6 +25,7 @@ class UserResponse(UserBase):
     id: int
     is_root: bool
     is_active: bool
+    can_create_spaces: bool
     created_at: datetime
     updated_at: datetime
 

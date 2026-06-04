@@ -55,12 +55,16 @@ def update_user_status(user_id: int, status_in: UserStatusUpdate, db: Session = 
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在。")
-    if user.is_root:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="不能禁用超级管理员账号。"
-        )
+    if status_in.is_active is not None:
+        if user.is_root and not status_in.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="不能禁用超级管理员账号。"
+            )
+        user.is_active = status_in.is_active
 
-    user.is_active = status_in.is_active
+    if status_in.can_create_spaces is not None:
+        user.can_create_spaces = status_in.can_create_spaces
+
     db.commit()
     db.refresh(user)
     return user

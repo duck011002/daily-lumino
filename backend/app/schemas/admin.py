@@ -4,7 +4,9 @@ from pydantic import BaseModel, Field
 
 
 class UserStatusUpdate(BaseModel):
-    is_active: bool
+    is_active: bool | None = None
+    can_create_spaces: bool | None = None
+
 
 
 class SystemConfigResponse(BaseModel):

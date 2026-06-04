@@ -121,6 +121,11 @@ def create_space(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if not current_user.can_create_spaces and not current_user.is_root:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您没有创建私密空间的权限，请联系管理员。"
+        )
     space = Space(
         name=space_in.name,
         type=space_in.type,
