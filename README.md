@@ -147,3 +147,50 @@ npm run dev
 - **重启所有服务**：`pm2 restart all`
 - **服务应用名**：`lumino-frontend`（监听 3000），`lumino-backend`（监听 8000）
 
+### 3.7 每次开发更新与代码同步流程 (Git 一键发布)
+云服务器已经配置了针对私有仓库的 GitHub Deploy Key 只读授权，且服务器上的 Git 已经与云端 `master` 分支打通。以后在本地修改代码并发布到云服务器的规范流程如下：
+
+#### 步骤一：本地开发、提交并推送至 GitHub
+在本地工作区修改完代码后，在本地终端执行推送：
+```bash
+git add .
+git commit -m "更新日志：描述您的改动内容"
+git push origin master
+```
+
+#### 步骤二：登录云服务器拉取最新代码
+通过 SSH 登录云服务器，进入代码根目录并拉取：
+```bash
+cd /opt/lumino
+git pull
+```
+
+#### 步骤三：根据修改内容执行对应的更新操作
+根据您刚才修改了哪个部分，在服务器上选择性执行下述操作：
+
+1. **若仅仅修改了后端 Python 逻辑 (不含数据库表结构变动)**：
+   只需重启后端服务：
+   ```bash
+   pm2 restart lumino-backend
+   ```
+2. **若修改了后端数据库表结构 (新增了 Alembic 迁移脚本)**：
+   需要先在虚拟环境中升级数据库，然后重启后端：
+   ```bash
+   cd /opt/lumino/backend
+   source .venv/bin/activate
+   alembic upgrade head
+   pm2 restart lumino-backend
+   ```
+3. **若修改了前端组件或页面 (Next.js)**：
+   需要重新在服务器上进行打包构建（会自动使用 Swap 虚拟内存防止卡死），然后重启前端：
+   ```bash
+   cd /opt/lumino/frontend
+   npm run build
+   pm2 restart lumino-frontend
+   ```
+4. **若改动了全部或直接一键全部更新重启**：
+   ```bash
+   pm2 restart all
+   ```
+
+
