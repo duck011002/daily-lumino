@@ -7,7 +7,7 @@ from app.models.chat import ChatModelType, ChatRoleType
 
 class ChatSessionCreate(BaseModel):
     title: Optional[str] = Field(None, max_length=200)
-    model: ChatModelType = ChatModelType.QWEN
+    model: str = "qwen"
 
 
 class ChatSessionUpdate(BaseModel):
@@ -36,7 +36,7 @@ class ChatSessionResponse(BaseModel):
     id: int
     user_id: int
     title: str
-    model: ChatModelType
+    model: str
     created_at: datetime
     updated_at: datetime
 

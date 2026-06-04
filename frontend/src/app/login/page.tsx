@@ -111,7 +111,7 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="text-center mt-6">
+          <div className="text-center mt-6 space-y-3">
             <p className="text-sm text-onSurface/60 dark:text-foreground/60">
               还没有账户？{' '}
               <Link href="/register" passHref>
@@ -123,6 +123,16 @@ export default function Login() {
                 </span>
               </Link>
             </p>
+            <div className="pt-3 border-t border-secondary dark:border-darkBorder">
+              <Link href="/blog" passHref>
+                <span
+                  id="link-to-blog-visitor"
+                  className="text-sm text-primary hover:underline font-medium cursor-pointer inline-flex items-center gap-1 transition-colors"
+                >
+                  游客模式：以游客身份浏览公开博客 →
+                </span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

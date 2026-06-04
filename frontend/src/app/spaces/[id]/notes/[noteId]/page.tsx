@@ -291,9 +291,9 @@ export default function NoteEditorPage() {
         )}
 
         {/* Markdown Editor Wrapper */}
-        <div className="flex-1 min-h-[500px] flex flex-col rounded-2xl border border-secondary dark:border-darkBorder overflow-hidden bg-white dark:bg-darkCard shadow-sm" data-color-mode={isDark ? 'dark' : 'light'}>
+        <div className="h-[calc(100vh-220px)] flex flex-col rounded-2xl border border-secondary dark:border-darkBorder overflow-hidden bg-white dark:bg-darkCard shadow-sm" data-color-mode={isDark ? 'dark' : 'light'}>
           {isReadOnly ? (
-            <div className="p-8 overflow-y-auto max-h-[800px] prose dark:prose-invert max-w-none text-onSurface dark:text-foreground">
+            <div className="p-8 overflow-y-auto h-full prose dark:prose-invert max-w-none text-onSurface dark:text-foreground">
               {content ? (
                 <MDPreview source={content} />
               ) : (
@@ -305,9 +305,12 @@ export default function NoteEditorPage() {
               value={content}
               onChange={setContent}
               height="100%"
-              minHeight={500}
+              minHeight={400}
               preview="live"
               className="flex-1 bg-white dark:bg-darkCard text-onSurface dark:text-foreground border-none"
+              textareaProps={{
+                placeholder: '开始写点什么吧...'
+              }}
             />
           )}
         </div>

@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Guard routing
   useEffect(() => {
     if (!loading) {
-      const isPublic = PUBLIC_ROUTES.includes(pathname)
+      const isPublic = PUBLIC_ROUTES.includes(pathname) || pathname === '/blog' || pathname?.startsWith('/blog/')
       if (!user && !isPublic) {
         router.push('/login')
       }

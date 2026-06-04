@@ -17,21 +17,48 @@ def get_system_config(db: Session, key: str) -> str:
     return ""
 
 
-def get_llm_client_and_model(db: Session, model_type: ChatModelType):
-    if model_type == ChatModelType.QWEN:
+def get_llm_client_and_model(db: Session, model_id: str):
+    # Try to dynamically load provider from system config "ai_providers"
+    providers_json = get_system_config(db, "ai_providers")
+    if providers_json:
+        try:
+            providers = json.loads(providers_json)
+            for p in providers:
+                if p.get("id") == model_id:
+                    api_key = p.get("api_key")
+                    if api_key:
+                        try:
+                            api_key = decrypt_value(api_key)
+                        except Exception:
+                            # Fallback if stored plain
+                            pass
+                    base_url = p.get("base_url")
+                    model_name = p.get("model")
+                    
+                    if not api_key:
+                         raise ValueError(f"AI 服务商 {model_id} 的 API Key 未配置。")
+                         
+                    client = OpenAI(api_key=api_key, base_url=base_url or None)
+                    return client, model_name
+        except Exception as e:
+            print(f"解析 ai_providers 配置失败: {e}")
+
+    # Fallback to legacy static keys if not found dynamically
+    if model_id == "qwen":
         api_key_enc = get_system_config(db, "qwen_api_key")
         base_url = get_system_config(db, "qwen_base_url")
         api_key = decrypt_value(api_key_enc)
-        # The user has configured first key to map to "gpt-5.5" model (multimodal, OpenAI format)
         model_name = "gpt-5.5"
-    else:
+    elif model_id == "deepseek":
         api_key_enc = get_system_config(db, "deepseek_api_key")
         base_url = get_system_config(db, "deepseek_base_url")
         api_key = decrypt_value(api_key_enc)
         model_name = "deepseek-chat"
+    else:
+        raise ValueError(f"不支持的 AI 服务商或模型: {model_id}")
 
     if not api_key:
-        raise ValueError(f"API key for {model_type.value} is not configured.")
+        raise ValueError(f"服务商 {model_id} 的 API Key 未配置。")
 
     # Initialize openai client
     client = OpenAI(api_key=api_key, base_url=base_url or None)
@@ -42,9 +69,10 @@ def build_messages_payload(
     history: List[ChatMessage],
     current_content: str,
     current_attachments: List[str] | None,
-    model_type: ChatModelType,
+    model_id: str,
 ) -> List[Dict[str, Any]]:
     payload = []
+    is_qwen = model_id == "qwen" or "qwen" in model_id.lower()
 
     # Format previous messages in the session
     for msg in history:
@@ -63,7 +91,7 @@ def build_messages_payload(
             elif isinstance(msg.attachments, dict):
                 attachments_list = msg.attachments.get("image_urls") or msg.attachments.get("urls")
 
-        if attachments_list and model_type == ChatModelType.QWEN:
+        if attachments_list and is_qwen:
             # Multimodal payload for Qwen
             content_parts = [{"type": "text", "text": msg.content}]
             for url in attachments_list:
@@ -77,7 +105,7 @@ def build_messages_payload(
             payload.append({"role": role, "content": msg.content})
 
     # Format the current user message
-    if current_attachments and model_type == ChatModelType.QWEN:
+    if current_attachments and is_qwen:
         content_parts = [{"type": "text", "text": current_content}]
         for url in current_attachments:
             content_parts.append({"type": "image_url", "image_url": {"url": url}})

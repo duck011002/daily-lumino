@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   ShieldAlert, Settings, Users, Key, Database, BookOpen, Plus, Loader2,
   Trash2, Edit, ArrowLeft, Save, Globe, Eye, CheckCircle, AlertCircle,
-  Copy, Check, UserMinus, UserCheck, ShieldCheck, ToggleLeft, ToggleRight
+  Copy, Check, UserMinus, UserCheck, ShieldCheck, ToggleLeft, ToggleRight, Share2
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/hooks/useAuth'
@@ -75,6 +75,14 @@ interface InviteCode {
   created_at: string
 }
 
+interface AIProvider {
+  id: string
+  name: string
+  base_url: string
+  api_key: string
+  model: string
+}
+
 type TabType = 'blog' | 'users' | 'configs' | 'quota'
 
 export default function AdminConsole() {
@@ -119,8 +127,26 @@ export default function AdminConsole() {
   const [creatingInvite, setCreatingInvite] = useState(false)
   
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [copiedShareSlug, setCopiedShareSlug] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [aiProviders, setAiProviders] = useState<AIProvider[]>([])
+  const [editingProvider, setEditingProvider] = useState<AIProvider | null>(null)
+  const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
+  const [providerForm, setProviderForm] = useState<AIProvider>({ id: '', name: '', base_url: '', api_key: '', model: '' })
+  const [testingProviderId, setTestingProviderId] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<Record<string, { status: 'success' | 'error'; message: string }>>({})
+  const [fetchingModelsId, setFetchingModelsId] = useState<string | null>(null)
+  const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({})
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+
+  const handleCopyShareLink = (slug: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const shareUrl = `${origin}/blog/${slug}`
+    navigator.clipboard.writeText(shareUrl)
+    setCopiedShareSlug(slug)
+    showToast('success', '已复制分享链接！')
+    setTimeout(() => setCopiedShareSlug(null), 2000)
+  }
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message })
@@ -162,6 +188,20 @@ export default function AdminConsole() {
         vals[c.config_key] = c.config_val || ''
       })
       setConfigValues(vals)
+
+      const aiProvidersConfig = res.data.find((c: any) => c.config_key === 'ai_providers')
+      if (aiProvidersConfig && aiProvidersConfig.config_val) {
+        try {
+          const parsed = JSON.parse(aiProvidersConfig.config_val)
+          if (Array.isArray(parsed)) {
+            setAiProviders(parsed)
+          }
+        } catch (e) {
+          console.error('Failed to parse ai_providers', e)
+        }
+      } else {
+        setAiProviders([])
+      }
     } catch (err) {
       console.error('获取配置列表失败', err)
     } finally {
@@ -263,6 +303,90 @@ export default function AdminConsole() {
     }
   }
 
+  const handleSaveAIProviders = async (updatedProviders: AIProvider[]) => {
+    try {
+      const configVal = JSON.stringify(updatedProviders)
+      const res = await api.patch('/admin/configs/ai_providers', { config_val: configVal })
+      showToast('success', 'AI 服务商配置保存成功！')
+      
+      const savedProviders = JSON.parse(res.data.config_val || '[]')
+      setAiProviders(savedProviders)
+      setConfigs(prev => {
+        const existing = prev.find(c => c.config_key === 'ai_providers')
+        if (existing) {
+          return prev.map(c => c.config_key === 'ai_providers' ? { ...c, config_val: res.data.config_val } : c)
+        } else {
+          return [...prev, { id: res.data.id, config_key: 'ai_providers', config_val: res.data.config_val, description: res.data.description, updated_at: res.data.updated_at } as any]
+        }
+      })
+      setConfigValues(prev => ({ ...prev, ai_providers: res.data.config_val || '' }))
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '保存 AI 配置失败。')
+    }
+  }
+
+  const handleTestConnection = async (provider: AIProvider) => {
+    setTestingProviderId(provider.id)
+    setTestResult(prev => ({ ...prev, [provider.id]: undefined as any }))
+    try {
+      const res = await api.post('/admin/ai/test-connection', {
+        id: provider.id,
+        base_url: provider.base_url || null,
+        api_key: provider.api_key,
+        model: provider.model,
+      })
+      if (res.data.status === 'success') {
+        setTestResult(prev => ({ ...prev, [provider.id]: { status: 'success', message: res.data.message } }))
+      } else {
+        setTestResult(prev => ({ ...prev, [provider.id]: { status: 'error', message: res.data.message } }))
+      }
+    } catch (err: any) {
+      setTestResult(prev => ({
+        ...prev,
+        [provider.id]: { status: 'error', message: err.response?.data?.detail || '请求失败' }
+      }))
+    } finally {
+      setTestingProviderId(null)
+    }
+  }
+
+  const handleFetchModels = async (provider: AIProvider) => {
+    setFetchingModelsId(provider.id)
+    try {
+      const res = await api.post('/admin/ai/models', {
+        id: provider.id,
+        base_url: provider.base_url || null,
+        api_key: provider.api_key,
+      })
+      if (res.data.status === 'success' && Array.isArray(res.data.models)) {
+        setFetchedModels(prev => ({ ...prev, [provider.id]: res.data.models }))
+        showToast('success', `成功获取 ${res.data.models.length} 个模型！`)
+      }
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '获取模型列表失败，请检查配置。')
+    } finally {
+      setFetchingModelsId(null)
+    }
+  }
+
+  const handleAddOrEditProvider = (provider: AIProvider) => {
+    let updated: AIProvider[]
+    if (aiProviders.some(p => p.id === provider.id)) {
+      updated = aiProviders.map(p => p.id === provider.id ? provider : p)
+    } else {
+      updated = [...aiProviders, provider]
+    }
+    handleSaveAIProviders(updated)
+    setIsProviderModalOpen(false)
+    setEditingProvider(null)
+  }
+
+  const handleDeleteProvider = (id: string) => {
+    if (!confirm('确定要删除该 AI 服务商配置吗？')) return
+    const updated = aiProviders.filter(p => p.id !== id)
+    handleSaveAIProviders(updated)
+  }
+
   // Quota tab actions
   const handleUpdateQuota = async () => {
     const size = parseFloat(quotaInput)
@@ -300,12 +424,21 @@ export default function AdminConsole() {
     setTimeout(() => setCopiedCode(null), 2000)
   }
 
+  const handleCopyInviteCode = (code: string) => {
+    const inviterName = user?.display_name || user?.username || '我'
+    const registerUrl = typeof window !== 'undefined' ? `${window.location.origin}/register` : ''
+    const textToCopy = `${inviterName}邀请你注册加入他的私人庄园，注册地址 “${registerUrl}” 邀请码为：${code}`
+    navigator.clipboard.writeText(textToCopy)
+    setCopiedCode(code)
+    setTimeout(() => setCopiedCode(null), 2000)
+  }
+
   // Blog Tab Actions
   const handleOpenCreate = () => {
     setEditingPostId(null)
     setFormTitle('')
     setFormSlug('')
-    setFormContent('# 新文章\n\n开始书写你的故事吧...')
+    setFormContent('# 新文章\n\n')
     setFormCoverUrl('')
     setFormExcerpt('')
     setFormTags('')
@@ -449,7 +582,7 @@ export default function AdminConsole() {
 
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Navigation Sidebar */}
-          <div className="w-full lg:w-64 flex-shrink-0 flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible pb-3 lg:pb-0 gap-2 lg:gap-1.5 border-b border-secondary/40 lg:border-b-0 dark:border-darkBorder/40 scrollbar-none">
+          <div className="w-full lg:w-64 flex-shrink-0 flex flex-row lg:flex-col lg:sticky lg:top-24 lg:h-fit overflow-x-auto lg:overflow-x-visible pb-3 lg:pb-0 gap-2 lg:gap-1.5 border-b border-secondary/40 lg:border-b-0 dark:border-darkBorder/40 scrollbar-none">
             <button
               onClick={() => {
                 setActiveTab('blog')
@@ -597,6 +730,15 @@ export default function AdminConsole() {
                                 </td>
                                 <td className="px-5 py-4">
                                   <div className="flex items-center justify-center space-x-2">
+                                    {post.is_published && post.is_public && (
+                                      <button
+                                        onClick={() => handleCopyShareLink(post.slug)}
+                                        className="p-1.5 bg-secondary/50 dark:bg-darkBorder hover:bg-indigo-500/10 hover:text-indigo-500 text-onSurface/75 dark:text-foreground/75 rounded-lg transition-colors"
+                                        title="复制分享链接"
+                                      >
+                                        {copiedShareSlug === post.slug ? <Check size={14} className="text-emerald-500" /> : <Share2 size={14} />}
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => handleOpenEdit(post)}
                                       className="p-1.5 bg-secondary/50 dark:bg-darkBorder hover:bg-primary/10 hover:text-primary text-onSurface/75 dark:text-foreground/75 rounded-lg transition-colors"
@@ -724,7 +866,7 @@ export default function AdminConsole() {
 
                     <div className="space-y-1.5">
                       <label className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">正文内容 *</label>
-                      <div className="min-h-[500px] flex flex-col rounded-2xl border border-secondary dark:border-darkBorder overflow-hidden bg-white dark:bg-darkCard shadow-sm" data-color-mode={isDark ? 'dark' : 'light'}>
+                      <div className="h-[600px] flex flex-col rounded-2xl border border-secondary dark:border-darkBorder overflow-hidden bg-white dark:bg-darkCard shadow-sm" data-color-mode={isDark ? 'dark' : 'light'}>
                         <MDEditor
                           value={formContent}
                           onChange={setFormContent}
@@ -732,6 +874,9 @@ export default function AdminConsole() {
                           minHeight={500}
                           preview="live"
                           className="flex-1 bg-white dark:bg-darkCard text-onSurface dark:text-foreground border-none"
+                          textareaProps={{
+                            placeholder: '开始写点什么吧...'
+                          }}
                         />
                       </div>
                     </div>
@@ -850,82 +995,367 @@ export default function AdminConsole() {
             {/* =========== TAB 3: CONFIGS ============ */}
             {/* ======================================= */}
             {activeTab === 'configs' && (
-              <div className="space-y-6 animate-fade-in">
-                <div className="pb-3 border-b border-secondary dark:border-darkBorder">
-                  <h2 className="text-xl font-bold text-onSurface dark:text-foreground">全局系统设置</h2>
-                  <p className="text-xs text-onSurface/55 dark:text-foreground/55 mt-1">
-                    系统服务与第三方 API 密钥中心。带有脱敏星号保护的密钥如果不需要修改，请勿填入新值保存。
-                  </p>
+              <div className="space-y-10 animate-fade-in">
+                {/* General Configs Area */}
+                <div className="space-y-6">
+                  <div className="pb-3 border-b border-secondary dark:border-darkBorder flex items-center justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold text-onSurface dark:text-foreground">常规系统配置</h2>
+                      <p className="text-xs text-onSurface/55 dark:text-foreground/55 mt-1">
+                        系统基础服务及第三方图床等密钥配置。带有脱敏星号保护的密钥如果不需要修改，请勿填入新值保存。
+                      </p>
+                    </div>
+                  </div>
+
+                  {loadingConfigs ? (
+                    <div className="py-10 flex justify-center">
+                      <Loader2 className="animate-spin text-primary h-8 w-8" />
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-6">
+                      {configs
+                        .filter(
+                          (c) =>
+                            c.config_key !== 'ai_providers' &&
+                            !c.config_key.startsWith('qwen_') &&
+                            !c.config_key.startsWith('deepseek_')
+                        )
+                        .map((config) => {
+                          const isSensitive = ['lsky_api_token'].includes(config.config_key)
+                          const isVisible = visibleKeys[config.config_key] || false
+
+                          return (
+                            <div
+                              key={config.id}
+                              className="p-6 rounded-2xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm hover:shadow-md transition-shadow"
+                            >
+                              <div className="space-y-1 flex-1">
+                                <h4 className="font-bold text-sm text-onSurface dark:text-foreground uppercase tracking-wide">
+                                  {config.config_key}
+                                </h4>
+                                <p className="text-xs text-onSurface/60 dark:text-foreground/60 leading-relaxed">
+                                  {config.description || '暂无详细描述...'}
+                                </p>
+
+                                {/* Input Form field Area */}
+                                <div className="pt-2 flex items-center space-x-2 max-w-xl">
+                                  <input
+                                    type={isSensitive && !isVisible ? 'password' : 'text'}
+                                    value={configValues[config.config_key] || ''}
+                                    onChange={(e) =>
+                                      setConfigValues((prev) => ({
+                                        ...prev,
+                                        [config.config_key]: e.target.value,
+                                      }))
+                                    }
+                                    placeholder="请输入配置内容值"
+                                    className="flex-1 rounded-xl border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg px-3 py-2 text-xs font-mono text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                  />
+                                  {isSensitive && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setVisibleKeys((prev) => ({
+                                          ...prev,
+                                          [config.config_key]: !isVisible,
+                                        }))
+                                      }
+                                      className="px-2.5 py-2 text-xs rounded-xl bg-secondary/60 hover:bg-secondary dark:bg-darkBorder/60 dark:hover:bg-darkBorder text-onSurface/70 dark:text-foreground/80 transition-colors"
+                                    >
+                                      {isVisible ? '隐藏' : '明文'}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="shrink-0 flex items-center md:pt-4">
+                                <Button
+                                  onClick={() => handleSaveConfig(config.config_key)}
+                                  disabled={configValues[config.config_key] === config.config_val}
+                                  size="sm"
+                                  className="shadow-sm"
+                                >
+                                  <Save size={14} className="mr-1" />
+                                  更新配置
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
                 </div>
 
-                {loadingConfigs ? (
-                  <div className="py-20 flex justify-center">
-                    <Loader2 className="animate-spin text-primary h-8 w-8" />
+                {/* AI Config Area */}
+                <div className="space-y-6 pt-4">
+                  <div className="pb-3 border-b border-secondary dark:border-darkBorder flex items-center justify-between">
+                    <div>
+                      <h2 className="text-xl font-bold text-onSurface dark:text-foreground">AI 服务商与 API 管理</h2>
+                      <p className="text-xs text-onSurface/55 dark:text-foreground/55 mt-1">
+                        像 Chatbox 一样管理您的 AI 大模型服务商。在此处添加、修改或删除自定义 AI API 提供商。
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setProviderForm({ id: '', name: '', base_url: '', api_key: '', model: '' })
+                        setEditingProvider(null)
+                        setIsProviderModalOpen(true)
+                      }}
+                      size="sm"
+                    >
+                      <Plus size={14} className="mr-1" /> 添加服务商
+                    </Button>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-6">
-                    {configs.map((config) => {
-                      const isSensitive = ['qwen_api_key', 'deepseek_api_key', 'lsky_api_token'].includes(config.config_key)
-                      const isVisible = visibleKeys[config.config_key] || false
-                      
-                      return (
-                        <div
-                          key={config.id}
-                          className="p-6 rounded-2xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm hover:shadow-md transition-shadow"
-                        >
-                          <div className="space-y-1 flex-1">
-                            <h4 className="font-bold text-sm text-onSurface dark:text-foreground uppercase tracking-wide">
-                              {config.config_key}
-                            </h4>
-                            <p className="text-xs text-onSurface/60 dark:text-foreground/60 leading-relaxed">
-                              {config.description || '暂无详细描述...'}
-                            </p>
-                            
-                            {/* Input Form field Area */}
-                            <div className="pt-2 flex items-center space-x-2 max-w-xl">
-                              <input
-                                type={isSensitive && !isVisible ? 'password' : 'text'}
-                                value={configValues[config.config_key] || ''}
-                                onChange={(e) =>
-                                  setConfigValues((prev) => ({
-                                    ...prev,
-                                    [config.config_key]: e.target.value,
-                                  }))
-                                }
-                                placeholder="请输入配置内容值"
-                                className="flex-1 rounded-xl border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg px-3 py-2 text-xs font-mono text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                              />
-                              {isSensitive && (
+
+                  {loadingConfigs ? (
+                    <div className="py-10 flex justify-center">
+                      <Loader2 className="animate-spin text-primary h-8 w-8" />
+                    </div>
+                  ) : aiProviders.length === 0 ? (
+                    <div className="text-center py-12 border border-dashed border-secondary dark:border-darkBorder rounded-2xl bg-white dark:bg-darkCard">
+                      <Settings className="mx-auto h-12 w-12 text-onSurface/30 dark:text-foreground/30 animate-pulse" />
+                      <h3 className="mt-4 text-sm font-bold text-onSurface dark:text-foreground">暂无配置自定义 AI 服务商</h3>
+                      <p className="mt-1 text-xs text-onSurface/65 dark:text-foreground/65">
+                        点击右上角“添加服务商”按钮开始配置大模型。
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {aiProviders.map((provider) => {
+                        const tr = testResult[provider.id]
+                        const isTesting = testingProviderId === provider.id
+                        const isFetching = fetchingModelsId === provider.id
+                        const models = fetchedModels[provider.id] || []
+
+                        return (
+                          <div
+                            key={provider.id}
+                            className="p-6 rounded-3xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard flex flex-col justify-between gap-4 shadow-sm hover:shadow-md transition-all duration-300 relative group overflow-hidden"
+                          >
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-start">
+                                <div className="space-y-0.5">
+                                  <h4 className="font-bold text-base text-onSurface dark:text-foreground flex items-center gap-2">
+                                    {provider.name}
+                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary/10 text-primary uppercase">
+                                      {provider.id}
+                                    </span>
+                                  </h4>
+                                  <p className="text-[11px] font-mono text-onSurface/50 dark:text-foreground/50 truncate max-w-[280px]">
+                                    {provider.base_url || 'https://api.openai.com/v1 (默认)'}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => {
+                                      setProviderForm({ ...provider })
+                                      setEditingProvider(provider)
+                                      setIsProviderModalOpen(true)
+                                    }}
+                                    className="p-1.5 bg-secondary/50 dark:bg-darkBorder hover:bg-primary/10 hover:text-primary text-onSurface/75 dark:text-foreground/75 rounded-lg transition-colors"
+                                    title="修改服务商"
+                                  >
+                                    <Edit size={12} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProvider(provider.id)}
+                                    className="p-1.5 bg-red-50 dark:bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 rounded-lg transition-colors"
+                                    title="删除服务商"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2 text-xs">
+                                <div className="flex justify-between items-center text-onSurface/70 dark:text-foreground/70 border-b border-secondary/40 dark:border-darkBorder/40 pb-1.5">
+                                  <span>API Key:</span>
+                                  <span className="font-mono text-onSurface dark:text-foreground">
+                                    {provider.api_key ? (provider.api_key.includes('****') ? provider.api_key : '已加密保护') : '未设置'}
+                                  </span>
+                                </div>
+
+                                <div className="flex justify-between items-center text-onSurface/70 dark:text-foreground/70">
+                                  <span>当前模型:</span>
+                                  {models.length > 0 ? (
+                                    <select
+                                      value={provider.model}
+                                      onChange={(e) => {
+                                        const updated = aiProviders.map(p =>
+                                          p.id === provider.id ? { ...p, model: e.target.value } : p
+                                        )
+                                        handleSaveAIProviders(updated)
+                                      }}
+                                      className="rounded bg-surface dark:bg-darkBg border border-secondary dark:border-darkBorder text-xs text-onSurface dark:text-foreground py-0.5 px-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                                    >
+                                      {!models.includes(provider.model) && (
+                                        <option value={provider.model}>{provider.model}</option>
+                                      )}
+                                      {models.map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <span className="font-semibold text-primary">{provider.model || '未选择'}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-secondary/40 dark:border-darkBorder/40 flex flex-col gap-2">
+                              <div className="flex gap-2 w-full">
                                 <button
-                                  type="button"
-                                  onClick={() =>
-                                    setVisibleKeys((prev) => ({
-                                      ...prev,
-                                      [config.config_key]: !isVisible,
-                                    }))
-                                  }
-                                  className="px-2.5 py-2 text-xs rounded-xl bg-secondary/60 hover:bg-secondary dark:bg-darkBorder/60 dark:hover:bg-darkBorder text-onSurface/70 dark:text-foreground/80 transition-colors"
+                                  onClick={() => handleTestConnection(provider)}
+                                  disabled={isTesting}
+                                  className="flex-1 py-1.5 text-xs font-semibold rounded-xl bg-secondary/50 dark:bg-darkBorder hover:bg-primary/10 hover:text-primary transition-colors text-onSurface/80 dark:text-foreground/80 flex items-center justify-center gap-1"
                                 >
-                                  {isVisible ? '隐藏' : '明文'}
+                                  {isTesting && <Loader2 size={12} className="animate-spin" />}
+                                  <span>测试连接</span>
                                 </button>
+                                <button
+                                  onClick={() => handleFetchModels(provider)}
+                                  disabled={isFetching}
+                                  className="flex-1 py-1.5 text-xs font-semibold rounded-xl bg-secondary/50 dark:bg-darkBorder hover:bg-primary/10 hover:text-primary transition-colors text-onSurface/80 dark:text-foreground/80 flex items-center justify-center gap-1"
+                                >
+                                  {isFetching && <Loader2 size={12} className="animate-spin" />}
+                                  <span>获取模型列表</span>
+                                </button>
+                              </div>
+
+                              {tr && (
+                                <div
+                                  className={`p-2 rounded-xl border text-[11px] leading-snug animate-fade-in ${
+                                    tr.status === 'success'
+                                      ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400'
+                                      : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
+                                  }`}
+                                >
+                                  {tr.message}
+                                </div>
                               )}
                             </div>
                           </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
 
-                          <div className="shrink-0 flex items-center md:pt-4">
-                            <Button
-                              onClick={() => handleSaveConfig(config.config_key)}
-                              disabled={configValues[config.config_key] === config.config_val}
-                              size="sm"
-                              className="shadow-sm"
-                            >
-                              <Save size={14} className="mr-1" />
-                              更新配置
-                            </Button>
-                          </div>
+                {/* AI Provider Edit Modal */}
+                {isProviderModalOpen && (
+                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-darkCard w-full max-w-md rounded-3xl border border-secondary dark:border-darkBorder shadow-2xl p-6 space-y-6 animate-zoom-in">
+                      <div className="flex justify-between items-center border-b border-secondary/40 dark:border-darkBorder/40 pb-3">
+                        <h3 className="text-lg font-bold text-onSurface dark:text-foreground">
+                          {editingProvider ? '编辑 AI 服务商' : '添加 AI 服务商'}
+                        </h3>
+                        <button
+                          onClick={() => {
+                            setIsProviderModalOpen(false)
+                            setEditingProvider(null)
+                          }}
+                          className="text-onSurface/40 hover:text-primary transition-colors font-bold text-sm"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="space-y-4 text-xs">
+                        <div className="space-y-1">
+                          <label className="block font-semibold text-onSurface/70 dark:text-foreground/70">
+                            服务商标识 (ID / 仅限小写英文字母) *
+                          </label>
+                          <input
+                            type="text"
+                            value={providerForm.id}
+                            onChange={(e) => setProviderForm(prev => ({ ...prev, id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))}
+                            disabled={!!editingProvider}
+                            placeholder="例如: openai, deepseek, qwen"
+                            className="w-full px-3 py-2 rounded-xl border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 font-mono"
+                            required
+                          />
                         </div>
-                      )
-                    })}
+
+                        <div className="space-y-1">
+                          <label className="block font-semibold text-onSurface/70 dark:text-foreground/70">
+                            服务商显示名称 *
+                          </label>
+                          <input
+                            type="text"
+                            value={providerForm.name}
+                            onChange={(e) => setProviderForm(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="例如: OpenAI 官方"
+                            className="w-full px-3 py-2 rounded-xl border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block font-semibold text-onSurface/70 dark:text-foreground/70">
+                            API 基础地址 (Base URL / 留空则使用默认)
+                          </label>
+                          <input
+                            type="text"
+                            value={providerForm.base_url}
+                            onChange={(e) => setProviderForm(prev => ({ ...prev, base_url: e.target.value }))}
+                            placeholder="例如: https://api.deepseek.com"
+                            className="w-full px-3 py-2 rounded-xl border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block font-semibold text-onSurface/70 dark:text-foreground/70">
+                            API Key * {editingProvider && "(填入以覆盖旧值，星号占位表示不修改)"}
+                          </label>
+                          <input
+                            type="password"
+                            value={providerForm.api_key}
+                            onChange={(e) => setProviderForm(prev => ({ ...prev, api_key: e.target.value }))}
+                            placeholder="请输入 API 密钥"
+                            className="w-full px-3 py-2 rounded-xl border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block font-semibold text-onSurface/70 dark:text-foreground/70">
+                            默认模型 (如不知道可稍后通过列表获取)
+                          </label>
+                          <input
+                            type="text"
+                            value={providerForm.model}
+                            onChange={(e) => setProviderForm(prev => ({ ...prev, model: e.target.value }))}
+                            placeholder="例如: gpt-4o, deepseek-chat"
+                            className="w-full px-3 py-2 rounded-xl border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-2">
+                        <Button
+                          onClick={() => {
+                            setIsProviderModalOpen(false)
+                            setEditingProvider(null)
+                          }}
+                          variant="ghost"
+                          size="sm"
+                        >
+                          取消
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            if (!providerForm.id || !providerForm.name || !providerForm.api_key) {
+                              alert('标识、名称和 API Key 不能为空！')
+                              return
+                            }
+                            handleAddOrEditProvider(providerForm)
+                          }}
+                          size="sm"
+                        >
+                          保存服务商
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1046,9 +1476,9 @@ export default function AdminConsole() {
                                 <td className="px-5 py-3 font-mono text-xs text-primary font-bold flex items-center">
                                   <span>{codeObj.code.slice(0, 8)}...{codeObj.code.slice(-4)}</span>
                                   <button
-                                    onClick={() => copyToClipboard(codeObj.code)}
+                                    onClick={() => handleCopyInviteCode(codeObj.code)}
                                     className="ml-2 text-onSurface/40 hover:text-primary transition-colors"
-                                    title="复制完整激活码"
+                                    title="复制邀请激活文本"
                                   >
                                     {copiedCode === codeObj.code ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                                   </button>

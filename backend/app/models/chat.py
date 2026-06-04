@@ -27,8 +27,8 @@ class ChatSession(Base):
         BIGINT_FK, ForeignKey("users.id"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(200), default="新对话", nullable=False)
-    model: Mapped[ChatModelType] = mapped_column(
-        Enum(ChatModelType), default=ChatModelType.QWEN, nullable=False
+    model: Mapped[str] = mapped_column(
+        String(100), default="qwen", nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

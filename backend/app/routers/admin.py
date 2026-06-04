@@ -1,5 +1,7 @@
 import secrets
+import json
 from datetime import UTC, datetime, timedelta
+from openai import OpenAI
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -19,6 +21,8 @@ from app.schemas.admin import (
     SystemConfigResponse,
     SystemConfigUpdate,
     UserStatusUpdate,
+    AITestConnectionRequest,
+    AIGetModelsRequest,
 )
 from app.schemas.user import UserResponse
 from app.utils.crypto import decrypt_value, encrypt_value
@@ -73,6 +77,19 @@ def list_configs(db: Session = Depends(get_db)):
         if conf.config_key in SENSITIVE_CONFIG_KEYS and val:
             decrypted = decrypt_value(val)
             val = mask_secret(decrypted)
+        elif conf.config_key == "ai_providers" and val:
+            try:
+                providers = json.loads(val)
+                for p in providers:
+                    if "api_key" in p and p["api_key"]:
+                        try:
+                            decrypted = decrypt_value(p["api_key"])
+                            p["api_key"] = mask_secret(decrypted)
+                        except Exception:
+                            p["api_key"] = mask_secret(p["api_key"])
+                val = json.dumps(providers, ensure_ascii=False)
+            except Exception:
+                pass
 
         response_configs.append(
             SystemConfigResponse(
@@ -94,12 +111,37 @@ def update_config(
     db: Session = Depends(get_db),
 ):
     config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == key))
+    is_new = False
     if not config:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="配置项不存在。")
+        config = SystemConfig(config_key=key, description=f"Dynamic configuration for {key}")
+        db.add(config)
+        is_new = True
 
     val_to_save = config_in.config_val
     if key in SENSITIVE_CONFIG_KEYS and val_to_save:
         val_to_save = encrypt_value(val_to_save)
+    elif key == "ai_providers" and val_to_save:
+        try:
+            new_providers = json.loads(val_to_save)
+            existing_map = {}
+            if not is_new and config.config_val:
+                try:
+                    old_providers = json.loads(config.config_val)
+                    existing_map = {op["id"]: op.get("api_key") for op in old_providers if "id" in op}
+                except Exception:
+                    pass
+            
+            for np in new_providers:
+                pid = np.get("id")
+                new_key = np.get("api_key")
+                if new_key:
+                    if "****" in new_key:
+                        np["api_key"] = existing_map.get(pid, "")
+                    else:
+                        np["api_key"] = encrypt_value(new_key)
+            val_to_save = json.dumps(new_providers, ensure_ascii=False)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"解析或处理 ai_providers 失败: {str(e)}")
 
     config.config_val = val_to_save
     config.updated_by = current_user.id
@@ -110,6 +152,19 @@ def update_config(
     return_val = config_in.config_val
     if key in SENSITIVE_CONFIG_KEYS and return_val:
         return_val = mask_secret(return_val)
+    elif key == "ai_providers" and return_val:
+        try:
+            saved_providers = json.loads(config.config_val)
+            for sp in saved_providers:
+                if "api_key" in sp and sp["api_key"]:
+                    try:
+                        decrypted = decrypt_value(sp["api_key"])
+                        sp["api_key"] = mask_secret(decrypted)
+                    except Exception:
+                        sp["api_key"] = mask_secret(sp["api_key"])
+            return_val = json.dumps(saved_providers, ensure_ascii=False)
+        except Exception:
+            pass
 
     return SystemConfigResponse(
         id=config.id,
@@ -175,3 +230,56 @@ def update_storage_quota(quota_in: StorageQuotaUpdate, db: Session = Depends(get
     db.commit()
     db.refresh(quota)
     return quota
+
+
+def resolve_api_key(db: Session, provider_id: str | None, api_key: str) -> str:
+    if not api_key:
+        return ""
+    if "****" in api_key:
+        if not provider_id:
+            raise HTTPException(status_code=400, detail="检测到 API Key 已脱敏，但未提供服务商 ID 无法恢复。")
+        cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
+        if not cfg or not cfg.config_val:
+            raise HTTPException(status_code=400, detail="未配置任何 AI 服务商。")
+        try:
+            providers = json.loads(cfg.config_val)
+            for p in providers:
+                if p.get("id") == provider_id:
+                    enc_key = p.get("api_key")
+                    if enc_key:
+                        return decrypt_value(enc_key)
+            raise HTTPException(status_code=400, detail=f"未找到 ID 为 {provider_id} 的服务商。")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"解密 API Key 失败: {str(e)}")
+    return api_key
+
+
+@router.post("/ai/test-connection")
+def test_connection(req: AITestConnectionRequest, db: Session = Depends(get_db)):
+    try:
+        api_key = resolve_api_key(db, req.id, req.api_key)
+        client = OpenAI(api_key=api_key, base_url=req.base_url or None)
+        # Test connection with a very simple completion request
+        client.chat.completions.create(
+            model=req.model,
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=1,
+        )
+        return {"status": "success", "message": "连接测试成功！"}
+    except Exception as e:
+        return {"status": "error", "message": f"连接测试失败: {str(e)}"}
+
+
+@router.post("/ai/models")
+def get_models(req: AIGetModelsRequest, db: Session = Depends(get_db)):
+    try:
+        api_key = resolve_api_key(db, req.id, req.api_key)
+        client = OpenAI(api_key=api_key, base_url=req.base_url or None)
+        models_data = client.models.list()
+        model_ids = [m.id for m in models_data.data]
+        return {"status": "success", "models": model_ids}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"获取模型列表失败: {str(e)}")
+

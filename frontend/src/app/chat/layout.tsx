@@ -12,8 +12,14 @@ import ThemeToggle from '@/components/layout/ThemeToggle'
 interface Session {
   id: number
   title: string
-  model: 'qwen' | 'deepseek'
+  model: string
   updated_at: string
+}
+
+interface ChatModel {
+  id: string
+  name: string
+  model: string
 }
 
 interface ChatContextType {
@@ -31,6 +37,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [showModelSelect, setShowModelSelect] = useState(false)
+  const [availableModels, setAvailableModels] = useState<ChatModel[]>([])
 
   const { user } = useAuth()
   const router = useRouter()
@@ -52,18 +59,32 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     }
   };
 
+  const fetchAvailableModels = async () => {
+    try {
+      const res = await api.get('/chat/models')
+      setAvailableModels(res.data)
+    } catch (err) {
+      console.error('Failed to fetch available models:', err)
+      setAvailableModels([
+        { id: 'qwen', name: 'Qwen (通义千问)', model: 'gpt-5.5' },
+        { id: 'deepseek', name: 'DeepSeek', model: 'deepseek-chat' }
+      ])
+    }
+  }
+
   useEffect(() => {
     fetchSessions()
+    fetchAvailableModels()
   }, [])
 
-  const handleCreateSession = async (model: 'qwen' | 'deepseek') => {
+  const handleCreateSession = async (modelId: string, modelName: string) => {
     setCreating(true)
     setShowModelSelect(false)
     try {
-      const title = model === 'qwen' ? 'Qwen 智能对话' : 'DeepSeek 对话'
+      const title = `${modelName} 对话`
       const response = await api.post('/chat/sessions', {
         title,
-        model,
+        model: modelId,
       })
       const newSession = response.data
       setSessions((prev) => [newSession, ...prev])
@@ -151,21 +172,19 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
 
               {/* Model Select Dropdown */}
               {showModelSelect && (
-                <div className="absolute top-full left-0 right-0 mt-2 p-2 rounded-xl bg-white dark:bg-darkCard border border-secondary dark:border-darkBorder shadow-xl z-20 space-y-1 animate-fade-in">
-                  <button
-                    onClick={() => handleCreateSession('qwen')}
-                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10 transition-colors flex flex-col"
-                  >
-                    <span className="font-semibold text-onSurface dark:text-foreground">Qwen (通义千问)</span>
-                    <span className="text-xs text-onSurface/60 dark:text-foreground/60">支持图片 + 文本输入 (gpt-5.5)</span>
-                  </button>
-                  <button
-                    onClick={() => handleCreateSession('deepseek')}
-                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10 transition-colors flex flex-col"
-                  >
-                    <span className="font-semibold text-onSurface dark:text-foreground">DeepSeek</span>
-                    <span className="text-xs text-onSurface/60 dark:text-foreground/60">智能逻辑推理 (仅限文本)</span>
-                  </button>
+                <div className="absolute top-full left-0 right-0 mt-2 p-2 rounded-xl bg-white dark:bg-darkCard border border-secondary dark:border-darkBorder shadow-xl z-20 space-y-1 animate-fade-in max-h-60 overflow-y-auto">
+                  {availableModels.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => handleCreateSession(m.id, m.name)}
+                      className="w-full text-left px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10 transition-colors flex flex-col"
+                    >
+                      <span className="font-semibold text-onSurface dark:text-foreground">{m.name}</span>
+                      <span className="text-xs text-onSurface/65 dark:text-foreground/65">
+                        {m.model || m.id} {m.id.toLowerCase().includes('qwen') ? '(支持图片输入)' : '(仅限文本)'}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -213,7 +232,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
                         <div className="truncate text-sm flex-1">
                           {s.title}
                           <span className="block text-[10px] text-onSurface/50 dark:text-foreground/50 font-normal">
-                            {s.model === 'qwen' ? 'Qwen' : 'DeepSeek'}
+                            {availableModels.find((m) => m.id === s.model)?.name || s.model}
                           </span>
                         </div>
                       )}

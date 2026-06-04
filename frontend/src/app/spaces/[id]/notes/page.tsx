@@ -67,7 +67,7 @@ export default function SpaceNotesPage() {
     try {
       const res = await api.post(`/spaces/${spaceId}/notes`, {
         title: createTitle,
-        content: '# ' + createTitle + '\n\n开始写点什么吧...',
+        content: '# ' + createTitle + '\n\n',
       })
       // Redirect straight to the editor page of the newly created note
       router.push(`/spaces/${spaceId}/notes/${res.data.id}`)

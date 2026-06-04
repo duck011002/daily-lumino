@@ -19,8 +19,13 @@ api.interceptors.response.use(
           return api.request(originalRequest)
         } catch (refreshErr) {
           if (typeof window !== 'undefined') {
-            const publicRoutes = ['/', '/login', '/register']
-            if (!publicRoutes.includes(window.location.pathname)) {
+            const isPublicRoute = (path: string) => {
+              const publicRoutes = ['/', '/login', '/register']
+              if (publicRoutes.includes(path)) return true
+              if (path === '/blog' || path.startsWith('/blog/')) return true
+              return false
+            }
+            if (!isPublicRoute(window.location.pathname)) {
               window.location.href = '/login'
             }
           }

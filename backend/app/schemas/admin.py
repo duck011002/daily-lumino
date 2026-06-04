@@ -51,3 +51,17 @@ class InviteCodeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AITestConnectionRequest(BaseModel):
+    id: str | None = None
+    base_url: str | None = None
+    api_key: str
+    model: str
+
+
+class AIGetModelsRequest(BaseModel):
+    id: str | None = None
+    base_url: str | None = None
+    api_key: str
+

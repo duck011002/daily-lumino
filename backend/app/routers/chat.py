@@ -150,9 +150,10 @@ def send_message(
             status_code=status.HTTP_404_NOT_FOUND, detail="未找到会话或您没有访问权限。"
         )
 
-    if session.model == ChatModelType.DEEPSEEK and message_in.attachments:
+    is_multimodal = "qwen" in session.model.lower()
+    if message_in.attachments and not is_multimodal:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="DeepSeek 模型只支持文本输入，不支持图片。"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="该模型当前配置仅支持文本输入，不支持图片附件。"
         )
 
     # Save the user's message
@@ -227,3 +228,29 @@ def send_message(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/models")
+def list_available_models(db: Session = Depends(get_db)):
+    from app.models.system_config import SystemConfig
+    cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
+    providers = []
+    if cfg and cfg.config_val:
+        try:
+            data = json.loads(cfg.config_val)
+            for p in data:
+                providers.append({
+                    "id": p.get("id"),
+                    "name": p.get("name"),
+                    "model": p.get("model")
+                })
+        except Exception:
+            pass
+    
+    if not providers:
+        providers = [
+            {"id": "qwen", "name": "Qwen (通义千问)", "model": "gpt-5.5"},
+            {"id": "deepseek", "name": "DeepSeek", "model": "deepseek-chat"}
+        ]
+    return providers
+
