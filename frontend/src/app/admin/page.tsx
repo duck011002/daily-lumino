@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/useTheme'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import { copyText } from '@/lib/utils'
 
 // Dynamic import of markdown editor to prevent hydration errors during SSR
 const MDEditor = dynamic(
@@ -139,13 +140,17 @@ export default function AdminConsole() {
   const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({})
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  const handleCopyShareLink = (slug: string) => {
+  const handleCopyShareLink = async (slug: string) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     const shareUrl = `${origin}/blog/${slug}`
-    navigator.clipboard.writeText(shareUrl)
-    setCopiedShareSlug(slug)
-    showToast('success', '已复制分享链接！')
-    setTimeout(() => setCopiedShareSlug(null), 2000)
+    const success = await copyText(shareUrl)
+    if (success) {
+      setCopiedShareSlug(slug)
+      showToast('success', '已复制分享链接！')
+      setTimeout(() => setCopiedShareSlug(null), 2000)
+    } else {
+      showToast('error', '复制失败，请手动复制。')
+    }
   }
 
   const showToast = (type: 'success' | 'error', message: string) => {
@@ -418,19 +423,27 @@ export default function AdminConsole() {
     }
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedCode(text)
-    setTimeout(() => setCopiedCode(null), 2000)
+  const copyToClipboard = async (text: string) => {
+    const success = await copyText(text)
+    if (success) {
+      setCopiedCode(text)
+      setTimeout(() => setCopiedCode(null), 2000)
+    } else {
+      showToast('error', '复制失败，请手动复制。')
+    }
   }
 
-  const handleCopyInviteCode = (code: string) => {
+  const handleCopyInviteCode = async (code: string) => {
     const inviterName = user?.display_name || user?.username || '我'
     const registerUrl = typeof window !== 'undefined' ? `${window.location.origin}/register` : ''
     const textToCopy = `${inviterName}邀请你注册加入他的私人庄园，注册地址 “${registerUrl}” 邀请码为：${code}`
-    navigator.clipboard.writeText(textToCopy)
-    setCopiedCode(code)
-    setTimeout(() => setCopiedCode(null), 2000)
+    const success = await copyText(textToCopy)
+    if (success) {
+      setCopiedCode(code)
+      setTimeout(() => setCopiedCode(null), 2000)
+    } else {
+      showToast('error', '复制失败，请手动复制。')
+    }
   }
 
   // Blog Tab Actions

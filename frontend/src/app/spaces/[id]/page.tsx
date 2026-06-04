@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import { copyText } from '@/lib/utils'
 
 interface SpaceMember {
   id: number
@@ -180,10 +181,14 @@ export default function SpaceDetailPage() {
     }
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedCode(text)
-    setTimeout(() => setCopiedCode(null), 2000)
+  const copyToClipboard = async (text: string) => {
+    const success = await copyText(text)
+    if (success) {
+      setCopiedCode(text)
+      setTimeout(() => setCopiedCode(null), 2000)
+    } else {
+      alert('复制失败，请手动复制。')
+    }
   }
 
   if (loading) {
