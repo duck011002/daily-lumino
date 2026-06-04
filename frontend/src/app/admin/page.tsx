@@ -427,6 +427,7 @@ export default function AdminConsole() {
     const success = await copyText(text)
     if (success) {
       setCopiedCode(text)
+      showToast('success', '已复制到剪贴板！')
       setTimeout(() => setCopiedCode(null), 2000)
     } else {
       showToast('error', '复制失败，请手动复制。')
@@ -440,6 +441,7 @@ export default function AdminConsole() {
     const success = await copyText(textToCopy)
     if (success) {
       setCopiedCode(code)
+      showToast('success', '已复制邀请激活文本！')
       setTimeout(() => setCopiedCode(null), 2000)
     } else {
       showToast('error', '复制失败，请手动复制。')
