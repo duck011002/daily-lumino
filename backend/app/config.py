@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     FRONTEND_ORIGINS: str = "http://localhost:3000"
     APP_ENV: str = "development"
+    COOKIE_SECURE: bool | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -45,6 +46,8 @@ class Settings(BaseSettings):
 
     @property
     def cookie_secure(self) -> bool:
+        if self.COOKIE_SECURE is not None:
+            return self.COOKIE_SECURE
         return self.APP_ENV == "production"
 
 
