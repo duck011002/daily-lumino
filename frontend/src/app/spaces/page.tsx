@@ -43,6 +43,7 @@ const TYPE_COLORS: Record<string, string> = {
 export default function SpacesPage() {
   const { user } = useAuth()
   const router = useRouter()
+  const canCreate = user?.is_root || user?.can_create_spaces
   const [spaces, setSpaces] = useState<SpaceSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -72,6 +73,15 @@ export default function SpacesPage() {
 
   useEffect(() => {
     fetchSpaces()
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const code = params.get('invite')
+      if (code) {
+        setJoinCode(code)
+        setShowJoin(true)
+        setShowCreate(false)
+      }
+    }
   }, [])
 
   const handleCreate = async () => {
@@ -141,10 +151,26 @@ export default function SpacesPage() {
       <main className="max-w-6xl mx-auto px-6 py-10 space-y-8">
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-3">
-          <Button onClick={() => { setShowCreate(true); setShowJoin(false) }} className="shadow-sm">
-            <Plus size={16} className="mr-2" />
-            创建空间
-          </Button>
+          <div className="relative group inline-block">
+            <Button
+              onClick={() => {
+                if (canCreate) {
+                  setShowCreate(true)
+                  setShowJoin(false)
+                }
+              }}
+              disabled={!canCreate}
+              className={`shadow-sm ${!canCreate ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Plus size={16} className="mr-2" />
+              创建空间
+            </Button>
+            {!canCreate && (
+              <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block w-48 bg-white dark:bg-darkCard text-onSurface dark:text-foreground text-xs p-2.5 rounded-xl shadow-lg border border-secondary dark:border-darkBorder text-center z-10 font-normal">
+                您当前没有创建空间的权限，请联系管理员开通。
+              </div>
+            )}
+          </div>
           <Button variant="outline" onClick={() => { setShowJoin(true); setShowCreate(false) }}>
             <Users size={16} className="mr-2" />
             使用邀请码加入

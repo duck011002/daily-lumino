@@ -32,6 +32,7 @@ interface UserResponse {
   avatar_url: string | null
   is_root: boolean
   is_active: boolean
+  can_create_spaces: boolean
   created_at: string
 }
 
@@ -279,6 +280,23 @@ export default function AdminConsole() {
       )
     } catch (err: any) {
       showToast('error', err.response?.data?.detail || '状态更新失败。')
+    }
+  }
+
+  const handleToggleUserSpacePermission = async (targetUser: UserResponse) => {
+    if (targetUser.id === user?.id) {
+      alert('不能修改超级管理员自身的创建空间权限。')
+      return
+    }
+    try {
+      const newPermission = !targetUser.can_create_spaces
+      await api.patch(`/admin/users/${targetUser.id}`, { can_create_spaces: newPermission })
+      showToast('success', `已${newPermission ? '开通' : '取消'}用户 ${targetUser.username} 的创建空间权限`)
+      setUsers((prev) =>
+        prev.map((u) => (u.id === targetUser.id ? { ...u, can_create_spaces: newPermission } : u))
+      )
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '权限更新失败。')
     }
   }
 
@@ -923,6 +941,7 @@ export default function AdminConsole() {
                           <th className="px-5 py-3 font-semibold">角色</th>
                           <th className="px-5 py-3 font-semibold">加入时间</th>
                           <th className="px-5 py-3 font-semibold text-center">账号状态</th>
+                          <th className="px-5 py-3 font-semibold text-center">创建空间权限</th>
                           <th className="px-5 py-3 font-semibold text-center">快捷控制</th>
                         </tr>
                       </thead>
@@ -968,6 +987,26 @@ export default function AdminConsole() {
                               ) : (
                                 <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 font-semibold border border-red-200 dark:border-red-500/20">已禁用</span>
                               )}
+                            </td>
+                            <td className="px-5 py-4 text-center">
+                              <button
+                                onClick={() => handleToggleUserSpacePermission(targetUser)}
+                                disabled={targetUser.id === user?.id || targetUser.is_root}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-primary/40 ${
+                                  targetUser.id === user?.id || targetUser.is_root
+                                    ? 'opacity-40 cursor-not-allowed bg-secondary dark:bg-darkBorder'
+                                    : targetUser.can_create_spaces
+                                    ? 'bg-primary'
+                                    : 'bg-onSurface/20 dark:bg-darkBorder'
+                                }`}
+                                title={targetUser.can_create_spaces ? "取消空间创建权限" : "开启空间创建权限"}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    targetUser.can_create_spaces ? 'translate-x-6' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
                             </td>
                             <td className="px-5 py-4">
                               <div className="flex items-center justify-center">
@@ -1433,13 +1472,13 @@ export default function AdminConsole() {
                 {/* 2. Global invite codes */}
                 <div className="space-y-4">
                   <div className="pb-3 border-b border-secondary dark:border-darkBorder flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-onSurface dark:text-foreground">注册邀请码中心</h2>
+                    <h2 className="text-xl font-bold text-onSurface dark:text-foreground">网站注册邀请码中心</h2>
                   </div>
 
                   {/* Create code widget */}
                   <div className="p-6 rounded-2xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard max-w-xl space-y-4 shadow-sm">
                     <h3 className="font-bold text-sm text-onSurface dark:text-foreground flex items-center gap-1">
-                      <Key size={16} className="text-primary" /> 生成单次邀请注册码
+                      <Key size={16} className="text-primary" /> 生成单次网站注册邀请码
                     </h3>
                     <div className="flex items-end gap-3">
                       <div className="flex-1">

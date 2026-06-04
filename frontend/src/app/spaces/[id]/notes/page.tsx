@@ -18,7 +18,7 @@ interface UserResponse {
 interface Note {
   id: number
   space_id: number
-  title: str
+  title: string
   content: string | null
   cover_url: string | null
   author_id: number
