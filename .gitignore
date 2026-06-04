@@ -1,0 +1,26 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+dist/
+out/
+build/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.local
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db

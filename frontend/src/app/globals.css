@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: 24 81% 60%; /* #E8814A */
+    --secondary: 33 55% 90%; /* #F5E6D3 */
+    --background: 60 14% 97%; /* #FAFAF8 */
+    --foreground: 20 10% 12%; /* #1C1917 */
+    --card: 60 14% 97%;
+    --card-foreground: 20 10% 12%;
+    --border: 33 20% 85%;
+  }
+
+  .dark {
+    --primary: 24 81% 60%;
+    --secondary: 33 20% 15%;
+    --background: 60 6% 8%; /* #161614 */
+    --foreground: 60 10% 97%;
+    --card: 60 8% 11%; /* #1E1E1B */
+    --border: 60 8% 17%; /* #2E2E2B */
+  }
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Custom premium styles */
+.glassmorphism {
+  background: rgba(250, 250, 248, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(220, 220, 210, 0.5);
+}
+
+.dark .glassmorphism {
+  background: rgba(30, 30, 27, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(46, 46, 43, 0.5);
+}
+
+/* Soft animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
