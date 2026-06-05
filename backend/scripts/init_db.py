@@ -35,6 +35,24 @@ def init_db():
             except Exception as e:
                 print(f"Skipping MySQL-specific alter column check: {e}")
 
+            # Ensure spaces.type ENUM includes 'personal' and all values are lowercase
+            try:
+                # Check current enum definition
+                col_info = conn.execute(text("SHOW COLUMNS FROM spaces LIKE 'type'")).fetchone()
+                if col_info:
+                    col_type_str = str(col_info[1]).lower()  # e.g. "enum('couple','family','friends')"
+                    needs_personal = "'personal'" not in col_type_str
+                    has_uppercase = any(v in col_type_str for v in ["'couple","'family","'friends","'personal"] if v[1].isupper())
+                    if needs_personal or "'COUPLE'" in str(col_info[1]) or "'FAMILY'" in str(col_info[1]):
+                        # Normalize all values to lowercase first
+                        conn.execute(text("UPDATE spaces SET type = LOWER(type) WHERE type != LOWER(type)"))
+                        # Alter column to lowercase enum including personal
+                        conn.execute(text("ALTER TABLE spaces MODIFY COLUMN type ENUM('couple', 'family', 'friends', 'personal') NOT NULL"))
+                        conn.commit()
+                        print("Migrated spaces.type ENUM to include 'personal' with lowercase values.")
+            except Exception as e:
+                print(f"Skipping spaces.type ENUM migration: {e}")
+
         # 1. Initialize root user
         root_exists = db.scalar(
             select(User).where((User.username == settings.ROOT_USERNAME) | (User.is_root == True))

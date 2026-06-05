@@ -24,7 +24,7 @@ class Space(Base):
 
     id: Mapped[int] = mapped_column(BIGINT_PK, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    type: Mapped[SpaceType] = mapped_column(Enum(SpaceType), nullable=False)
+    type: Mapped[SpaceType] = mapped_column(Enum(SpaceType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_by: Mapped[int] = mapped_column(
@@ -50,7 +50,7 @@ class SpaceMember(Base):
         BIGINT_FK, ForeignKey("users.id"), nullable=False, index=True
     )
     role: Mapped[SpaceMemberRole] = mapped_column(
-        Enum(SpaceMemberRole), default=SpaceMemberRole.MEMBER
+        Enum(SpaceMemberRole, values_callable=lambda x: [e.value for e in x]), default=SpaceMemberRole.MEMBER
     )
     joined_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
 
