@@ -736,10 +736,23 @@ def generate_daily_report(
         )
         report_text = response.choices[0].message.content.strip()
         
-        # Save to DB if log exists
-        if log:
+        # Save to DB (create default log if not exists)
+        if not log:
+            log = DailyDisciplineLog(
+                user_id=current_user.id,
+                log_date=target_date,
+                weight=weight,
+                step_count=req.step_count if req.step_count is not None else 0,
+                active_energy=act_energy,
+                intake_calories=intake,
+                burned_calories=burned,
+                calorie_gap=gap,
+                ai_analysis=report_text
+            )
+            db.add(log)
+        else:
             log.ai_analysis = report_text
-            db.commit()
+        db.commit()
             
         return DailyReportResponse(report=report_text)
     except Exception as e:
@@ -749,8 +762,21 @@ def generate_daily_report(
             f"热量赤字为 {gap} kcal。当前 BMI 为 {bmi:.1f} ({bmi_status})。"
             f"建议继续保持健康的饮食和运动习惯！"
         )
-        if log:
+        if not log:
+            log = DailyDisciplineLog(
+                user_id=current_user.id,
+                log_date=target_date,
+                weight=weight,
+                step_count=req.step_count if req.step_count is not None else 0,
+                active_energy=act_energy,
+                intake_calories=intake,
+                burned_calories=burned,
+                calorie_gap=gap,
+                ai_analysis=fallback_msg
+            )
+            db.add(log)
+        else:
             log.ai_analysis = fallback_msg
-            db.commit()
+        db.commit()
         return DailyReportResponse(report=fallback_msg)
 

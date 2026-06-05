@@ -111,6 +111,7 @@ export default function DisciplinePage() {
   const [analyzingFitness, setAnalyzingFitness] = useState(false)
   const [savingLog, setSavingLog] = useState(false)
   const [generatingReport, setGeneratingReport] = useState(false)
+  const todayReportTriggeredRef = useRef(false)
 
   // Health Data Import State
   const [isDragging, setIsDragging] = useState(false)
@@ -167,6 +168,43 @@ export default function DisciplinePage() {
       fetchLogs()
     }
   }, [user, currentDate, profile])
+
+  // Auto-generate today's report on load if it doesn't exist
+  useEffect(() => {
+    const isCurrentMonth = year === new Date().getFullYear() && month === (new Date().getMonth() + 1)
+    if (!loadingLogs && profile && isCurrentMonth) {
+      const todayStr = new Date().toISOString().split('T')[0]
+      const todayLog = logs.find(l => l.log_date === todayStr)
+      if (!todayLog || !todayLog.ai_analysis) {
+        if (!todayReportTriggeredRef.current) {
+          todayReportTriggeredRef.current = true
+          
+          const w = todayLog?.weight ? String(todayLog.weight) : ''
+          const s = todayLog?.step_count ? String(todayLog.step_count) : ''
+          const ae = todayLog?.active_energy ? String(todayLog.active_energy) : ''
+          const dt = todayLog?.diet_text || ''
+          const di = todayLog?.diet_image_url || ''
+          const ft = todayLog?.fitness_text || ''
+          const fi = todayLog?.fitness_image_url || ''
+          const ic = todayLog?.intake_calories ? String(todayLog.intake_calories) : '1800'
+          const bc = todayLog?.burned_calories ? String(todayLog.burned_calories) : ''
+
+          const tempLog = {
+            weight: w ? parseFloat(w) : null,
+            step_count: s ? parseInt(s) : null,
+            active_energy: ae ? parseFloat(ae) : null,
+            diet_text: dt || null,
+            diet_image_url: di || null,
+            fitness_text: ft || null,
+            fitness_image_url: fi || null,
+            intake_calories: ic ? parseInt(ic) : 1800,
+            burned_calories: bc ? parseInt(bc) : null
+          }
+          triggerReportGeneration(todayStr, false, tempLog)
+        }
+      }
+    }
+  }, [loadingLogs, profile, logs, year, month])
 
   // Profile Action handlers
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -329,10 +367,36 @@ export default function DisciplinePage() {
       const res = await api.post(`/discipline/logs/${dateStr}/report?force=${force}`, payload)
       setAiAnalysis(res.data.report)
       
-      // Update logs list in memory
-      setLogs((prev) =>
-        prev.map((l) => (l.log_date === dateStr ? { ...l, ai_analysis: res.data.report } : l))
-      )
+      // Update logs list in memory (create default log entry if not exists)
+      setLogs((prev) => {
+        const exists = prev.some((l) => l.log_date === dateStr)
+        if (exists) {
+          return prev.map((l) => (l.log_date === dateStr ? { ...l, ai_analysis: res.data.report } : l))
+        } else {
+          // Construct default DailyLog matching the database entry
+          const defaultBMR = profile ? (10.0 * (payload.weight || profile.initial_weight) + 6.25 * profile.height - 5 * 25 + 5) : 1500
+          const intakeVal = payload.intake_calories ?? 1800
+          const burnedVal = payload.burned_calories ?? Math.round(defaultBMR + (payload.active_energy ?? 0))
+          const newLog: DailyLog = {
+            id: Date.now(),
+            log_date: dateStr,
+            weight: payload.weight || (profile?.initial_weight ?? 65.0),
+            step_count: payload.step_count || 0,
+            active_energy: payload.active_energy || 0.0,
+            diet_text: payload.diet_text,
+            diet_image_url: payload.diet_image_url,
+            fitness_text: payload.fitness_text,
+            fitness_image_url: payload.fitness_image_url,
+            intake_calories: intakeVal,
+            burned_calories: burnedVal,
+            calorie_gap: burnedVal - intakeVal,
+            ai_analysis: res.data.report,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          return [...prev, newLog].sort((a, b) => a.log_date.localeCompare(b.log_date))
+        }
+      })
     } catch (err: any) {
       console.error('生成 AI 报告失败', err)
       showToast('error', '生成每日 AI 健康分析报告失败。')
@@ -872,166 +936,257 @@ export default function DisciplinePage() {
           </section>
         ) : (
           <>
-            {/* 2. OVERVIEW: BMI GAUGE & CALORIE DEFICIT RING */}
+            {/* 2. OVERVIEW: BMI GAUGE & CALORIE DEFICIT RING & TODAY'S AI REPORT */}
             <section className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               
-              {/* BMI Gauge Panel (Col 5) */}
-              <div className="lg:col-span-5 p-8 rounded-3xl backdrop-blur-xl bg-white/40 dark:bg-darkCard/40 border border-secondary dark:border-darkBorder shadow-sm flex flex-col justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-onSurface dark:text-foreground flex items-center space-x-2">
-                    <Scale className="h-5 w-5 text-primary" />
-                    <span>身体质量指数 (BMI)</span>
-                  </h3>
-                  <p className="text-xs text-onSurface/50 dark:text-foreground/50 mt-1">根据最新打卡体重估算当前的健康水平。</p>
+              {/* Left Column (Col 8) - BMI and Deficit Ring */}
+              <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-12 gap-8">
+                {/* BMI Gauge Panel (Col 5) */}
+                <div className="md:col-span-5 p-8 rounded-3xl backdrop-blur-xl bg-white/40 dark:bg-darkCard/40 border border-secondary dark:border-darkBorder shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-onSurface dark:text-foreground flex items-center space-x-2">
+                      <Scale className="h-5 w-5 text-primary" />
+                      <span>身体质量指数 (BMI)</span>
+                    </h3>
+                    <p className="text-xs text-onSurface/50 dark:text-foreground/50 mt-1">根据最新打卡体重估算当前的健康水平。</p>
+                  </div>
+
+                  {/* Gauge Animation Visual */}
+                  <div className="relative w-full max-w-[240px] mx-auto mt-6 aspect-[2/1] overflow-hidden flex items-end justify-center">
+                    {/* Color Arc Track */}
+                    <div className="absolute bottom-0 w-full h-[200%] rounded-full border-[20px] border-b-transparent border-l-transparent border-r-transparent border-t-transparent rotate-45" />
+                    
+                    {/* Gauge Arc Background SVG */}
+                    <svg className="w-full h-full overflow-visible" viewBox="0 0 200 100">
+                      <defs>
+                        <linearGradient id="bmiArcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#3B82F6" /> {/* Blue - Underweight */}
+                          <stop offset="30%" stopColor="#10B981" /> {/* Green - Normal */}
+                          <stop offset="65%" stopColor="#F59E0B" /> {/* Orange - Overweight */}
+                          <stop offset="100%" stopColor="#EF4444" /> {/* Red - Obese */}
+                        </linearGradient>
+                      </defs>
+                      <path
+                        d="M 20 100 A 80 80 0 0 1 180 100"
+                        fill="none"
+                        stroke="url(#bmiArcGrad)"
+                        strokeWidth="16"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+
+                    {/* Indicator Pointer */}
+                    <div
+                      className="absolute bottom-0 left-1/2 w-2 h-16 origin-bottom -translate-x-1/2 transition-transform duration-1000 ease-out"
+                      style={{ transform: `translateX(-50%) rotate(${getBmiRotation(bmiVal)}deg)` }}
+                    >
+                      <div className="w-2 h-14 bg-onSurface dark:bg-white rounded-t-full shadow-md" />
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-onSurface dark:bg-white border-2 border-primary" />
+                    </div>
+                  </div>
+
+                  <div className="text-center mt-4 space-y-1.5">
+                    <div className="text-3xl font-extrabold text-onSurface dark:text-foreground font-mono">
+                      {bmiVal.toFixed(1)}
+                    </div>
+                    <div className={`text-xs font-bold px-3 py-1.5 rounded-full inline-block border ${bmiStatus.bg} ${bmiStatus.color}`}>
+                      {bmiStatus.text}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-secondary dark:border-darkBorder mt-6 pt-4 grid grid-cols-3 text-center gap-2 text-xs">
+                    <div>
+                      <span className="text-onSurface/40 dark:text-foreground/45 block">身高</span>
+                      <span className="font-semibold text-onSurface dark:text-foreground font-mono">{profile.height} cm</span>
+                    </div>
+                    <div>
+                      <span className="text-onSurface/40 dark:text-foreground/45 block">体重</span>
+                      <span className="font-semibold text-onSurface dark:text-foreground font-mono">{currentWeight} kg</span>
+                    </div>
+                    <div>
+                      <span className="text-onSurface/40 dark:text-foreground/45 block">目标</span>
+                      <span className="font-semibold text-onSurface dark:text-foreground font-mono">
+                        {profile.target_weight ? `${profile.target_weight} kg` : '未设置'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Gauge Animation Visual */}
-                <div className="relative w-full max-w-[240px] mx-auto mt-6 aspect-[2/1] overflow-hidden flex items-end justify-center">
-                  {/* Color Arc Track */}
-                  <div className="absolute bottom-0 w-full h-[200%] rounded-full border-[20px] border-b-transparent border-l-transparent border-r-transparent border-t-transparent rotate-45" />
+                {/* Deficit Circle Panel (Col 7) */}
+                <div className="md:col-span-7 p-8 rounded-3xl backdrop-blur-xl bg-white/40 dark:bg-darkCard/40 border border-secondary dark:border-darkBorder shadow-sm grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
                   
-                  {/* Gauge Arc Background SVG */}
-                  <svg className="w-full h-full overflow-visible" viewBox="0 0 200 100">
-                    <defs>
-                      <linearGradient id="bmiArcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#3B82F6" /> {/* Blue - Underweight */}
-                        <stop offset="30%" stopColor="#10B981" /> {/* Green - Normal */}
-                        <stop offset="65%" stopColor="#F59E0B" /> {/* Orange - Overweight */}
-                        <stop offset="100%" stopColor="#EF4444" /> {/* Red - Obese */}
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d="M 20 100 A 80 80 0 0 1 180 100"
-                      fill="none"
-                      stroke="url(#bmiArcGrad)"
-                      strokeWidth="16"
-                      strokeLinecap="round"
-                    />
-                  </svg>
+                  {/* Text Values (Col 7) */}
+                  <div className="md:col-span-7 space-y-6">
+                    <div>
+                      <h3 className="text-lg font-bold text-onSurface dark:text-foreground flex items-center space-x-2">
+                        <Flame className="h-5 w-5 text-rose-500 animate-pulse" />
+                        <span>今日热量赤字缺口</span>
+                      </h3>
+                      <p className="text-xs text-onSurface/50 dark:text-foreground/50 mt-1">打卡记录今日饮食与健身会自动核算消耗。</p>
+                    </div>
 
-                  {/* Indicator Pointer */}
-                  <div
-                    className="absolute bottom-0 left-1/2 w-2 h-16 origin-bottom -translate-x-1/2 transition-transform duration-1000 ease-out"
-                    style={{ transform: `translateX(-50%) rotate(${getBmiRotation(bmiVal)}deg)` }}
-                  >
-                    <div className="w-2 h-14 bg-onSurface dark:bg-white rounded-t-full shadow-md" />
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-onSurface dark:bg-white border-2 border-primary" />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-rose-500/5 border border-rose-500/10 p-4 rounded-2xl">
+                        <div className="flex items-center space-x-1.5 text-rose-500 font-semibold text-xs mb-1">
+                          <Apple size={14} />
+                          <span>摄入能量</span>
+                        </div>
+                        <div className="text-2xl font-bold font-mono text-onSurface dark:text-foreground">
+                          {totalTodayIntake} <span className="text-xs font-normal text-onSurface/55 dark:text-foreground/55">kcal</span>
+                        </div>
+                      </div>
 
-                <div className="text-center mt-4 space-y-1.5">
-                  <div className="text-3xl font-extrabold text-onSurface dark:text-foreground font-mono">
-                    {bmiVal.toFixed(1)}
-                  </div>
-                  <div className={`text-xs font-bold px-3 py-1.5 rounded-full inline-block border ${bmiStatus.bg} ${bmiStatus.color}`}>
-                    {bmiStatus.text}
-                  </div>
-                </div>
+                      <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl">
+                        <div className="flex items-center space-x-1.5 text-emerald-500 font-semibold text-xs mb-1">
+                          <Dumbbell size={14} />
+                          <span>消耗能量</span>
+                        </div>
+                        <div className="text-2xl font-bold font-mono text-onSurface dark:text-foreground">
+                          {totalTodayBurned} <span className="text-xs font-normal text-onSurface/55 dark:text-foreground/55">kcal</span>
+                        </div>
+                        <div className="text-[10px] text-onSurface/40 dark:text-foreground/45 mt-0.5 font-mono">
+                          BMR {Math.round(currentBMR)} + 运动 {Math.round(activeCalories)}
+                        </div>
+                      </div>
+                    </div>
 
-                <div className="border-t border-secondary dark:border-darkBorder mt-6 pt-4 grid grid-cols-3 text-center gap-2 text-xs">
-                  <div>
-                    <span className="text-onSurface/40 dark:text-foreground/45 block">身高</span>
-                    <span className="font-semibold text-onSurface dark:text-foreground font-mono">{profile.height} cm</span>
+                    <div className="text-xs text-onSurface/50 dark:text-foreground/50 flex items-center space-x-2 border-t border-secondary dark:border-darkBorder pt-4">
+                      <Scale size={14} />
+                      <span>最新记录体重与初始建档相差 {Math.abs(currentWeight - profile.initial_weight).toFixed(1)} kg。</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-onSurface/40 dark:text-foreground/45 block">体重</span>
-                    <span className="font-semibold text-onSurface dark:text-foreground font-mono">{currentWeight} kg</span>
-                  </div>
-                  <div>
-                    <span className="text-onSurface/40 dark:text-foreground/45 block">目标</span>
-                    <span className="font-semibold text-onSurface dark:text-foreground font-mono">
-                      {profile.target_weight ? `${profile.target_weight} kg` : '未设置'}
+
+                  {/* SVG Radial Ring (Col 5) */}
+                  <div className="md:col-span-5 flex flex-col items-center justify-center">
+                    <div className="relative flex items-center justify-center w-36 h-36">
+                      <svg className="w-full h-full transform -rotate-90">
+                        {/* Grey Track */}
+                        <circle
+                          cx="72"
+                          cy="72"
+                          r={radius}
+                          fill="transparent"
+                          stroke="currentColor"
+                          className="text-secondary dark:text-darkBorder"
+                          strokeWidth={strokeWidth}
+                        />
+                        {/* Deficit Track (Gradual flame color) */}
+                        <circle
+                          cx="72"
+                          cy="72"
+                          r={radius}
+                          fill="transparent"
+                          stroke={todayDeficit >= 0 ? "#10B981" : "#EF4444"}
+                          strokeWidth={strokeWidth}
+                          strokeDasharray={circ}
+                          strokeDashoffset={strokeDashoffset}
+                          strokeLinecap="round"
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-onSurface/40 dark:text-foreground/45">
+                          {todayDeficit >= 0 ? '热量赤字' : '热量超标'}
+                        </span>
+                        <span className={`text-2xl font-black font-mono leading-none my-1 ${todayDeficit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {Math.abs(todayDeficit)}
+                        </span>
+                        <span className="text-[10px] font-medium text-onSurface/40 dark:text-foreground/45">kcal</span>
+                      </div>
+                    </div>
+
+                    <span className="text-[11px] font-semibold text-onSurface/50 dark:text-foreground/50 mt-4 text-center">
+                      {todayDeficit >= 0 ? '👍 保持当前缺口以健康瘦身' : '⚠️ 摄入过剩，可以多运动来消耗'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Deficit Circle Panel (Col 7) */}
-              <div className="lg:col-span-7 p-8 rounded-3xl backdrop-blur-xl bg-white/40 dark:bg-darkCard/40 border border-secondary dark:border-darkBorder shadow-sm grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-                
-                {/* Text Values (Col 7) */}
-                <div className="md:col-span-7 space-y-6">
-                  <div>
+              {/* Right Column (Col 4) - Today's AI Report Panel */}
+              <div className="lg:col-span-4 p-8 rounded-3xl backdrop-blur-xl bg-white/40 dark:bg-darkCard/40 border border-secondary dark:border-darkBorder shadow-sm flex flex-col justify-between space-y-6">
+                <div>
+                  <div className="flex items-center justify-between">
                     <h3 className="text-lg font-bold text-onSurface dark:text-foreground flex items-center space-x-2">
-                      <Flame className="h-5 w-5 text-rose-500 animate-pulse" />
-                      <span>今日热量赤字缺口</span>
+                      <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                      <span>今日 AI 健康分析报告</span>
                     </h3>
-                    <p className="text-xs text-onSurface/50 dark:text-foreground/50 mt-1">打卡记录今日饮食与健身会自动核算消耗。</p>
+                    {todayLog?.ai_analysis && (
+                      <button
+                        onClick={() => triggerReportGeneration(todayStr, true)}
+                        disabled={generatingReport}
+                        className="text-[10px] text-primary hover:text-primary-hover transition-all flex items-center gap-1 bg-primary/10 border border-primary/20 px-2 py-1 rounded-lg font-bold"
+                        title="重新生成报告"
+                      >
+                        {generatingReport ? (
+                          <Loader2 size={10} className="animate-spin" />
+                        ) : (
+                          <Sparkles size={10} />
+                        )}
+                        <span>重新生成</span>
+                      </button>
+                    )}
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-rose-500/5 border border-rose-500/10 p-4 rounded-2xl">
-                      <div className="flex items-center space-x-1.5 text-rose-500 font-semibold text-xs mb-1">
-                        <Apple size={14} />
-                        <span>摄入能量</span>
-                      </div>
-                      <div className="text-2xl font-bold font-mono text-onSurface dark:text-foreground">
-                        {totalTodayIntake} <span className="text-xs font-normal text-onSurface/55 dark:text-foreground/55">kcal</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl">
-                      <div className="flex items-center space-x-1.5 text-emerald-500 font-semibold text-xs mb-1">
-                        <Dumbbell size={14} />
-                        <span>消耗能量</span>
-                      </div>
-                      <div className="text-2xl font-bold font-mono text-onSurface dark:text-foreground">
-                        {totalTodayBurned} <span className="text-xs font-normal text-onSurface/55 dark:text-foreground/55">kcal</span>
-                      </div>
-                      <div className="text-[10px] text-onSurface/40 dark:text-foreground/45 mt-0.5 font-mono">
-                        BMR {Math.round(currentBMR)} + 运动 {Math.round(activeCalories)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-xs text-onSurface/50 dark:text-foreground/50 flex items-center space-x-2 border-t border-secondary dark:border-darkBorder pt-4">
-                    <Scale size={14} />
-                    <span>最新记录体重与初始建档相差 {Math.abs(currentWeight - profile.initial_weight).toFixed(1)} kg。</span>
-                  </div>
+                  <p className="text-[11px] text-onSurface/50 dark:text-foreground/50 mt-1">
+                    基于您今天的体重、步数、卡路里差值及图文打卡，实时生成的专属报告。
+                  </p>
                 </div>
 
-                {/* SVG Radial Ring (Col 5) */}
-                <div className="md:col-span-5 flex flex-col items-center justify-center">
-                  <div className="relative flex items-center justify-center w-36 h-36">
-                    <svg className="w-full h-full transform -rotate-90">
-                      {/* Grey Track */}
-                      <circle
-                        cx="72"
-                        cy="72"
-                        r={radius}
-                        fill="transparent"
-                        stroke="currentColor"
-                        className="text-secondary dark:text-darkBorder"
-                        strokeWidth={strokeWidth}
-                      />
-                      {/* Deficit Track (Gradual flame color) */}
-                      <circle
-                        cx="72"
-                        cy="72"
-                        r={radius}
-                        fill="transparent"
-                        stroke={todayDeficit >= 0 ? "#10B981" : "#EF4444"}
-                        strokeWidth={strokeWidth}
-                        strokeDasharray={circ}
-                        strokeDashoffset={strokeDashoffset}
-                        strokeLinecap="round"
-                        className="transition-all duration-1000 ease-out"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                      <span className="text-[10px] uppercase tracking-wider font-semibold text-onSurface/40 dark:text-foreground/45">
-                        {todayDeficit >= 0 ? '热量赤字' : '热量超标'}
-                      </span>
-                      <span className={`text-2xl font-black font-mono leading-none my-1 ${todayDeficit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {Math.abs(todayDeficit)}
-                      </span>
-                      <span className="text-[10px] font-medium text-onSurface/40 dark:text-foreground/45">kcal</span>
+                {/* Report Content */}
+                <div className="flex-1 flex flex-col justify-center min-h-[160px] relative">
+                  {generatingReport ? (
+                    <div className="space-y-3 py-2 animate-pulse w-full">
+                      <div className="h-3 bg-primary/15 rounded w-full"></div>
+                      <div className="h-3 bg-primary/15 rounded w-[95%]"></div>
+                      <div className="h-3 bg-primary/15 rounded w-[88%]"></div>
+                      <div className="h-3 bg-primary/15 rounded w-[92%]"></div>
+                      <div className="h-3 bg-primary/15 rounded w-[75%]"></div>
                     </div>
-                  </div>
+                  ) : todayLog?.ai_analysis ? (
+                    <p className="text-xs text-onSurface/80 dark:text-foreground/80 leading-relaxed font-mono whitespace-pre-wrap">
+                      {todayLog.ai_analysis}
+                    </p>
+                  ) : (
+                    <div className="text-center space-y-3 py-4">
+                      <Sparkles className="h-8 w-8 text-onSurface/20 dark:text-foreground/25 mx-auto" />
+                      <p className="text-xs text-onSurface/40 dark:text-foreground/45">
+                        暂无分析报告
+                      </p>
+                      <button
+                        onClick={() => {
+                          const w = todayLog?.weight ? String(todayLog.weight) : ''
+                          const s = todayLog?.step_count ? String(todayLog.step_count) : ''
+                          const ae = todayLog?.active_energy ? String(todayLog.active_energy) : ''
+                          const dt = todayLog?.diet_text || ''
+                          const di = todayLog?.diet_image_url || ''
+                          const ft = todayLog?.fitness_text || ''
+                          const fi = todayLog?.fitness_image_url || ''
+                          const ic = todayLog?.intake_calories ? String(todayLog.intake_calories) : '1800'
+                          const bc = todayLog?.burned_calories ? String(todayLog.burned_calories) : ''
 
-                  <span className="text-[11px] font-semibold text-onSurface/50 dark:text-foreground/50 mt-4 text-center">
-                    {todayDeficit >= 0 ? '👍 保持当前缺口以健康瘦身' : '⚠️ 摄入过剩，可以多运动来消耗'}
-                  </span>
+                          const tempLog = {
+                            weight: w ? parseFloat(w) : null,
+                            step_count: s ? parseInt(s) : null,
+                            active_energy: ae ? parseFloat(ae) : null,
+                            diet_text: dt || null,
+                            diet_image_url: di || null,
+                            fitness_text: ft || null,
+                            fitness_image_url: fi || null,
+                            intake_calories: ic ? parseInt(ic) : 1800,
+                            burned_calories: bc ? parseInt(bc) : null
+                          }
+                          triggerReportGeneration(todayStr, false, tempLog)
+                        }}
+                        className="text-xs font-bold text-white bg-primary hover:bg-primary-hover px-4 py-2 rounded-xl transition-all shadow-sm"
+                      >
+                        立即生成健康报告
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-[10px] text-onSurface/40 dark:text-foreground/45 border-t border-secondary dark:border-darkBorder pt-4 flex items-center justify-between font-mono">
+                  <span>模型: ModelScope Qwen3.5</span>
+                  <span>更新时间: {todayLog ? new Date(todayLog.updated_at).toLocaleTimeString() : '暂无'}</span>
                 </div>
               </div>
             </section>
@@ -1088,12 +1243,13 @@ export default function DisciplinePage() {
                       const dayLog = logs.find(l => l.log_date === cell.dateStr)
                       const isToday = cell.dateStr === todayStr
                       
+                      const hasDiet = dayLog ? !!(dayLog.diet_text || dayLog.diet_image_url || dayLog.intake_calories > 0) : false
+                      const hasFitness = dayLog ? !!(dayLog.fitness_text || dayLog.fitness_image_url || (dayLog.active_energy !== null && dayLog.active_energy > 0)) : false
+                      const hasWeight = dayLog ? !!(dayLog.weight) : false
+
                       // Determine status colors
                       let statusBg = 'bg-white dark:bg-darkCard/40 border border-secondary dark:border-darkBorder/60 hover:border-primary/45'
                       if (dayLog) {
-                        const hasDiet = !!(dayLog.diet_text || dayLog.diet_image_url || dayLog.intake_calories > 0)
-                        const hasFitness = !!(dayLog.fitness_text || dayLog.fitness_image_url || (dayLog.active_energy !== null && dayLog.active_energy > 0))
-                        
                         if (hasDiet && hasFitness) {
                           // Perfect day (Diet and Fitness both recorded)
                           statusBg = 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15'
@@ -1107,10 +1263,11 @@ export default function DisciplinePage() {
                         <div
                           key={idx}
                           onClick={() => handleOpenDayModal(cell.dateStr)}
-                          className={`min-h-[56px] sm:min-h-[72px] p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl flex flex-col justify-between text-left cursor-pointer transition-all hover:scale-[1.03] select-none ${statusBg} ${
+                          className={`min-h-[56px] sm:min-h-[96px] p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl flex flex-col justify-between text-left cursor-pointer transition-all hover:scale-[1.03] select-none ${statusBg} ${
                             !cell.currentMonth ? 'opacity-30 pointer-events-none' : ''
                           } ${isToday ? 'ring-2 ring-primary/80 ring-offset-2 dark:ring-offset-darkBg' : ''}`}
                         >
+                          {/* Cell Header */}
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold font-mono">{cell.dayNum}</span>
                             {dayLog && (dayLog.intake_calories > 0 || dayLog.burned_calories > 0) && (
@@ -1118,17 +1275,41 @@ export default function DisciplinePage() {
                             )}
                           </div>
 
-                          <div className="mt-1 sm:mt-2.5 space-y-0.5 text-[8px] sm:text-[9px] font-mono leading-tight">
-                            {dayLog?.weight && (
-                              <div className="text-onSurface/60 dark:text-foreground/60 font-semibold">{dayLog.weight}kg</div>
+                          {/* Desktop Layout (Show micro cards/pills) */}
+                          <div className="hidden sm:block mt-2 space-y-1 text-[9px] font-mono leading-tight">
+                            {hasWeight && dayLog?.weight && (
+                              <div className="flex items-center space-x-1 text-blue-500 bg-blue-500/5 dark:bg-blue-500/10 px-1 py-0.5 rounded border border-blue-500/10">
+                                <Scale size={10} className="shrink-0" />
+                                <span className="font-bold">{dayLog.weight}kg</span>
+                              </div>
                             )}
-                            {dayLog && dayLog.intake_calories > 0 ? (
-                              <div className="text-rose-500">+{dayLog.intake_calories}</div>
-                            ) : null}
-                            {dayLog && dayLog.burned_calories > 0 ? (
-                              <div className="text-emerald-500">-{dayLog.burned_calories}</div>
-                            ) : null}
+                            {hasDiet && dayLog && dayLog.intake_calories > 0 && (
+                              <div className="flex items-center space-x-1 text-rose-500 bg-rose-500/5 dark:bg-rose-500/10 px-1 py-0.5 rounded border border-rose-500/10 font-bold">
+                                <Apple size={10} className="shrink-0" />
+                                <span>+{dayLog.intake_calories}</span>
+                              </div>
+                            )}
+                            {hasFitness && dayLog && dayLog.burned_calories > 0 && (
+                              <div className="flex items-center space-x-1 text-emerald-500 bg-emerald-500/5 dark:bg-emerald-500/10 px-1 py-0.5 rounded border border-emerald-500/10 font-bold">
+                                <Dumbbell size={10} className="shrink-0" />
+                                <span>-{dayLog.burned_calories}</span>
+                              </div>
+                            )}
                           </div>
+
+                          {/* Mobile Layout (Show 3-color status dots) */}
+                          <div className="flex sm:hidden justify-center space-x-0.5 sm:space-x-1 mt-1 shrink-0">
+                            {hasWeight && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.5)] animate-fade-in" />
+                            )}
+                            {hasDiet && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shadow-[0_0_4px_rgba(244,63,94,0.5)] animate-fade-in" />
+                            )}
+                            {hasFitness && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)] animate-fade-in" />
+                            )}
+                          </div>
+
                         </div>
                       )
                     })}
