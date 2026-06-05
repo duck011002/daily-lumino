@@ -20,6 +20,18 @@ from app.schemas.chat import (
 )
 from app.services.llm import stream_chat_completion, resolve_multimodal_support
 
+def estimate_tokens(text: str) -> int:
+    if not text:
+        return 0
+    chinese_chars = 0
+    other_chars = 0
+    for char in text:
+        if '\u4e00' <= char <= '\u9fff':
+            chinese_chars += 1
+        else:
+            other_chars += 1
+    return int(chinese_chars * 1.3 + other_chars * 0.25) + 1
+
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
@@ -190,6 +202,7 @@ def send_message(
         role=ChatRoleType.USER,
         content=message_in.content,
         attachments=message_in.attachments,
+        tokens_used=estimate_tokens(message_in.content),
     )
     db.add(user_msg)
     session.updated_at = func.now()
@@ -233,7 +246,7 @@ def send_message(
                     role=ChatRoleType.ASSISTANT,
                     content=accumulated_text,
                     attachments=None,
-                    tokens_used=0,
+                    tokens_used=estimate_tokens(accumulated_text),
                 )
                 local_db.add(assistant_msg)
 

@@ -143,3 +143,48 @@ def test_send_message_stream(mock_openai_class, client: TestClient, auth_headers
         assert "Hello" in content
         assert "world!" in content
         assert "done" in content
+
+
+@patch("app.services.llm.OpenAI")
+def test_send_message_updates_tokens_used(mock_openai_class, client: TestClient, auth_headers, db):
+    mock_client = MagicMock()
+    mock_openai_class.return_value = mock_client
+
+    mock_chunk_1 = MagicMock()
+    mock_chunk_1.choices = [MagicMock()]
+    mock_chunk_1.choices[0].delta.content = "Hi"
+
+    mock_client.chat.completions.create.return_value = [mock_chunk_1]
+
+    with patch("app.services.llm.get_system_config") as mock_get_cfg:
+        mock_get_cfg.return_value = "mock_key"
+
+        # Create session
+        res_create = client.post(
+            "/api/chat/sessions",
+            json={"title": "Token Test", "model": "qwen"},
+            cookies=auth_headers,
+        )
+        session_id = res_create.json()["id"]
+
+        # Send message
+        res = client.post(
+            f"/api/chat/sessions/{session_id}/messages",
+            json={"content": "Hello world!"},
+            cookies=auth_headers,
+        )
+        assert res.status_code == 200
+
+        # Query messages from db and check tokens_used
+        from app.models.chat import ChatMessage
+        from sqlalchemy import select
+        messages = db.scalars(select(ChatMessage).where(ChatMessage.session_id == session_id)).all()
+        assert len(messages) == 2
+        user_msg = next(m for m in messages if m.role == "user")
+        assistant_msg = next(m for m in messages if m.role == "assistant")
+        
+        assert user_msg.tokens_used > 0
+        assert user_msg.tokens_used == 4
+
+        assert assistant_msg.tokens_used > 0
+        assert assistant_msg.tokens_used == 1
