@@ -23,7 +23,7 @@ export default function Register() {
     e.preventDefault()
     setErrorMsg('')
 
-    if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+    if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim() || !inviteCode.trim()) {
       setErrorMsg('请填写所有必填字段。')
       return
     }
@@ -185,15 +185,16 @@ export default function Register() {
                 htmlFor="input-invitecode"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                邀请码 (可选)
+                邀请码 <span className="text-red-500">*</span>
               </label>
               <input
                 id="input-invitecode"
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="系统要求的注册邀请码"
+                placeholder="请输入注册邀请码"
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+                required
               />
             </div>
 
