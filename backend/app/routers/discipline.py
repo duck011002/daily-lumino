@@ -406,12 +406,13 @@ async def import_apple_health(
             with zipfile.ZipFile(temp_path, 'r') as zip_ref:
                 xml_filename = None
                 for f in zip_ref.namelist():
-                    if f.endswith("export.xml"):
+                    # Support localized filename (like 导出.xml) and ignore export_cda.xml
+                    if f.lower().endswith(".xml") and "export_cda.xml" not in f.lower():
                         xml_filename = f
                         break
                 if not xml_filename:
                     os.unlink(temp_path)
-                    raise HTTPException(status_code=400, detail="Zip 压缩包内未找到 export.xml 文件。")
+                    raise HTTPException(status_code=400, detail="Zip 压缩包内未找到有效的健康数据 XML 文件。")
                 
                 # Extract export.xml to a temp file
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as xml_temp:
@@ -428,7 +429,7 @@ async def import_apple_health(
         for event, elem in context:
             if elem.tag == "Record":
                 rec_type = elem.get("type")
-                if rec_type in ("HKQuantityTypeIdentifierStepCount", "HKQuantityTypeIdentifierActiveEnergyBurned"):
+                if rec_type in ("HKQuantityTypeIdentifierStepCount", "HKQuantityTypeIdentifierActiveEnergyBurned", "HKQuantityTypeIdentifierBodyMass"):
                     val_str = elem.get("value")
                     date_str = elem.get("startDate")
                     if val_str and date_str:
@@ -437,12 +438,14 @@ async def import_apple_health(
                             day = date_str.split(" ")[0] # extract "YYYY-MM-DD"
                             
                             if day not in daily_data:
-                                daily_data[day] = {"steps": 0.0, "energy": 0.0}
+                                daily_data[day] = {"steps": 0.0, "energy": 0.0, "weight": None}
                                 
                             if rec_type == "HKQuantityTypeIdentifierStepCount":
                                 daily_data[day]["steps"] += val
-                            else:
+                            elif rec_type == "HKQuantityTypeIdentifierActiveEnergyBurned":
                                 daily_data[day]["energy"] += val
+                            elif rec_type == "HKQuantityTypeIdentifierBodyMass":
+                                daily_data[day]["weight"] = val
                         except ValueError:
                             pass
                 # Crucial to release parsed elements to keep memory usage minimal
@@ -461,10 +464,11 @@ async def import_apple_health(
             except ValueError:
                 continue
 
-            steps = int(health_val["steps"])
-            energy = round(health_val["energy"], 1)
+            steps = int(health_val.get("steps", 0))
+            energy = round(health_val.get("energy", 0.0), 1)
+            weight = health_val.get("weight")
 
-            if steps == 0 and energy == 0:
+            if steps == 0 and energy == 0.0 and weight is None:
                 continue
 
             log = db.scalar(
@@ -484,6 +488,7 @@ async def import_apple_health(
                     log_date=log_date,
                     step_count=steps,
                     active_energy=energy,
+                    weight=weight,
                     burned_calories=int(bmr + energy),
                     calorie_gap=int(bmr + energy) # burned - 0 intake
                 )
@@ -491,6 +496,8 @@ async def import_apple_health(
             else:
                 log.step_count = steps
                 log.active_energy = energy
+                if weight is not None:
+                    log.weight = weight
                 # Re-calculate burned and calorie gap
                 log.burned_calories = int(bmr + energy)
                 log.calorie_gap = log.burned_calories - log.intake_calories
