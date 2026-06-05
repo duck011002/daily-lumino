@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Heart, ArrowLeft, Loader2, Calendar, Scale, Footprints, Flame,
-  Apple, Dumbbell, UploadCloud, ChevronLeft, ChevronRight, Plus, Sparkles, Check, AlertCircle, Edit3
+  Apple, Dumbbell, UploadCloud, ChevronLeft, ChevronRight, Plus, Sparkles, Check, AlertCircle, Edit3, X
 } from 'lucide-react'
 import api from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import Button from '@/components/ui/Button'
+import { copyText } from '@/lib/utils'
 
 interface HealthProfile {
   height: number
@@ -84,6 +85,24 @@ export default function DisciplinePage() {
   const [editIntakeCalories, setEditIntakeCalories] = useState('')
   const [editBurnedCalories, setEditBurnedCalories] = useState('')
   const [aiAnalysis, setAiAnalysis] = useState('')
+
+  const dietUrls = editDietImageUrl ? editDietImageUrl.split(',').map(u => u.trim()).filter(Boolean) : []
+  const fitnessUrls = editFitnessImageUrl ? editFitnessImageUrl.split(',').map(u => u.trim()).filter(Boolean) : []
+
+  const removeDietUrl = (indexToRemove: number) => {
+    const newUrls = dietUrls.filter((_, idx) => idx !== indexToRemove)
+    setEditDietImageUrl(newUrls.join(','))
+  }
+
+  const removeFitnessUrl = (indexToRemove: number) => {
+    const newUrls = fitnessUrls.filter((_, idx) => idx !== indexToRemove)
+    setEditFitnessImageUrl(newUrls.join(','))
+  }
+
+  const [importRangeDays, setImportRangeDays] = useState(7)
+  const [shortcutToken, setShortcutToken] = useState('')
+  const [loadingToken, setLoadingToken] = useState(false)
+  const [copiedToken, setCopiedToken] = useState(false)
 
   // Loading States for Upload / AI
   const [uploadingDietImg, setUploadingDietImg] = useState(false)
@@ -181,9 +200,9 @@ export default function DisciplinePage() {
       })
       if (res.data && res.data.url) {
         if (type === 'diet') {
-          setEditDietImageUrl(res.data.url)
+          setEditDietImageUrl((prev) => prev ? `${prev},${res.data.url}` : res.data.url)
         } else {
-          setEditFitnessImageUrl(res.data.url)
+          setEditFitnessImageUrl((prev) => prev ? `${prev},${res.data.url}` : res.data.url)
         }
         showToast('success', '图片上传成功！')
       }
@@ -252,7 +271,7 @@ export default function DisciplinePage() {
     setImportResult(null)
 
     try {
-      const res = await api.post('/discipline/import-apple-health', formData, {
+      const res = await api.post(`/discipline/import-apple-health?range_days=${importRangeDays}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       setImportResult({ success: true, message: res.data.message })
@@ -263,6 +282,31 @@ export default function DisciplinePage() {
       showToast('error', '同步苹果健康数据失败。')
     } finally {
       setImportingFile(false)
+    }
+  }
+
+  const handleFetchShortcutToken = async () => {
+    setLoadingToken(true)
+    try {
+      const res = await api.get('/discipline/shortcut-token')
+      setShortcutToken(res.data.token)
+      showToast('success', '快捷指令同步 Token 获取成功！')
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '获取 Token 失败，请检查网络。')
+    } finally {
+      setLoadingToken(false)
+    }
+  }
+
+  const handleCopyToken = async () => {
+    if (!shortcutToken) return
+    const success = await copyText(shortcutToken)
+    if (success) {
+      setCopiedToken(true)
+      showToast('success', 'Token 已成功复制到剪贴板！')
+      setTimeout(() => setCopiedToken(false), 2000)
+    } else {
+      showToast('error', '复制失败，请手动复制。')
     }
   }
 
@@ -354,7 +398,7 @@ export default function DisciplinePage() {
     setEditDietImageUrl(existingLog?.diet_image_url || '')
     setEditFitnessText(existingLog?.fitness_text || '')
     setEditFitnessImageUrl(existingLog?.fitness_image_url || '')
-    setEditIntakeCalories(existingLog?.intake_calories ? String(existingLog.intake_calories) : '')
+    setEditIntakeCalories(existingLog?.intake_calories ? String(existingLog.intake_calories) : '1800')
     setEditBurnedCalories(existingLog?.burned_calories ? String(existingLog.burned_calories) : '')
     setAiAnalysis(existingLog?.ai_analysis || '')
     setIsModalOpen(true)
@@ -401,7 +445,7 @@ export default function DisciplinePage() {
   const currentBMR = profile ? (10.0 * currentWeight + 6.25 * profile.height - 5 * 25 + 5) : 1500
   const activeCalories = todayLog?.active_energy || 0.0
   const totalTodayBurned = todayLog?.burned_calories || Math.round(currentBMR + activeCalories)
-  const totalTodayIntake = todayLog?.intake_calories || 0
+  const totalTodayIntake = todayLog ? (todayLog.intake_calories || 1800) : 1800
   const todayDeficit = totalTodayBurned - totalTodayIntake
 
   // BMI Interpretation
@@ -1042,7 +1086,32 @@ export default function DisciplinePage() {
                     <UploadCloud className="h-5 w-5 text-primary" />
                     <span>导入苹果健康数据</span>
                   </h3>
-                  <p className="text-xs text-onSurface/50 dark:text-foreground/50 mt-1">支持拖拽上传自 iPhone 导出的 `export.zip` 或者 XML 文件。</p>
+                  <p className="text-xs text-onSurface/50 dark:text-foreground/50 mt-1">支持选择导入范围并拖拽上传自 iPhone 导出的 `export.zip` 文件。</p>
+                </div>
+
+                {/* Date Range Selector */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-onSurface/75 dark:text-foreground/75">导入数据范围</label>
+                  <div className="grid grid-cols-3 gap-1.5 bg-secondary/35 dark:bg-darkBorder/25 p-1 rounded-xl border border-secondary/50 dark:border-darkBorder/40">
+                    {[
+                      { label: '最近 7 天', value: 7 },
+                      { label: '最近 30 天', value: 30 },
+                      { label: '全部历史', value: 0 }
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setImportRangeDays(opt.value)}
+                        className={`py-1 px-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                          importRangeDays === opt.value
+                            ? 'bg-white dark:bg-darkCard text-primary shadow-sm'
+                            : 'text-onSurface/65 dark:text-foreground/60 hover:text-onSurface dark:hover:text-foreground'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Drop Zone Box */}
@@ -1050,7 +1119,7 @@ export default function DisciplinePage() {
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer flex flex-col items-center justify-center min-h-[160px] ${
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer flex flex-col items-center justify-center min-h-[140px] ${
                     isDragging
                       ? 'border-primary bg-primary/5 scale-[1.02]'
                       : 'border-secondary dark:border-darkBorder bg-white/30 dark:bg-darkCard/20 hover:border-primary/50'
@@ -1093,6 +1162,83 @@ export default function DisciplinePage() {
                     </div>
                   </div>
                 )}
+
+                {/* iPhone Shortcuts Guide Card */}
+                <div className="bg-primary/5 border border-primary/15 p-4 rounded-2xl space-y-3">
+                  <h4 className="font-bold text-xs text-primary flex items-center gap-1.5">
+                    <Sparkles size={14} className="animate-pulse" />
+                    <span>iPhone 快捷指令自动同步 (推荐)</span>
+                  </h4>
+                  <p className="text-[10.5px] text-onSurface/70 dark:text-foreground/75 leading-relaxed">
+                    无需手动导出压缩包，可通过 iPhone 「快捷指令」每天自动推送健康数据。
+                  </p>
+                  
+                  {shortcutToken ? (
+                    <div className="space-y-2.5">
+                      <div className="space-y-1">
+                        <span className="block text-[9px] font-semibold text-onSurface/55 dark:text-foreground/45">同步接口 URL</span>
+                        <div className="flex gap-1.5 items-center">
+                          <input
+                            type="text"
+                            readOnly
+                            value={typeof window !== 'undefined' ? `${window.location.origin}/api/discipline/shortcut-sync` : ''}
+                            className="flex-1 bg-white dark:bg-darkBg border border-secondary dark:border-darkBorder rounded-lg px-2 py-1 text-[10px] font-mono text-onSurface dark:text-foreground focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const url = typeof window !== 'undefined' ? `${window.location.origin}/api/discipline/shortcut-sync` : ''
+                              const success = await copyText(url)
+                              if (success) showToast('success', '接口 URL 已复制！')
+                            }}
+                            className="bg-secondary dark:bg-darkBorder hover:bg-primary/10 hover:text-primary transition-all p-1.5 rounded-lg border border-secondary dark:border-darkBorder text-[10px]"
+                          >
+                            复制
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="block text-[9px] font-semibold text-onSurface/55 dark:text-foreground/45">同步 API Token</span>
+                        <div className="flex gap-1.5 items-center">
+                          <input
+                            type="password"
+                            readOnly
+                            value={shortcutToken}
+                            className="flex-1 bg-white dark:bg-darkBg border border-secondary dark:border-darkBorder rounded-lg px-2 py-1 text-[10px] font-mono text-onSurface dark:text-foreground focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCopyToken}
+                            className="bg-secondary dark:bg-darkBorder hover:bg-primary/10 hover:text-primary transition-all p-1.5 rounded-lg border border-secondary dark:border-darkBorder text-[10px]"
+                          >
+                            {copiedToken ? '已复制' : '复制'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-[10px] space-y-1 text-onSurface/70 dark:text-foreground/75 leading-relaxed pt-1.5 border-t border-secondary/60 dark:border-darkBorder/40">
+                        <p className="font-bold text-onSurface dark:text-foreground">iPhone 快捷指令配置步骤：</p>
+                        <ol className="list-decimal list-inside space-y-0.5 opacity-90 pl-0.5">
+                          <li>在 iPhone 上打开「快捷指令」App，新建指令。</li>
+                          <li>添加操作「获取健康样本」，选择步数、活动能量和体重。</li>
+                          <li>添加操作「获取 URL 内容」，设置请求方法为 **POST**，请求体为 **JSON**。</li>
+                          <li>绑定 JSON 键值对：`steps` (今日步数), `active_energy` (今日活动能量), `weight` (今日体重)。</li>
+                          <li>添加请求头 (Header)：`Authorization`，值为 `Bearer [复制的Token]`。</li>
+                        </ol>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleFetchShortcutToken}
+                      isLoading={loadingToken}
+                      size="sm"
+                      className="w-full text-[11px] font-semibold py-2 bg-primary hover:bg-primary-hover text-white rounded-xl shadow-sm"
+                    >
+                      获取快捷指令同步 Token
+                    </Button>
+                  )}
+                </div>
 
                 <div className="bg-secondary/40 dark:bg-darkBorder/30 p-4 rounded-2xl space-y-2 text-[11px] leading-relaxed text-onSurface/70 dark:text-foreground/70 border border-secondary dark:border-darkBorder">
                   <h4 className="font-bold flex items-center gap-1 text-onSurface dark:text-foreground">
@@ -1277,10 +1423,24 @@ export default function DisciplinePage() {
                     </div>
                   </div>
 
-                  <div className="sm:col-span-4 flex items-center justify-center border border-secondary dark:border-darkBorder rounded-xl bg-secondary/10 dark:bg-darkBg/20 aspect-video sm:aspect-square overflow-hidden relative">
-                    {editDietImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={editDietImageUrl} alt="饮食照片" className="w-full h-full object-cover" />
+                  <div className="sm:col-span-4 flex flex-col items-center justify-center border border-secondary dark:border-darkBorder rounded-xl bg-secondary/10 dark:bg-darkBg/20 p-2 min-h-[140px] sm:min-h-0 relative">
+                    {dietUrls.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-1.5 w-full h-full auto-rows-fr">
+                        {dietUrls.map((url, idx) => (
+                          <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-secondary/50 dark:border-darkBorder/50 group bg-white dark:bg-darkCard">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={url} alt={`饮食照片 ${idx + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => removeDietUrl(idx)}
+                              className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-black/80 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="删除图片"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-[10px] text-onSurface/40 dark:text-foreground/45">未上传饮食图</span>
                     )}
@@ -1368,10 +1528,24 @@ export default function DisciplinePage() {
                     </div>
                   </div>
 
-                  <div className="sm:col-span-4 flex items-center justify-center border border-secondary dark:border-darkBorder rounded-xl bg-secondary/10 dark:bg-darkBg/20 aspect-video sm:aspect-square overflow-hidden relative">
-                    {editFitnessImageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={editFitnessImageUrl} alt="健身打卡" className="w-full h-full object-cover" />
+                  <div className="sm:col-span-4 flex flex-col items-center justify-center border border-secondary dark:border-darkBorder rounded-xl bg-secondary/10 dark:bg-darkBg/20 p-2 min-h-[140px] sm:min-h-0 relative">
+                    {fitnessUrls.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-1.5 w-full h-full auto-rows-fr">
+                        {fitnessUrls.map((url, idx) => (
+                          <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-secondary/50 dark:border-darkBorder/50 group bg-white dark:bg-darkCard">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={url} alt={`健身打卡 ${idx + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => removeFitnessUrl(idx)}
+                              className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-black/80 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="删除图片"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-[10px] text-onSurface/40 dark:text-foreground/45">未上传健身图</span>
                     )}

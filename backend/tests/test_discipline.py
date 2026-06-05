@@ -205,3 +205,40 @@ def test_apple_health_xml_import(client: TestClient, discipline_test_setup, db):
     # Check total BMR calculation: 10 * 80 + 6.25 * 180 - 5 * 25 + 5 = 800 + 1125 - 125 + 5 = 1805
     # Total burned = 1805 + active_energy (300.2) = 2105.2 -> 2105
     assert log_record["burned_calories"] == 2105
+
+
+def test_discipline_shortcut_token_and_sync(client: TestClient, discipline_test_setup, db):
+    auth_cookies = discipline_test_setup["authorized"]
+    admin_cookies = discipline_test_setup["admin"]
+    auth_user_id = discipline_test_setup["authorized_user_id"]
+
+    # Grant permission
+    client.patch(
+        f"/api/admin/users/{auth_user_id}",
+        json={"is_discipline_authorized": True},
+        cookies=admin_cookies
+    )
+
+    # 1. Fetch shortcut token
+    res_token = client.get("/api/discipline/shortcut-token", cookies=auth_cookies)
+    assert res_token.status_code == 200
+    token = res_token.json()["token"]
+    assert token is not None
+
+    # 2. Use token in Authorization header to sync health data
+    res_sync = client.post(
+        "/api/discipline/shortcut-sync",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "steps": 10000,
+            "active_energy": 500.0,
+            "weight": 72.0
+        }
+    )
+    assert res_sync.status_code == 200
+    data = res_sync.json()
+    assert data["step_count"] == 10000
+    assert data["active_energy"] == 500.0
+    assert data["weight"] == 72.0
+    # Check default calorie intake is 1800
+    assert data["intake_calories"] == 1800

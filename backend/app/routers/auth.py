@@ -98,6 +98,23 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         invite_code_obj.used_by = db_user.id
         invite_code_obj.used_at = func.now()
 
+    # Create personal space for the registered user
+    from app.models.space import Space, SpaceType, SpaceMember, SpaceMemberRole
+    personal_space = Space(
+        name="个人空间",
+        type=SpaceType.PERSONAL,
+        description="您的专属个人空间，用于记录打卡、日记等私密内容。",
+        created_by=db_user.id
+    )
+    db.add(personal_space)
+    db.flush()
+    owner_member = SpaceMember(
+        space_id=personal_space.id,
+        user_id=db_user.id,
+        role=SpaceMemberRole.OWNER
+    )
+    db.add(owner_member)
+
     db.commit()
     db.refresh(db_user)
     return db_user

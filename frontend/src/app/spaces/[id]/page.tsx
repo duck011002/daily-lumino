@@ -283,7 +283,7 @@ export default function SpaceDetailPage() {
                   <h2 className="text-2xl font-bold text-onSurface dark:text-foreground">
                     成员
                   </h2>
-                  {isOwner && (
+                  {isOwner && space.type !== 'personal' && (
                     <Button onClick={() => setInviteModalOpen(true)} size="sm">
                       <Plus size={16} className="mr-1" />
                       邀请新成员
@@ -383,20 +383,22 @@ export default function SpaceDetailPage() {
                 </div>
 
                 {/* Danger Zone */}
-                <div className="space-y-4 pt-4 border-t border-secondary dark:border-darkBorder">
-                  <h3 className="text-lg font-semibold text-red-500 flex items-center">
-                    <ShieldAlert size={18} className="mr-2" /> 危险区域
-                  </h3>
-                  <div className="p-4 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/5">
-                    <h4 className="font-medium text-red-700 dark:text-red-400 mb-1">删除空间</h4>
-                    <p className="text-sm text-red-600/80 dark:text-red-400/80 mb-3">
-                      删除空间将永久移除其中的所有数据和成员，此操作不可撤销。
-                    </p>
-                    <Button variant="danger" onClick={handleDeleteSpace}>
-                      删除空间
-                    </Button>
+                {space.type !== 'personal' && (
+                  <div className="space-y-4 pt-4 border-t border-secondary dark:border-darkBorder">
+                    <h3 className="text-lg font-semibold text-red-500 flex items-center">
+                      <ShieldAlert size={18} className="mr-2" /> 危险区域
+                    </h3>
+                    <div className="p-4 rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/5">
+                      <h4 className="font-medium text-red-700 dark:text-red-400 mb-1">删除空间</h4>
+                      <p className="text-sm text-red-600/80 dark:text-red-400/80 mb-3">
+                        删除空间将永久移除其中的所有数据和成员，此操作不可撤销。
+                      </p>
+                      <Button variant="danger" onClick={handleDeleteSpace}>
+                        删除空间
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
 
               </div>
             )}

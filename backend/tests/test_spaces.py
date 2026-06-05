@@ -286,3 +286,30 @@ def test_non_owner_cannot_update(client: TestClient, space_user, second_user):
         cookies=second_user,
     )
     assert res.status_code == 403
+
+
+def test_personal_space_restrictions(client: TestClient, space_user):
+    # Retrieve spaces list, which automatically creates a personal space for the user
+    res = client.get("/api/spaces", cookies=space_user)
+    assert res.status_code == 200
+    spaces = res.json()
+    
+    # Filter the personal space
+    personal_spaces = [s for s in spaces if s["type"] == "personal"]
+    assert len(personal_spaces) == 1
+    personal_space_id = personal_spaces[0]["id"]
+    assert personal_spaces[0]["name"] == "个人空间"
+
+    # 1. Try to delete the personal space -> 400 Bad Request
+    res_delete = client.delete(f"/api/spaces/{personal_space_id}", cookies=space_user)
+    assert res_delete.status_code == 400
+    assert "个人空间不能删除" in res_delete.json()["detail"]
+
+    # 2. Try to create invite code for the personal space -> 400 Bad Request
+    res_invite = client.post(
+        f"/api/spaces/{personal_space_id}/invites",
+        json={"max_uses": 1},
+        cookies=space_user
+    )
+    assert res_invite.status_code == 400
+    assert "个人空间不能邀请" in res_invite.json()["detail"]

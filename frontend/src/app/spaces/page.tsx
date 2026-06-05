@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   FolderHeart, Plus, Users, Heart, Home as HomeIcon,
-  Loader2, Trash2, Settings, ArrowLeft,
+  Loader2, Trash2, Settings, ArrowLeft, User
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import api from '@/lib/api'
@@ -15,7 +15,7 @@ import ThemeToggle from '@/components/layout/ThemeToggle'
 interface SpaceSummary {
   id: number
   name: string
-  type: 'couple' | 'family' | 'friends'
+  type: 'couple' | 'family' | 'friends' | 'personal'
   description: string | null
   cover_url: string | null
   member_count: number
@@ -26,18 +26,21 @@ const TYPE_LABELS: Record<string, string> = {
   couple: '情侣空间',
   family: '家庭空间',
   friends: '挚友空间',
+  personal: '个人空间',
 }
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   couple: <Heart size={20} />,
   family: <HomeIcon size={20} />,
   friends: <Users size={20} />,
+  personal: <User size={20} />,
 }
 
 const TYPE_COLORS: Record<string, string> = {
   couple: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
   family: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
   friends: 'bg-sky-500/10 text-sky-500 border-sky-500/20',
+  personal: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
 }
 
 export default function SpacesPage() {

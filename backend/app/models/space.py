@@ -11,6 +11,7 @@ class SpaceType(str, enum.Enum):
     COUPLE = "couple"
     FAMILY = "family"
     FRIENDS = "friends"
+    PERSONAL = "personal"
 
 
 class SpaceMemberRole(str, enum.Enum):

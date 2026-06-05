@@ -1,4 +1,4 @@
-from fastapi import Cookie, Depends, HTTPException, Path, status
+from fastapi import Cookie, Depends, Header, HTTPException, Path, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,11 +9,18 @@ from app.services.auth import decode_token
 
 
 def get_current_user(
-    access_token: str | None = Cookie(None), db: Session = Depends(get_db)
+    access_token: str | None = Cookie(None),
+    authorization: str | None = Header(None),
+    db: Session = Depends(get_db)
 ) -> User:
-    if not access_token:
+    token = access_token
+    if not token and authorization:
+        if authorization.startswith("Bearer "):
+            token = authorization[7:]
+
+    if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登录，请先登录。")
-    payload = decode_token(access_token)
+    payload = decode_token(token)
     user_id_str = payload.get("sub")
     token_type = payload.get("type")
 

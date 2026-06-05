@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.space import Space, SpaceInvite, SpaceMember, SpaceMemberRole
+from app.models.space import Space, SpaceInvite, SpaceMember, SpaceMemberRole, SpaceType
 from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.models.user import User
@@ -153,13 +153,47 @@ def list_my_spaces(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from sqlalchemy import and_
     # Return all spaces where the user is a member
     memberships = db.scalars(
         select(SpaceMember).where(SpaceMember.user_id == current_user.id)
     ).all()
     space_ids = [m.space_id for m in memberships]
-    if not space_ids:
-        return []
+    
+    # Check if they have a PERSONAL type space
+    has_personal = False
+    if space_ids:
+        personal_space_count = db.scalar(
+            select(func.count(Space.id))
+            .where(and_(Space.id.in_(space_ids), Space.type == SpaceType.PERSONAL))
+        )
+        if personal_space_count and personal_space_count > 0:
+            has_personal = True
+
+    if not has_personal:
+        # Create a personal space for this user!
+        personal_space = Space(
+            name="个人空间",
+            type=SpaceType.PERSONAL,
+            description="您的专属个人空间，用于记录打卡、日记等私密内容。",
+            created_by=current_user.id
+        )
+        db.add(personal_space)
+        db.flush()
+        
+        owner_member = SpaceMember(
+            space_id=personal_space.id,
+            user_id=current_user.id,
+            role=SpaceMemberRole.OWNER
+        )
+        db.add(owner_member)
+        db.commit()
+        
+        # Re-fetch memberships to include the new personal space
+        memberships = db.scalars(
+            select(SpaceMember).where(SpaceMember.user_id == current_user.id)
+        ).all()
+        space_ids = [m.space_id for m in memberships]
 
     spaces = db.scalars(
         select(Space).where(Space.id.in_(space_ids)).order_by(Space.created_at.desc())
@@ -220,6 +254,10 @@ def delete_space(
 ):
     space = get_space_or_404(db, space_id)
     require_owner(db, space_id, current_user.id)
+    if space.type == SpaceType.PERSONAL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="个人空间不能删除。"
+        )
     db.delete(space)
     db.commit()
     return {"status": "ok", "message": "空间已成功删除。"}
@@ -266,8 +304,13 @@ def create_invite(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    get_space_or_404(db, space_id)
+    space = get_space_or_404(db, space_id)
     require_owner(db, space_id, current_user.id)
+
+    if space.type == SpaceType.PERSONAL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="个人空间不能邀请其他人。"
+        )
 
     expires_at = None
     if invite_in.expires_in_hours:

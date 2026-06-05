@@ -4,7 +4,7 @@ import json
 import zipfile
 import tempfile
 import xml.etree.ElementTree as ET
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 from decimal import Decimal
 
@@ -87,6 +87,12 @@ class AIAnalysisResponse(BaseModel):
     calories: int
     analysis: str
 
+class ShortcutSyncRequest(BaseModel):
+    date: Optional[str] = Field(None, description="打卡日期 (YYYY-MM-DD)，若为空默认为今天")
+    steps: Optional[int] = Field(None, description="步数")
+    active_energy: Optional[float] = Field(None, description="活动消耗能量 (kcal)")
+    weight: Optional[float] = Field(None, description="体重 (kg)")
+
 # ---------- HELPERS ----------
 def calculate_bmr(height: float, weight: float) -> float:
     # Classically simple Mifflin-St Jeor equation assuming general averages:
@@ -99,6 +105,24 @@ def calculate_bmi(height: float, weight: float) -> float:
     return round(weight / (height_m * height_m), 2)
 
 # ---------- ROUTERS ----------
+
+@router.get("/shortcut-token")
+def get_shortcut_token(
+    current_user: User = Depends(require_discipline)
+):
+    from jose import jwt
+    from app.config import settings
+    from datetime import UTC
+    # Create a 365-day access token for shortcuts sync
+    expire = datetime.now(UTC) + timedelta(days=365)
+    to_encode = {
+        "sub": str(current_user.id),
+        "type": "access",
+        "is_root": current_user.is_root,
+        "exp": expire,
+    }
+    token = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+    return {"token": token}
 
 @router.get("/profile", response_model=Optional[HealthProfileResponse])
 def get_profile(
@@ -204,6 +228,7 @@ def create_or_update_log(
             diet_image_url=log_in.diet_image_url,
             fitness_text=log_in.fitness_text,
             fitness_image_url=log_in.fitness_image_url,
+            intake_calories=1800, # 新建打卡且未填摄入时默认 1800
         )
         db.add(log)
     else:
@@ -225,6 +250,9 @@ def create_or_update_log(
     # Save intake/burned calories if provided manually
     if log_in.intake_calories is not None:
         log.intake_calories = log_in.intake_calories
+    elif not log.diet_text and not log.diet_image_url and log.intake_calories == 0:
+        # 如果当天没有任何饮食文字或图片打卡内容，且摄入原本是 0（表示用户未填写饮食），默认将其提升为 1800
+        log.intake_calories = 1800
     if log_in.burned_calories is not None:
         log.burned_calories = log_in.burned_calories
     else:
@@ -270,13 +298,14 @@ def analyze_diet(
 
     try:
         if req.image_url:
+            urls = [u.strip() for u in req.image_url.split(",") if u.strip()]
+            content_list = [{"type": "text", "text": prompt}]
+            for url in urls:
+                content_list.append({"type": "image_url", "image_url": {"url": url}})
             messages = [
                 {
                     "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": req.image_url}}
-                    ]
+                    "content": content_list
                 }
             ]
         else:
@@ -337,13 +366,14 @@ def analyze_fitness(
 
     try:
         if req.image_url:
+            urls = [u.strip() for u in req.image_url.split(",") if u.strip()]
+            content_list = [{"type": "text", "text": prompt}]
+            for url in urls:
+                content_list.append({"type": "image_url", "image_url": {"url": url}})
             messages = [
                 {
                     "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": req.image_url}}
-                    ]
+                    "content": content_list
                 }
             ]
         else:
@@ -378,6 +408,7 @@ def analyze_fitness(
 @router.post("/import-apple-health")
 async def import_apple_health(
     file: UploadFile = File(...),
+    range_days: int = Query(0, description="导入范围天数，0代表全部"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_discipline)
 ):
@@ -394,6 +425,8 @@ async def import_apple_health(
     bmr = calculate_bmr(base_height, base_weight)
 
     daily_data = {}
+    temp_path = None
+    xml_path = None
 
     try:
         # Create temporary file to save uploaded zip/xml
@@ -411,17 +444,18 @@ async def import_apple_health(
                         xml_filename = f
                         break
                 if not xml_filename:
-                    os.unlink(temp_path)
                     raise HTTPException(status_code=400, detail="Zip 压缩包内未找到有效的健康数据 XML 文件。")
                 
                 # Extract export.xml to a temp file
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".xml") as xml_temp:
                     xml_temp.write(zip_ref.read(xml_filename))
                     xml_path = xml_temp.name
-            # Delete zip temp file
-            os.unlink(temp_path)
         else:
             xml_path = temp_path
+
+        limit_date = None
+        if range_days > 0:
+            limit_date = (datetime.now() - timedelta(days=range_days)).date()
 
         print("Parsing Apple Health XML via stream reader...")
         # Stream parse to prevent OutOfMemory on huge XML files
@@ -436,7 +470,13 @@ async def import_apple_health(
                         try:
                             val = float(val_str)
                             day = date_str.split(" ")[0] # extract "YYYY-MM-DD"
+                            day_date = datetime.strptime(day, "%Y-%m-%d").date()
                             
+                            # Filter based on range_days if specified
+                            if limit_date and day_date < limit_date:
+                                elem.clear()
+                                continue
+                                
                             if day not in daily_data:
                                 daily_data[day] = {"steps": 0.0, "energy": 0.0, "weight": None}
                                 
@@ -450,9 +490,6 @@ async def import_apple_health(
                             pass
                 # Crucial to release parsed elements to keep memory usage minimal
                 elem.clear()
-
-        # Delete XML temp file
-        os.unlink(xml_path)
 
         print(f"Extraction complete. Found {len(daily_data)} days of record data. Committing to DB...")
         
@@ -481,6 +518,10 @@ async def import_apple_health(
                 )
             )
 
+            # Calculate BMR for this specific day using its weight if available
+            day_weight = weight if weight is not None else (log.weight if log and log.weight is not None else base_weight)
+            day_bmr = calculate_bmr(base_height, day_weight)
+
             if not log:
                 # If new, automatically calculate BMR as baseline burned calories
                 log = DailyDisciplineLog(
@@ -489,17 +530,21 @@ async def import_apple_health(
                     step_count=steps,
                     active_energy=energy,
                     weight=weight,
-                    burned_calories=int(bmr + energy),
-                    calorie_gap=int(bmr + energy) # burned - 0 intake
+                    intake_calories=1800, # 默认取 1800
+                    burned_calories=int(day_bmr + energy)
                 )
+                log.calorie_gap = log.burned_calories - 1800
                 db.add(log)
             else:
                 log.step_count = steps
                 log.active_energy = energy
                 if weight is not None:
                     log.weight = weight
+                # 如果用户此前未写过饮食文案/上传饮食图片，且摄入卡路里为0，同步修正为默认1800
+                if not log.diet_text and not log.diet_image_url and log.intake_calories == 0:
+                    log.intake_calories = 1800
                 # Re-calculate burned and calorie gap
-                log.burned_calories = int(bmr + energy)
+                log.burned_calories = int(day_bmr + energy)
                 log.calorie_gap = log.burned_calories - log.intake_calories
             
             records_updated += 1
@@ -514,3 +559,82 @@ async def import_apple_health(
     except Exception as e:
         print(f"Error during Apple Health import: {e}")
         raise HTTPException(status_code=500, detail=f"导入解析失败: {str(e)}")
+    finally:
+        # Ensure temporary files are deleted from the disk
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except Exception as unlink_err:
+                print(f"Failed to unlink temp_path {temp_path}: {unlink_err}")
+        if xml_path and xml_path != temp_path and os.path.exists(xml_path):
+            try:
+                os.unlink(xml_path)
+            except Exception as unlink_err:
+                print(f"Failed to unlink xml_path {xml_path}: {unlink_err}")
+
+@router.post("/shortcut-sync", response_model=DailyLogResponse)
+def shortcut_sync(
+    req: ShortcutSyncRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_discipline)
+):
+    if req.date:
+        try:
+            target_date = datetime.strptime(req.date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="日期格式必须为 YYYY-MM-DD")
+    else:
+        target_date = datetime.now().date()
+
+    # Fetch User profile to get BMR calculation info
+    profile = db.scalar(
+        select(UserHealthProfile).where(UserHealthProfile.user_id == current_user.id)
+    )
+    
+    base_height = profile.height if profile else 170.0
+    base_weight = profile.initial_weight if profile else 65.0
+
+    log = db.scalar(
+        select(DailyDisciplineLog)
+        .where(
+            and_(
+                DailyDisciplineLog.user_id == current_user.id,
+                DailyDisciplineLog.log_date == target_date
+            )
+        )
+    )
+
+    # Calculate BMR for this specific day using its weight if available
+    day_weight = req.weight
+    if day_weight is None:
+        day_weight = log.weight if log and log.weight is not None else base_weight
+    
+    day_bmr = calculate_bmr(base_height, day_weight)
+
+    if not log:
+        log = DailyDisciplineLog(
+            user_id=current_user.id,
+            log_date=target_date,
+            intake_calories=1800, # 新建打卡且未填摄入时默认 1800
+        )
+        db.add(log)
+
+    if req.steps is not None:
+        log.step_count = req.steps
+    if req.active_energy is not None:
+        log.active_energy = req.active_energy
+    if req.weight is not None:
+        log.weight = req.weight
+
+    # 如果没有写任何饮食，且摄入卡路里原本是0，自动设为默认1800
+    if not log.diet_text and not log.diet_image_url and log.intake_calories == 0:
+        log.intake_calories = 1800
+
+    # Auto calculate burned calories
+    act_energy = log.active_energy if log.active_energy else 0.0
+    log.burned_calories = int(day_bmr + act_energy)
+    log.calorie_gap = log.burned_calories - log.intake_calories
+
+    db.commit()
+    db.refresh(log)
+    return log
