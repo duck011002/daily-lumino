@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class UserStatusUpdate(BaseModel):
     is_active: bool | None = None
     can_create_spaces: bool | None = None
+    is_discipline_authorized: bool | None = None
 
 
 

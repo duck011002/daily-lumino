@@ -26,6 +26,7 @@ class UserResponse(UserBase):
     is_root: bool
     is_active: bool
     can_create_spaces: bool
+    is_discipline_authorized: bool
     created_at: datetime
     updated_at: datetime
 

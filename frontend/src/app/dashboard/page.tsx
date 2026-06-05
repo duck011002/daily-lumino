@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { LogOut, Sparkles, FolderHeart, Newspaper, ShieldAlert, User, Settings } from 'lucide-react'
+import { LogOut, Sparkles, FolderHeart, Newspaper, ShieldAlert, User, Settings, Heart } from 'lucide-react'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
@@ -28,6 +28,7 @@ export default function Dashboard() {
       href: '/chat',
       icon: Sparkles,
       color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20 hover:border-indigo-500/50',
+      show: true,
     },
     {
       id: 'btn-spaces',
@@ -36,6 +37,16 @@ export default function Dashboard() {
       href: '/spaces',
       icon: FolderHeart,
       color: 'bg-primary/10 text-primary border-primary/20 hover:border-primary/50',
+      show: true,
+    },
+    {
+      id: 'btn-discipline',
+      title: '自律健康记录',
+      desc: '记录您的每日饮食与健身打卡，AI 自动评估热量并生成健康档案。',
+      href: '/discipline',
+      icon: Heart,
+      color: 'bg-rose-500/10 text-rose-500 border-rose-500/20 hover:border-rose-500/50',
+      show: user.is_root || user.is_discipline_authorized,
     },
     {
       id: 'btn-blog',
@@ -44,8 +55,9 @@ export default function Dashboard() {
       href: '/blog',
       icon: Newspaper,
       color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:border-emerald-500/50',
+      show: true,
     },
-  ]
+  ].filter(card => card.show)
 
   return (
     <div className="flex-1 min-h-screen bg-surface dark:bg-darkBg transition-colors duration-300">

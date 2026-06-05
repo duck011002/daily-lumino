@@ -65,6 +65,13 @@ def update_user_status(user_id: int, status_in: UserStatusUpdate, db: Session = 
     if status_in.can_create_spaces is not None:
         user.can_create_spaces = status_in.can_create_spaces
 
+    if status_in.is_discipline_authorized is not None:
+        if user.is_root and not status_in.is_discipline_authorized:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="不能禁用超级管理员的自律记录功能权限。"
+            )
+        user.is_discipline_authorized = status_in.is_discipline_authorized
+
     db.commit()
     db.refresh(user)
     return user

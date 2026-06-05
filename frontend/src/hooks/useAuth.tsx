@@ -13,6 +13,7 @@ export interface User {
   is_root: boolean
   is_active: boolean
   can_create_spaces: boolean
+  is_discipline_authorized: boolean
   created_at: string
   updated_at: string
 }

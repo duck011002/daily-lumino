@@ -20,6 +20,7 @@ interface ChatModel {
   id: string
   name: string
   model: string
+  is_reachable?: boolean
 }
 
 interface ChatContextType {

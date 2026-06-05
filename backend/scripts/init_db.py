@@ -18,6 +18,23 @@ from app.utils.crypto import encrypt_value
 def init_db():
     db = SessionLocal()
     try:
+        # 0. Automatically create tables for new models if they don't exist
+        from app.database import Base, engine
+        from app.models.discipline import UserHealthProfile, DailyDisciplineLog
+        from sqlalchemy import text
+        
+        Base.metadata.create_all(bind=engine)
+        
+        with engine.connect() as conn:
+            try:
+                check_col = conn.execute(text("SHOW COLUMNS FROM users LIKE 'is_discipline_authorized'")).fetchone()
+                if not check_col:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN is_discipline_authorized BOOLEAN NOT NULL DEFAULT FALSE"))
+                    conn.commit()
+                    print("Successfully added is_discipline_authorized column to users table.")
+            except Exception as e:
+                print(f"Skipping MySQL-specific alter column check: {e}")
+
         # 1. Initialize root user
         root_exists = db.scalar(
             select(User).where((User.username == settings.ROOT_USERNAME) | (User.is_root == True))
@@ -34,11 +51,15 @@ def init_db():
                 display_name="超级管理员",
                 is_root=True,
                 is_active=True,
+                is_discipline_authorized=True,
             )
             db.add(root_user)
             print(f"成功创建超级管理员账户：{settings.ROOT_USERNAME}")
         else:
             print("超级管理员账户已存在，跳过创建。")
+            if root_exists and not root_exists.is_discipline_authorized:
+                root_exists.is_discipline_authorized = True
+                print("Enabled discipline permission for root user.")
 
         # 2. Initialize storage quota
         quota_exists = db.scalar(select(StorageQuota))

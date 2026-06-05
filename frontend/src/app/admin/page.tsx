@@ -33,6 +33,7 @@ interface UserResponse {
   is_root: boolean
   is_active: boolean
   can_create_spaces: boolean
+  is_discipline_authorized: boolean
   created_at: string
 }
 
@@ -134,6 +135,7 @@ export default function AdminConsole() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [copiedShareSlug, setCopiedShareSlug] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [isSourceMode, setIsSourceMode] = useState(false)
   const [aiProviders, setAiProviders] = useState<AIProvider[]>([])
   const [editingProvider, setEditingProvider] = useState<AIProvider | null>(null)
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
@@ -339,6 +341,23 @@ export default function AdminConsole() {
       showToast('success', `已${newPermission ? '开通' : '取消'}用户 ${targetUser.username} 的创建空间权限`)
       setUsers((prev) =>
         prev.map((u) => (u.id === targetUser.id ? { ...u, can_create_spaces: newPermission } : u))
+      )
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '权限更新失败。')
+    }
+  }
+
+  const handleToggleUserDisciplinePermission = async (targetUser: UserResponse) => {
+    if (targetUser.id === user?.id) {
+      alert('不能修改超级管理员自身的自律记录权限。')
+      return
+    }
+    try {
+      const newPermission = !targetUser.is_discipline_authorized
+      await api.patch(`/admin/users/${targetUser.id}`, { is_discipline_authorized: newPermission })
+      showToast('success', `已${newPermission ? '开通' : '取消'}用户 ${targetUser.username} 的自律记录权限`)
+      setUsers((prev) =>
+        prev.map((u) => (u.id === targetUser.id ? { ...u, is_discipline_authorized: newPermission } : u))
       )
     } catch (err: any) {
       showToast('error', err.response?.data?.detail || '权限更新失败。')
@@ -1031,19 +1050,37 @@ export default function AdminConsole() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">正文内容 *</label>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">正文内容 *</label>
+                        <button
+                          type="button"
+                          onClick={() => setIsSourceMode(!isSourceMode)}
+                          className="text-xs bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1 rounded-lg border border-primary/20 transition-all font-semibold"
+                        >
+                          {isSourceMode ? '常规模式 (Markdown)' : '源码模式 (Raw Edit)'}
+                        </button>
+                      </div>
                       <div className="h-[600px] flex flex-col rounded-2xl border border-secondary dark:border-darkBorder overflow-hidden bg-white dark:bg-darkCard shadow-sm" data-color-mode={isDark ? 'dark' : 'light'}>
-                        <MDEditor
-                          value={formContent}
-                          onChange={setFormContent}
-                          height="100%"
-                          minHeight={500}
-                          preview="live"
-                          className="flex-1 bg-white dark:bg-darkCard text-onSurface dark:text-foreground border-none"
-                          textareaProps={{
-                            placeholder: '开始写点什么吧...'
-                          }}
-                        />
+                        {isSourceMode ? (
+                          <textarea
+                            value={formContent || ''}
+                            onChange={(e) => setFormContent(e.target.value)}
+                            placeholder="开始以 Markdown 源码编写文章..."
+                            className="w-full h-full p-6 font-mono text-sm border-none bg-white dark:bg-darkCard text-onSurface dark:text-foreground focus:outline-none focus:ring-0 resize-none leading-relaxed"
+                          />
+                        ) : (
+                          <MDEditor
+                            value={formContent}
+                            onChange={setFormContent}
+                            height="100%"
+                            minHeight={500}
+                            preview="live"
+                            className="flex-1 bg-white dark:bg-darkCard text-onSurface dark:text-foreground border-none"
+                            textareaProps={{
+                              placeholder: '开始写点什么吧...'
+                            }}
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1075,6 +1112,7 @@ export default function AdminConsole() {
                           <th className="px-5 py-3 font-semibold">加入时间</th>
                           <th className="px-5 py-3 font-semibold text-center">账号状态</th>
                           <th className="px-5 py-3 font-semibold text-center">创建空间权限</th>
+                          <th className="px-5 py-3 font-semibold text-center">自律记录授权</th>
                           <th className="px-5 py-3 font-semibold text-center">快捷控制</th>
                         </tr>
                       </thead>
@@ -1137,6 +1175,26 @@ export default function AdminConsole() {
                                 <span
                                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                                     targetUser.can_create_spaces ? 'translate-x-6' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
+                            </td>
+                            <td className="px-5 py-4 text-center">
+                              <button
+                                onClick={() => handleToggleUserDisciplinePermission(targetUser)}
+                                disabled={targetUser.id === user?.id || targetUser.is_root}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-primary/40 ${
+                                  targetUser.id === user?.id || targetUser.is_root
+                                    ? 'opacity-40 cursor-not-allowed bg-secondary dark:bg-darkBorder'
+                                    : targetUser.is_discipline_authorized
+                                    ? 'bg-primary'
+                                    : 'bg-onSurface/20 dark:bg-darkBorder'
+                                }`}
+                                title={targetUser.is_discipline_authorized ? "取消自律记录授权" : "开通自律记录授权"}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    targetUser.is_discipline_authorized ? 'translate-x-6' : 'translate-x-1'
                                   }`}
                                 />
                               </button>
