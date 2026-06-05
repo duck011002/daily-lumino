@@ -84,15 +84,13 @@ def get_llm_client_and_model(db: Session, model_id: str):
     return client, model_name
 
 
-def get_discipline_llm(db: Session, task_type: str = "text"):
+def get_discipline_llm_candidates(db: Session, task_type: str = "text") -> List[tuple]:
     """
-    Get LLM client and model for discipline tasks (diet, fitness analysis, daily report).
-    Priority 1: ModelScope
-      - Text: Qwen/Qwen3.5-35B-A3B
-      - Vision: Qwen/Qwen3-VL-235B-A22B-Instruct
-    Priority 2: Aliyun BaiLian (Qwen)
-      - Text: qwen-plus
-      - Vision: qwen-vl-max
+    Get a list of candidate OpenAI clients, model names, and provider names for discipline tasks.
+    Ordered by priority:
+    1. modelscope
+    2. qwen
+    3. other custom providers
     """
     providers_json = get_system_config(db, "ai_providers")
     providers = []
@@ -100,74 +98,96 @@ def get_discipline_llm(db: Session, task_type: str = "text"):
         try:
             providers = json.loads(providers_json)
         except Exception as e:
-            print(f"Failed to parse ai_providers in get_discipline_llm: {e}")
+            print(f"Failed to parse ai_providers in get_discipline_llm_candidates: {e}")
 
-    def get_provider_client(provider_id: str, default_model: str):
-        for p in providers:
-            if p.get("id") == provider_id:
-                api_key_enc = p.get("api_key")
-                if not api_key_enc:
-                    continue
-                try:
-                    api_key = decrypt_value(api_key_enc)
-                except Exception:
-                    api_key = api_key_enc
-                
-                base_url = p.get("base_url")
-                
-                # Check if the provider lists Qwen-VL or Qwen3.5
-                model_name = default_model
-                models_list = p.get("models") or []
-                if task_type == "vision":
-                    vl_models = [m for m in models_list if "vl" in m.lower() or "vision" in m.lower() or "image" in m.lower()]
-                    if vl_models:
-                        model_name = vl_models[0]
-                else:
-                    txt_models = [m for m in models_list if not ("vl" in m.lower() or "vision" in m.lower() or "image" in m.lower())]
-                    if txt_models:
-                        model_name = txt_models[0]
-                    elif models_list:
-                        model_name = models_list[0]
-                        
+    candidates = []
+
+    def build_candidate(p):
+        api_key_enc = p.get("api_key")
+        if not api_key_enc:
+            return None
+        try:
+            api_key = decrypt_value(api_key_enc)
+        except Exception:
+            api_key = api_key_enc
+        
+        base_url = p.get("base_url")
+        models_list = p.get("models") or []
+        
+        # Determine model
+        model_name = p.get("model")
+        if task_type == "vision":
+            vl_models = [m for m in models_list if "vl" in m.lower() or "vision" in m.lower() or "image" in m.lower() or "gpt-4o" in m.lower()]
+            if vl_models:
+                model_name = vl_models[0]
+            elif not model_name and models_list:
+                model_name = models_list[0]
+        else:
+            txt_models = [m for m in models_list if not ("vl" in m.lower() or "vision" in m.lower() or "image" in m.lower() or "gpt-4o" in m.lower())]
+            if txt_models:
+                model_name = txt_models[0]
+            elif not model_name and models_list:
+                model_name = models_list[0]
+        
+        if not model_name:
+            model_name = "gpt-3.5-turbo"
+            
+        client = OpenAI(api_key=api_key, base_url=base_url or None)
+        return client, model_name, p.get("name") or p.get("id")
+
+    # Group providers by priority
+    provider_map = {p.get("id"): p for p in providers if p.get("id")}
+    
+    # Priority 1: modelscope
+    if "modelscope" in provider_map:
+        try:
+            cand = build_candidate(provider_map["modelscope"])
+            if cand:
+                candidates.append(cand)
+        except Exception as e:
+            print(f"Failed to build candidate modelscope: {e}")
+            
+    # Priority 2: qwen
+    if "qwen" in provider_map:
+        try:
+            cand = build_candidate(provider_map["qwen"])
+            if cand:
+                candidates.append(cand)
+        except Exception as e:
+            print(f"Failed to build candidate qwen: {e}")
+
+    # Priority 3: other providers
+    for p in providers:
+        pid = p.get("id")
+        if pid not in ("modelscope", "qwen"):
+            try:
+                cand = build_candidate(p)
+                if cand:
+                    candidates.append(cand)
+            except Exception as e:
+                print(f"Failed to build candidate {pid}: {e}")
+
+    # Fallback to legacy static configs if no candidates found
+    if not candidates:
+        try:
+            api_key_enc = get_system_config(db, "qwen_api_key")
+            base_url = get_system_config(db, "qwen_base_url")
+            api_key = decrypt_value(api_key_enc)
+            if api_key:
                 client = OpenAI(api_key=api_key, base_url=base_url or None)
-                return client, model_name
-        return None
+                model_name = "qwen-vl-max" if task_type == "vision" else "qwen-plus"
+                candidates.append((client, model_name, "static_qwen"))
+        except Exception as e:
+            print(f"Static fallback config build failed: {e}")
 
-    # Try ModelScope (Priority 1)
-    try:
-        res = get_provider_client(
-            "modelscope", 
-            "Qwen/Qwen3-VL-235B-A22B-Instruct" if task_type == "vision" else "Qwen/Qwen3.5-35B-A3B"
-        )
-        if res:
-            return res[0], res[1]
-    except Exception as e:
-        print(f"Failed to load ModelScope client: {e}")
+    return candidates
 
-    # Try Aliyun BaiLian (Priority 2)
-    try:
-        res = get_provider_client(
-            "qwen", 
-            "qwen-vl-max" if task_type == "vision" else "qwen-plus"
-        )
-        if res:
-            return res[0], res[1]
-    except Exception as e:
-        print(f"Failed to load Qwen (BaiLian) client: {e}")
 
-    # Static Fallback if dynamic config failed
-    try:
-        api_key_enc = get_system_config(db, "qwen_api_key")
-        base_url = get_system_config(db, "qwen_base_url")
-        api_key = decrypt_value(api_key_enc)
-        if api_key:
-            client = OpenAI(api_key=api_key, base_url=base_url or None)
-            model_name = "qwen-vl-max" if task_type == "vision" else "qwen-plus"
-            return client, model_name
-    except Exception as e:
-        print(f"Static fallback config failed: {e}")
-
-    raise ValueError("无法加载任何自律记录 AI 客户端配置。")
+def get_discipline_llm(db: Session, task_type: str = "text"):
+    candidates = get_discipline_llm_candidates(db, task_type)
+    if not candidates:
+        raise ValueError("无法加载任何自律记录 AI 客户端配置。")
+    return candidates[0][0], candidates[0][1]
 
 
 

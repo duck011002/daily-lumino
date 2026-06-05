@@ -1261,7 +1261,14 @@ export default function AdminConsole() {
                       {configs
                         .filter(
                           (c) =>
-                            c.config_key !== 'ai_providers'
+                            ![
+                              'ai_providers',
+                              'qwen_api_key',
+                              'qwen_base_url',
+                              'deepseek_api_key',
+                              'deepseek_base_url',
+                              'default_model'
+                            ].includes(c.config_key)
                         )
                         .map((config) => {
                           const isSensitive =

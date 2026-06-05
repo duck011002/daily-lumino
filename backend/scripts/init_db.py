@@ -93,11 +93,15 @@ def init_db():
 
         # 3. Initialize default system configs
         import json
-        modelscope_key_enc = encrypt_value("ms-cd1c3de7-b885-4c53-b2a1-9404d47480bb")
-        qwen_key_enc = encrypt_value("sk-03967b5aef294262a5da3346bb5f4ca8")
-        deepseek_key_enc = encrypt_value("sk-733c49696e974e1a9d60beaacf55ca77")
+        modelscope_key = os.getenv("MODELSCOPE_API_KEY", "")
+        qwen_key = os.getenv("QWEN_API_KEY", "")
+        deepseek_key = os.getenv("DEEPSEEK_API_KEY", "")
 
-        providers = [
+        modelscope_key_enc = encrypt_value(modelscope_key) if modelscope_key else ""
+        qwen_key_enc = encrypt_value(qwen_key) if qwen_key else ""
+        deepseek_key_enc = encrypt_value(deepseek_key) if deepseek_key else ""
+
+        default_providers = [
             {
                 "id": "modelscope",
                 "name": "ModelScope",
@@ -123,9 +127,59 @@ def init_db():
                     "qwen-plus"
                 ],
                 "is_reachable": True
+            },
+            {
+                "id": "deepseek",
+                "name": "DeepSeek API",
+                "base_url": "https://api.deepseek.com/v1",
+                "api_key": deepseek_key_enc,
+                "model": "deepseek-chat",
+                "models": [
+                    "deepseek-chat",
+                    "deepseek-reasoner"
+                ],
+                "is_reachable": True
             }
         ]
-        providers_json = json.dumps(providers, ensure_ascii=False)
+
+        # Check existing ai_providers first to merge rather than overwrite
+        existing_providers = []
+        cfg_providers = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
+        if cfg_providers and cfg_providers.config_val:
+            try:
+                parsed = json.loads(cfg_providers.config_val)
+                if isinstance(parsed, list):
+                    existing_providers = parsed
+            except Exception:
+                pass
+
+        # Merge defaults into existing providers list
+        existing_map = {p.get("id"): p for p in existing_providers if p.get("id")}
+        merged_providers = []
+        
+        for dp in default_providers:
+            pid = dp["id"]
+            if pid in existing_map:
+                ep = existing_map[pid]
+                # If existing provider doesn't have api_key but env has one, populate it
+                if not ep.get("api_key") and dp.get("api_key"):
+                    ep["api_key"] = dp["api_key"]
+                # If models or model is missing, merge them
+                if "models" not in ep or not ep.get("models"):
+                    ep["models"] = dp["models"]
+                if "model" not in ep or not ep.get("model"):
+                    ep["model"] = dp["model"]
+                merged_providers.append(ep)
+            else:
+                merged_providers.append(dp)
+
+        # Retain any user-added custom providers
+        default_ids = {dp["id"] for dp in default_providers}
+        for pid, ep in existing_map.items():
+            if pid not in default_ids:
+                merged_providers.append(ep)
+
+        providers_json = json.dumps(merged_providers, ensure_ascii=False)
 
         default_configs = [
             ("site_name", "Lumino", "站点名称"),
@@ -156,10 +210,14 @@ def init_db():
                 db.add(cfg)
                 print(f"初始化配置项 {key}")
             else:
-                # Overwrite keys/urls if they differ to make sure our provided keys are registered
-                if key in ("qwen_api_key", "qwen_base_url", "deepseek_api_key", "deepseek_base_url", "ai_providers") or not cfg.config_val:
+                # Merge logic for ai_providers
+                if key == "ai_providers":
                     cfg.config_val = val
-                    print(f"更新配置项 {key}")
+                    print("已合并并更新 ai_providers 服务商列表")
+                # Do NOT overwrite other existing configurations if they already have non-empty values
+                elif not cfg.config_val:
+                    cfg.config_val = val
+                    print(f"初始化空配置项 {key}")
 
         db.commit()
         print("数据库初始化完成！")

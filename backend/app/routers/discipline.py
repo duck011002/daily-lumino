@@ -17,7 +17,7 @@ from app.database import get_db
 from app.dependencies import get_current_user, require_root
 from app.models.user import User
 from app.models.discipline import UserHealthProfile, DailyDisciplineLog
-from app.services.llm import get_llm_client_and_model, get_discipline_llm
+from app.services.llm import get_llm_client_and_model, get_discipline_llm, get_discipline_llm_candidates
 
 router = APIRouter(prefix="/api/discipline", tags=["discipline"])
 
@@ -293,9 +293,12 @@ def analyze_diet(
         raise HTTPException(status_code=400, detail="请输入食物图片 URL 或文本描述。")
 
     try:
-        client, model_name = get_discipline_llm(db, task_type="vision" if req.image_url else "text")
+        candidates = get_discipline_llm_candidates(db, task_type="vision" if req.image_url else "text")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI 服务端未正确配置: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取 AI 服务端配置失败: {str(e)}")
+
+    if not candidates:
+        raise HTTPException(status_code=500, detail="AI 服务端未正确配置：没有可用的 AI 服务商。")
 
     # Construct messages payload
     prompt = (
@@ -306,48 +309,54 @@ def analyze_diet(
         '{"calories": 估算的整餐总卡路里数值(必须为整数), "analysis": "分项估算详情及分析点评(200字以内)"}'
     )
 
-    try:
-        if req.image_url:
-            urls = [u.strip() for u in req.image_url.split(",") if u.strip()]
-            content_list = [{"type": "text", "text": prompt}]
-            for url in urls:
-                content_list.append({"type": "image_url", "image_url": {"url": url}})
-            messages = [
-                {
-                    "role": "user",
-                    "content": content_list
-                }
-            ]
-        else:
-            messages = [
-                {"role": "user", "content": prompt}
-            ]
+    last_error = None
+    for client, model_name, provider_name in candidates:
+        try:
+            print(f"Trying diet analysis using provider: {provider_name}, model: {model_name}")
+            if req.image_url:
+                urls = [u.strip() for u in req.image_url.split(",") if u.strip()]
+                content_list = [{"type": "text", "text": prompt}]
+                for url in urls:
+                    content_list.append({"type": "image_url", "image_url": {"url": url}})
+                messages = [
+                    {
+                        "role": "user",
+                        "content": content_list
+                    }
+                ]
+            else:
+                messages = [
+                    {"role": "user", "content": prompt}
+                ]
 
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            max_tokens=400
-        )
-        
-        reply = response.choices[0].message.content.strip()
-        # Clean reply from possible markdown ```json block
-        if reply.startswith("```"):
-            reply = re.sub(r"^```[a-zA-Z]*\n", "", reply)
-            reply = re.sub(r"\n```$", "", reply)
-            reply = reply.strip()
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                max_tokens=400
+            )
             
-        data = json.loads(reply)
-        return AIAnalysisResponse(
-            calories=int(data.get("calories", 0)),
-            analysis=str(data.get("analysis", "未识别到具体卡路里。"))
-        )
-    except Exception as e:
-        print(f"AI diet analysis failed: {e}")
-        # Fallback simple estimation if LLM failed
-        return AIAnalysisResponse(
-            calories=350,
-            analysis=f"AI 分析出现偏差，默认按平均简餐估算。详情: {str(e)}"
-        )
+            reply = response.choices[0].message.content.strip()
+            # Clean reply from possible markdown ```json block
+            if reply.startswith("```"):
+                reply = re.sub(r"^```[a-zA-Z]*\n", "", reply)
+                reply = re.sub(r"\n```$", "", reply)
+                reply = reply.strip()
+                
+            data = json.loads(reply)
+            return AIAnalysisResponse(
+                calories=int(data.get("calories", 0)),
+                analysis=str(data.get("analysis", "未识别到具体卡路里。"))
+            )
+        except Exception as e:
+            print(f"Diet analysis failed for provider {provider_name}: {e}")
+            last_error = e
+            continue
+
+    # Fallback simple estimation if all LLMs failed
+    return AIAnalysisResponse(
+        calories=350,
+        analysis=f"AI 分析出现偏差，所有服务商均请求失败。最新详情: {str(last_error)}"
+    )
 
 @router.post("/analyze-fitness", response_model=AIAnalysisResponse)
 def analyze_fitness(
@@ -359,9 +368,12 @@ def analyze_fitness(
         raise HTTPException(status_code=400, detail="请提供运动描述或运动截图。")
 
     try:
-        client, model_name = get_discipline_llm(db, task_type="vision" if req.image_url else "text")
+        candidates = get_discipline_llm_candidates(db, task_type="vision" if req.image_url else "text")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI 服务端未正确配置: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取 AI 服务端配置失败: {str(e)}")
+
+    if not candidates:
+        raise HTTPException(status_code=500, detail="AI 服务端未正确配置：没有可用的 AI 服务商。")
 
     prompt = (
         "你是一个专业的健身教练。请仔细分析用户提供的打卡运动图文信息：\n"
@@ -371,46 +383,53 @@ def analyze_fitness(
         '{"calories": 估算的运动消耗卡路里数值(整数), "analysis": "分项说明与运动指导(200字以内)"}'
     )
 
-    try:
-        if req.image_url:
-            urls = [u.strip() for u in req.image_url.split(",") if u.strip()]
-            content_list = [{"type": "text", "text": prompt}]
-            for url in urls:
-                content_list.append({"type": "image_url", "image_url": {"url": url}})
-            messages = [
-                {
-                    "role": "user",
-                    "content": content_list
-                }
-            ]
-        else:
-            messages = [
-                {"role": "user", "content": prompt}
-            ]
+    last_error = None
+    for client, model_name, provider_name in candidates:
+        try:
+            print(f"Trying fitness analysis using provider: {provider_name}, model: {model_name}")
+            if req.image_url:
+                urls = [u.strip() for u in req.image_url.split(",") if u.strip()]
+                content_list = [{"type": "text", "text": prompt}]
+                for url in urls:
+                    content_list.append({"type": "image_url", "image_url": {"url": url}})
+                messages = [
+                    {
+                        "role": "user",
+                        "content": content_list
+                    }
+                ]
+            else:
+                messages = [
+                    {"role": "user", "content": prompt}
+                ]
 
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            max_tokens=400
-        )
-        
-        reply = response.choices[0].message.content.strip()
-        if reply.startswith("```"):
-            reply = re.sub(r"^```[a-zA-Z]*\n", "", reply)
-            reply = re.sub(r"\n```$", "", reply)
-            reply = reply.strip()
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                max_tokens=400
+            )
+            
+            reply = response.choices[0].message.content.strip()
+            if reply.startswith("```"):
+                reply = re.sub(r"^```[a-zA-Z]*\n", "", reply)
+                reply = re.sub(r"\n```$", "", reply)
+                reply = reply.strip()
 
-        data = json.loads(reply)
-        return AIAnalysisResponse(
-            calories=int(data.get("calories", 0)),
-            analysis=str(data.get("analysis", ""))
-        )
-    except Exception as e:
-        print(f"AI fitness analysis failed: {e}")
-        return AIAnalysisResponse(
-            calories=200,
-            analysis=f"AI 分析运动卡路里出现偏差。详情: {str(e)}"
-        )
+            data = json.loads(reply)
+            return AIAnalysisResponse(
+                calories=int(data.get("calories", 0)),
+                analysis=str(data.get("analysis", ""))
+            )
+        except Exception as e:
+            print(f"Fitness analysis failed for provider {provider_name}: {e}")
+            last_error = e
+            continue
+
+    # Fallback simple estimation if all LLMs failed
+    return AIAnalysisResponse(
+        calories=200,
+        analysis=f"AI 分析运动卡路里出现偏差，所有服务商均请求失败。最新详情: {str(last_error)}"
+    )
 
 @router.post("/import-apple-health")
 async def import_apple_health(
@@ -727,56 +746,52 @@ def generate_daily_report(
     )
 
     try:
-        client, model_name = get_discipline_llm(db, task_type="text")
-        
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=400
-        )
-        report_text = response.choices[0].message.content.strip()
-        
-        # Save to DB (create default log if not exists)
-        if not log:
-            log = DailyDisciplineLog(
-                user_id=current_user.id,
-                log_date=target_date,
-                weight=weight,
-                step_count=req.step_count if req.step_count is not None else 0,
-                active_energy=act_energy,
-                intake_calories=intake,
-                burned_calories=burned,
-                calorie_gap=gap,
-                ai_analysis=report_text
-            )
-            db.add(log)
-        else:
-            log.ai_analysis = report_text
-        db.commit()
-            
-        return DailyReportResponse(report=report_text)
+        candidates = get_discipline_llm_candidates(db, task_type="text")
     except Exception as e:
-        print(f"Error generating daily report: {e}")
-        fallback_msg = (
+        candidates = []
+
+    report_text = None
+    last_error = None
+    for client, model_name, provider_name in candidates:
+        try:
+            print(f"Trying daily report generation using provider: {provider_name}, model: {model_name}")
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=400
+            )
+            report_text = response.choices[0].message.content.strip()
+            break
+        except Exception as e:
+            print(f"Daily report generation failed for provider {provider_name}: {e}")
+            last_error = e
+            continue
+
+    if not report_text:
+        # Fallback if all candidates failed
+        report_text = (
             f"今日健康分析：您今天摄入了 {intake} kcal，消耗了 {burned} kcal，"
             f"热量赤字为 {gap} kcal。当前 BMI 为 {bmi:.1f} ({bmi_status})。"
-            f"建议继续保持健康的饮食和运动习惯！"
+            f"所有配置的 AI 服务均暂时不可用 (最新错误: {str(last_error)})。请继续保持健康的饮食和运动习惯！"
         )
-        if not log:
-            log = DailyDisciplineLog(
-                user_id=current_user.id,
-                log_date=target_date,
-                weight=weight,
-                step_count=req.step_count if req.step_count is not None else 0,
-                active_energy=act_energy,
-                intake_calories=intake,
-                burned_calories=burned,
-                calorie_gap=gap,
-                ai_analysis=fallback_msg
-            )
-            db.add(log)
-        else:
-            log.ai_analysis = fallback_msg
-        db.commit()
-        return DailyReportResponse(report=fallback_msg)
+
+    # Save to DB (create default log if not exists)
+    if not log:
+        log = DailyDisciplineLog(
+            user_id=current_user.id,
+            log_date=target_date,
+            weight=weight,
+            step_count=req.step_count if req.step_count is not None else 0,
+            active_energy=act_energy,
+            intake_calories=intake,
+            burned_calories=burned,
+            calorie_gap=gap,
+            ai_analysis=report_text
+        )
+        db.add(log)
+    else:
+        log.ai_analysis = report_text
+    db.commit()
+        
+    return DailyReportResponse(report=report_text)
 
