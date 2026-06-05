@@ -2,14 +2,14 @@ from datetime import date, datetime
 from sqlalchemy import Boolean, DateTime, Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import BIGINT_PK, Base
+from app.database import BIGINT_PK, BIGINT_FK, Base
 
 
 class UserHealthProfile(Base):
     __tablename__ = "user_health_profiles"
 
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+        BIGINT_FK, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     height: Mapped[float] = mapped_column(Float, nullable=False)
     initial_weight: Mapped[float] = mapped_column(Float, nullable=False)
@@ -30,7 +30,7 @@ class DailyDisciplineLog(Base):
 
     id: Mapped[int] = mapped_column(BIGINT_PK, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        BIGINT_FK, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     log_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     weight: Mapped[float | None] = mapped_column(Float, nullable=True)
