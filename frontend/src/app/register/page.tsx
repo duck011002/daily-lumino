@@ -11,6 +11,7 @@ export default function Register() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
@@ -22,7 +23,7 @@ export default function Register() {
     e.preventDefault()
     setErrorMsg('')
 
-    if (!username.trim() || !email.trim() || !password.trim()) {
+    if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       setErrorMsg('请填写所有必填字段。')
       return
     }
@@ -34,6 +35,11 @@ export default function Register() {
 
     if (password.length < 8) {
       setErrorMsg('密码长度不能少于 8 位。')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMsg('两次输入的密码不一致。')
       return
     }
 
@@ -151,6 +157,24 @@ export default function Register() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="至少 8 位安全密码"
+                className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+                required
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="input-confirm-password"
+                className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
+              >
+                确认密码 <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="input-confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="请再次输入您的密码"
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                 required
               />

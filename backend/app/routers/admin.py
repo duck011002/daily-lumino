@@ -23,6 +23,7 @@ from app.schemas.admin import (
     UserStatusUpdate,
     AITestConnectionRequest,
     AIGetModelsRequest,
+    UserAdminResponse,
 )
 from app.schemas.user import UserResponse
 from app.utils.crypto import decrypt_value, encrypt_value
@@ -44,9 +45,43 @@ def mask_secret(value: str) -> str:
     return f"{value[:4]}****{value[-4:]}"
 
 
-@router.get("/users", response_model=list[UserResponse])
+from app.models.chat import ChatMessage, ChatSession
+from app.models.space import SpaceMember
+from app.models.blog import BlogPost
+from sqlalchemy import func
+
+@router.get("/users", response_model=list[UserAdminResponse])
 def list_users(db: Session = Depends(get_db)):
     users = db.scalars(select(User).order_by(User.id.desc())).all()
+    
+    # Bulk query token usage
+    token_usage_dict = dict(
+        db.execute(
+            select(ChatSession.user_id, func.sum(ChatMessage.tokens_used))
+            .join(ChatMessage)
+            .group_by(ChatSession.user_id)
+        ).all()
+    )
+    # Bulk query space count
+    space_count_dict = dict(
+        db.execute(
+            select(SpaceMember.user_id, func.count(SpaceMember.space_id))
+            .group_by(SpaceMember.user_id)
+        ).all()
+    )
+    # Bulk query blog count
+    blog_count_dict = dict(
+        db.execute(
+            select(BlogPost.author_id, func.count(BlogPost.id))
+            .group_by(BlogPost.author_id)
+        ).all()
+    )
+    
+    for user in users:
+        user.token_usage = int(token_usage_dict.get(user.id) or 0)
+        user.space_count = int(space_count_dict.get(user.id) or 0)
+        user.blog_count = int(blog_count_dict.get(user.id) or 0)
+        
     return users
 
 

@@ -35,6 +35,9 @@ interface UserResponse {
   can_create_spaces: boolean
   is_discipline_authorized: boolean
   created_at: string
+  token_usage?: number
+  space_count?: number
+  blog_count?: number
 }
 
 interface BlogPost {
@@ -146,7 +149,7 @@ export default function AdminConsole() {
   const [testResult, setTestResult] = useState<Record<string, { status: 'success' | 'error'; message: string }>>({})
   const [fetchingModelsId, setFetchingModelsId] = useState<string | null>(null)
   const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({})
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null)
   const mdInputRef = React.useRef<HTMLInputElement>(null)
 
   const handleImportMarkdown = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -178,6 +181,13 @@ export default function AdminConsole() {
       setIsEditing(true)
       
       showToast('success', 'Markdown 导入成功！')
+
+      // Detect if the content contains relative paths for local images
+      const localImageRegex = /!\[.*?\]\((?!https?:\/\/|data:)(.*?)\)/g
+      const hasLocalImages = localImageRegex.test(content || '')
+      if (hasLocalImages && file.name.toLowerCase().endsWith('.md')) {
+        showToast('warning', '提示：检测到文档中包含本地图片路径。直接上传单个 md 文件无法包含图片数据，网页上将无法正常显示这些图片。建议打包成 .zip 压缩包上传以实现自动托管。', 10000)
+      }
     } catch (err: any) {
       showToast('error', err.response?.data?.detail || '解析 Markdown 失败。')
     } finally {
@@ -201,9 +211,9 @@ export default function AdminConsole() {
     }
   }
 
-  const showToast = (type: 'success' | 'error', message: string) => {
+  const showToast = (type: 'success' | 'error' | 'warning', message: string, duration: number = 3000) => {
     setToast({ type, message })
-    setTimeout(() => setToast(null), 3000)
+    setTimeout(() => setToast(null), duration)
   }
 
   // Fetch functions
@@ -737,13 +747,21 @@ export default function AdminConsole() {
         {/* Toast Toast Alert Notification */}
         {toast && (
           <div
-            className={`fixed top-20 right-6 p-4 rounded-xl border z-50 flex items-center space-x-2 text-sm shadow-lg animate-fade-in ${
+            className={`fixed top-20 right-6 p-4 rounded-xl border z-50 flex items-center space-x-2 text-sm shadow-lg animate-fade-in max-w-md ${
               toast.type === 'success'
                 ? 'bg-green-50 dark:bg-green-500/10 text-green-800 dark:text-green-300 border-green-200 dark:border-green-500/20'
+                : toast.type === 'warning'
+                ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-500/20'
                 : 'bg-red-50 dark:bg-red-500/10 text-red-800 dark:text-red-300 border-red-200 dark:border-red-500/20'
             }`}
           >
-            {toast.type === 'success' ? <CheckCircle size={16} className="text-green-500" /> : <AlertCircle size={16} className="text-red-500" />}
+            {toast.type === 'success' ? (
+              <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+            ) : toast.type === 'warning' ? (
+              <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
+            ) : (
+              <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
+            )}
             <span className="font-medium">{toast.message}</span>
           </div>
         )}
@@ -1114,6 +1132,9 @@ export default function AdminConsole() {
                           <th className="px-5 py-3 font-semibold">基本信息</th>
                           <th className="px-5 py-3 font-semibold">电子邮箱</th>
                           <th className="px-5 py-3 font-semibold">角色</th>
+                          <th className="px-5 py-3 font-semibold text-center">Token 消耗</th>
+                          <th className="px-5 py-3 font-semibold text-center">归属空间</th>
+                          <th className="px-5 py-3 font-semibold text-center">随笔博客</th>
                           <th className="px-5 py-3 font-semibold">加入时间</th>
                           <th className="px-5 py-3 font-semibold text-center">账号状态</th>
                           <th className="px-5 py-3 font-semibold text-center">创建空间权限</th>
@@ -1153,6 +1174,15 @@ export default function AdminConsole() {
                                   普通用户
                                 </span>
                               )}
+                            </td>
+                            <td className="px-5 py-4 text-center text-xs font-mono font-semibold text-indigo-500 dark:text-indigo-400">
+                              {targetUser.token_usage?.toLocaleString() || 0}
+                            </td>
+                            <td className="px-5 py-4 text-center text-xs font-semibold text-onSurface dark:text-foreground font-mono">
+                              {targetUser.space_count || 0}
+                            </td>
+                            <td className="px-5 py-4 text-center text-xs font-semibold text-onSurface dark:text-foreground font-mono">
+                              {targetUser.blog_count || 0}
                             </td>
                             <td className="px-5 py-4 text-xs text-onSurface/60 dark:text-foreground/60">
                               {new Date(targetUser.created_at).toLocaleString()}

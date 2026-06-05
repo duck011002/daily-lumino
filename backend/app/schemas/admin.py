@@ -68,3 +68,14 @@ class AIGetModelsRequest(BaseModel):
     base_url: str | None = None
     api_key: str
 
+
+from app.schemas.user import UserResponse
+
+class UserAdminResponse(UserResponse):
+    token_usage: int
+    space_count: int
+    blog_count: int
+
+    class Config:
+        from_attributes = True
+
