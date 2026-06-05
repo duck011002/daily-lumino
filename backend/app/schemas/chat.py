@@ -12,6 +12,7 @@ class ChatSessionCreate(BaseModel):
 
 class ChatSessionUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=200)
+    model: Optional[str] = Field(None, max_length=100)
 
 
 class ChatMessageCreate(BaseModel):

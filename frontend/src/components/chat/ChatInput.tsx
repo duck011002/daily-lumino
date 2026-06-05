@@ -7,15 +7,15 @@ import Button from '@/components/ui/Button'
 interface ChatInputProps {
   onSendMessage: (content: string, attachments: string[] | null) => void
   disabled: boolean
-  model: 'qwen' | 'deepseek'
+  isMultimodal: boolean
 }
 
-export default function ChatInput({ onSendMessage, disabled, model }: ChatInputProps) {
+export default function ChatInput({ onSendMessage, disabled, isMultimodal }: ChatInputProps) {
   const [content, setContent] = useState('')
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const isDeepSeek = model === 'deepseek'
+  const isDeepSeek = !isMultimodal
 
   const handleSend = () => {
     if (!content.trim() && !imagePreview) return
@@ -88,7 +88,7 @@ export default function ChatInput({ onSendMessage, disabled, model }: ChatInputP
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || isDeepSeek}
-            title={isDeepSeek ? 'DeepSeek 模型仅支持文本' : '添加图片'}
+            title={isDeepSeek ? '当前模型仅支持文本' : '添加图片'}
             className={`p-3 rounded-xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard text-onSurface dark:text-foreground transition-all duration-200 flex items-center justify-center ${
               isDeepSeek
                 ? 'opacity-40 cursor-not-allowed'
@@ -107,8 +107,8 @@ export default function ChatInput({ onSendMessage, disabled, model }: ChatInputP
               onKeyDown={handleKeyDown}
               placeholder={
                 isDeepSeek
-                  ? '向 DeepSeek 发送消息... (仅支持文本)'
-                  : '向 Qwen 发送消息... (支持拖拽/上传图片)'
+                  ? '发送消息... (当前模型仅支持文本)'
+                  : '发送消息... (当前模型支持图片输入)'
               }
               disabled={disabled}
               className="w-full rounded-2xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard text-onSurface dark:text-foreground px-4 py-3 pr-10 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 placeholder:text-onSurface/40 dark:placeholder:text-foreground/40 resize-none text-sm transition-all duration-300 min-h-[44px] max-h-36 overflow-y-auto"

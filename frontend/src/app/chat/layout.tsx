@@ -77,14 +77,33 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
     fetchAvailableModels()
   }, [])
 
-  const handleCreateSession = async (modelId: string, modelName: string) => {
+  const handleCreateSession = async () => {
     setCreating(true)
-    setShowModelSelect(false)
     try {
-      const title = `${modelName} 对话`
+      let defaultModelId = 'deepseek:deepseek-chat'
+      let defaultModelName = 'DeepSeek'
+      
+      if (availableModels.length > 0) {
+        const dsModel = availableModels.find(m => m.id.toLowerCase().includes('deepseek') && m.is_reachable)
+        if (dsModel) {
+          defaultModelId = dsModel.id
+          defaultModelName = dsModel.name.split(' ')[0]
+        } else {
+          const reachable = availableModels.find(m => m.is_reachable)
+          if (reachable) {
+            defaultModelId = reachable.id
+            defaultModelName = reachable.name.split(' ')[0]
+          } else {
+            defaultModelId = availableModels[0].id
+            defaultModelName = availableModels[0].name.split(' ')[0]
+          }
+        }
+      }
+      
+      const title = `${defaultModelName} 对话`
       const response = await api.post('/chat/sessions', {
         title,
-        model: modelId,
+        model: defaultModelId,
       })
       const newSession = response.data
       setSessions((prev) => [newSession, ...prev])
@@ -162,31 +181,13 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
 
             <div className="relative">
               <Button
-                onClick={() => setShowModelSelect(!showModelSelect)}
+                onClick={handleCreateSession}
                 disabled={creating}
                 className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl shadow-sm text-sm"
               >
                 {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                 <span>开启新对话</span>
               </Button>
-
-              {/* Model Select Dropdown */}
-              {showModelSelect && (
-                <div className="absolute top-full left-0 right-0 mt-2 p-2 rounded-xl bg-white dark:bg-darkCard border border-secondary dark:border-darkBorder shadow-xl z-20 space-y-1 animate-fade-in max-h-60 overflow-y-auto">
-                  {availableModels.map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => handleCreateSession(m.id, m.name)}
-                      className="w-full text-left px-3 py-2.5 rounded-lg text-sm hover:bg-primary/10 transition-colors flex flex-col"
-                    >
-                      <span className="font-semibold text-onSurface dark:text-foreground">{m.name}</span>
-                      <span className="text-xs text-onSurface/65 dark:text-foreground/65">
-                        {m.model || m.id} {m.id.toLowerCase().includes('qwen') ? '(支持图片输入)' : '(仅限文本)'}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 

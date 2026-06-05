@@ -62,7 +62,8 @@ def init_db():
             ("qwen_base_url", "https://www.inroi.shop/v1", "通义千问接口地址"),
             ("deepseek_api_key", deepseek_key_enc, "DeepSeek API Key，加密存储"),
             ("deepseek_base_url", "https://api.deepseek.com", "DeepSeek 接口地址"),
-            ("default_model", "qwen", "默认模型 qwen 或 deepseek"),
+            ("default_model", "deepseek", "默认模型 ID（例如 deepseek 或 deepseek:deepseek-chat）"),
+            ("chat_daily_limit", "20", "普通用户每日聊天消息次数限制"),
             (
                 "lsky_api_url",
                 settings.LSKY_API_URL or "http://114.55.55.110:40027/api",

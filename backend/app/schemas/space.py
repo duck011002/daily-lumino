@@ -53,7 +53,7 @@ class SpaceDetailResponse(SpaceResponse):
 
 # ---------- Space Invite ----------
 class SpaceInviteCreate(BaseModel):
-    expires_in_hours: Optional[int] = Field(72, ge=1, le=720, description="邀请码有效时长（小时）")
+    expires_in_hours: Optional[int] = Field(None, description="邀请码有效时长（小时），None为永久")
     max_uses: int = Field(1, ge=1, le=50, description="最大使用次数")
 
 

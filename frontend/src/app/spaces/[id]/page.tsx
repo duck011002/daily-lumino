@@ -151,7 +151,7 @@ export default function SpaceDetailPage() {
     setCreatingInvite(true)
     try {
       await api.post(`/spaces/${spaceId}/invites`, {
-        expires_in_hours: createInviteHours,
+        expires_in_hours: createInviteHours > 0 ? createInviteHours : null,
         max_uses: createInviteUses,
       })
       fetchInvites()
@@ -432,10 +432,6 @@ export default function SpaceDetailPage() {
                   <label className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">有效时长 (小时)</label>
                   <div className="flex flex-wrap gap-2">
                     {[
-                      { label: '1小时', value: 1 },
-                      { label: '12小时', value: 12 },
-                      { label: '1天', value: 24 },
-                      { label: '7天', value: 168 },
                       { label: '永久', value: 0 }
                     ].map((opt) => (
                       <button
@@ -456,12 +452,16 @@ export default function SpaceDetailPage() {
                         type="number"
                         min="1"
                         placeholder="自定义"
-                        value={createInviteHours > 0 && ![1, 12, 24, 168].includes(createInviteHours) ? createInviteHours : ''}
+                        value={createInviteHours > 0 ? createInviteHours : ''}
                         onChange={(e) => {
                           const val = parseInt(e.target.value) || 0
                           setCreateInviteHours(val)
                         }}
-                        className="w-full rounded-full border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg px-3 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        className={`w-full rounded-full border bg-surface dark:bg-darkBg px-3 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-primary/50 ${
+                          createInviteHours > 0
+                            ? 'border-primary ring-1 ring-primary/50'
+                            : 'border-secondary dark:border-darkBorder'
+                        }`}
                       />
                       <span className="text-xs text-onSurface/60 dark:text-foreground/60 whitespace-nowrap">小时</span>
                     </div>

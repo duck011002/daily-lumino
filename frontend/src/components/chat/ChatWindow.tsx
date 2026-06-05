@@ -15,8 +15,18 @@ interface ChatWindowProps {
 interface ChatSessionDetail {
   id: number
   title: string
-  model: 'qwen' | 'deepseek'
+  model: string
   messages: Message[]
+}
+
+interface ChatModel {
+  id: string
+  name: string
+  model: string
+  provider_id: string
+  provider_name: string
+  is_reachable: boolean
+  is_multimodal: boolean
 }
 
 export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowProps) {
@@ -25,12 +35,40 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  const [availableModels, setAvailableModels] = useState<ChatModel[]>([])
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Scroll to bottom helper
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior })
+  }
+
+  const fetchAvailableModels = async () => {
+    try {
+      const res = await api.get('/chat/models')
+      setAvailableModels(res.data)
+    } catch (err) {
+      console.error('Failed to fetch available models:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchAvailableModels()
+  }, [])
+
+  const handleSwitchModel = async (modelId: string) => {
+    if (!session) return
+    setModelDropdownOpen(false)
+    try {
+      await api.patch(`/chat/sessions/${sessionId}`, { model: modelId })
+      setSession((prev) => prev ? { ...prev, model: modelId } : null)
+      onRefreshSessions()
+    } catch (err: any) {
+      alert('切换模型失败: ' + (err.response?.data?.detail || err.message))
+    }
   }
 
   // Load messages on session change
@@ -215,9 +253,54 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
           <h3 className="font-semibold text-onSurface dark:text-foreground text-base truncate max-w-xs md:max-w-md">
             {session?.title || '新对话'}
           </h3>
-          <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-primary/10 text-primary border border-primary/20">
-            {session?.model === 'qwen' ? 'Qwen (Multimodal)' : 'DeepSeek (Text-only)'}
-          </span>
+          <div className="relative">
+            <button
+              onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+              className="text-xs px-2.5 py-1 rounded-full font-semibold bg-white dark:bg-darkCard text-onSurface dark:text-foreground border border-secondary dark:border-darkBorder hover:bg-secondary/40 dark:hover:bg-darkBorder/40 transition-all flex items-center gap-1 select-none"
+            >
+              <span>
+                {availableModels.find((m) => m.id === session?.model)?.name || session?.model || '选择模型'}
+              </span>
+              <span className="text-[9px] opacity-60">▼</span>
+            </button>
+            
+            {modelDropdownOpen && (
+              <div className="absolute left-0 mt-1.5 w-64 rounded-2xl bg-white dark:bg-darkCard border border-secondary dark:border-darkBorder shadow-2xl z-30 p-1.5 space-y-0.5 max-h-80 overflow-y-auto animate-fade-in">
+                {availableModels.map((m) => {
+                  const isCurrent = session?.model === m.id
+                  return (
+                    <button
+                      key={m.id}
+                      disabled={!m.is_reachable}
+                      onClick={() => handleSwitchModel(m.id)}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all flex items-center justify-between ${
+                        isCurrent
+                          ? 'bg-primary/10 text-primary font-bold'
+                          : m.is_reachable
+                          ? 'text-onSurface/85 dark:text-foreground/85 hover:bg-secondary/40 dark:hover:bg-darkBorder/40'
+                          : 'text-onSurface/40 dark:text-foreground/45 cursor-not-allowed opacity-50'
+                      }`}
+                    >
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate font-semibold">{m.model}</span>
+                        <span className="text-[10px] opacity-60 truncate">
+                          {m.provider_name} {m.is_multimodal ? '(支持图片)' : '(仅文本)'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {m.is_reachable ? (
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-500" title="连通正常" />
+                        ) : (
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-500" title="不可达/不可用" />
+                        )}
+                        {isCurrent && <span className="text-primary text-[10px]">✓</span>}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -258,7 +341,11 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
         <ChatInput
           onSendMessage={handleSendMessage}
           disabled={generating}
-          model={session.model}
+          isMultimodal={
+            availableModels.find((m) => m.id === session.model)?.is_multimodal ||
+            session.model.toLowerCase().includes('qwen') ||
+            session.model.toLowerCase().includes('vl')
+          }
         />
       )}
     </div>

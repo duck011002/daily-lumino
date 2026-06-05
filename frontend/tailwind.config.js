@@ -9,10 +9,11 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#E8814A',
-        secondary: '#F5E6D3',
-        surface: '#FAFAF8',
-        onSurface: '#1C1917',
+        primary: 'hsl(var(--primary) / <alpha-value>)',
+        secondary: 'hsl(var(--secondary) / <alpha-value>)',
+        surface: 'hsl(var(--background) / <alpha-value>)',
+        onSurface: 'hsl(var(--foreground) / <alpha-value>)',
+        foreground: 'hsl(var(--foreground) / <alpha-value>)',
         darkBg: '#161614',
         darkCard: '#1E1E1B',
         darkBorder: '#2E2E2B',

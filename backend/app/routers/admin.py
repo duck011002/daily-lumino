@@ -287,3 +287,74 @@ def get_models(req: AIGetModelsRequest, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"获取模型列表失败: {str(e)}")
 
+
+@router.post("/ai/check-all")
+def check_all_providers(db: Session = Depends(get_db)):
+    import concurrent.futures
+    cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
+    if not cfg or not cfg.config_val:
+        return {"status": "success", "providers": []}
+    
+    try:
+        providers = json.loads(cfg.config_val)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"解析 ai_providers 失败: {str(e)}")
+
+    def test_single_provider(p):
+        pid = p.get("id")
+        pname = p.get("name", pid)
+        api_key_raw = p.get("api_key")
+        base_url = p.get("base_url")
+        
+        # Determine model to test
+        models_list = p.get("models")
+        test_model = "gpt-3.5-turbo"
+        if models_list and isinstance(models_list, list) and len(models_list) > 0:
+            test_model = models_list[0]
+        elif p.get("model"):
+            test_model = p.get("model")
+
+        try:
+            api_key = resolve_api_key(db, pid, api_key_raw)
+            if not api_key:
+                return False
+            client = OpenAI(api_key=api_key, base_url=base_url or None)
+            client.chat.completions.create(
+                model=test_model,
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=1,
+                timeout=5.0,
+            )
+            return True
+        except Exception as e:
+            print(f"测试服务商 {pname} 失败: {e}")
+            return False
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(test_single_provider, p): p for p in providers}
+        for future in concurrent.futures.as_completed(futures):
+            p = futures[future]
+            try:
+                success = future.result()
+                p["is_reachable"] = success
+                p["last_checked"] = datetime.now().isoformat()
+            except Exception:
+                p["is_reachable"] = False
+                p["last_checked"] = datetime.now().isoformat()
+
+    # Save back to database
+    cfg.config_val = json.dumps(providers, ensure_ascii=False)
+    db.commit()
+    
+    # Return providers with masked API keys
+    masked_providers = json.loads(cfg.config_val)
+    for p in masked_providers:
+        if "api_key" in p and p["api_key"]:
+            try:
+                decrypted = decrypt_value(p["api_key"])
+                p["api_key"] = mask_secret(decrypted)
+            except Exception:
+                p["api_key"] = mask_secret(p["api_key"])
+                
+    return {"status": "success", "providers": masked_providers}
+

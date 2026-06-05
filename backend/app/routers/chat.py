@@ -18,7 +18,7 @@ from app.schemas.chat import (
     ChatSessionResponse,
     ChatSessionUpdate,
 )
-from app.services.llm import stream_chat_completion
+from app.services.llm import stream_chat_completion, resolve_multimodal_support
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -106,6 +106,8 @@ def update_session(
 
     if session_in.title is not None:
         session.title = session_in.title
+    if session_in.model is not None:
+        session.model = session_in.model
 
     db.commit()
     db.refresh(session)
@@ -150,7 +152,33 @@ def send_message(
             status_code=status.HTTP_404_NOT_FOUND, detail="未找到会话或您没有访问权限。"
         )
 
-    is_multimodal = "qwen" in session.model.lower()
+    # Check daily limit
+    if not current_user.is_root:
+        from app.services.llm import get_system_config
+        limit_str = get_system_config(db, "chat_daily_limit") or "20"
+        try:
+            limit = int(limit_str)
+        except ValueError:
+            limit = 20
+
+        # Count user's messages today
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_count = db.scalar(
+            select(func.count(ChatMessage.id))
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .where(
+                ChatSession.user_id == current_user.id,
+                ChatMessage.role == ChatRoleType.USER,
+                ChatMessage.created_at >= today_start
+            )
+        )
+        if today_count >= limit:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"您已达到每日对话次数限制（今日已发送 {today_count}/{limit} 次）。"
+            )
+
+    is_multimodal = resolve_multimodal_support(session.model)
     if message_in.attachments and not is_multimodal:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="该模型当前配置仅支持文本输入，不支持图片附件。"
@@ -234,23 +262,63 @@ def send_message(
 def list_available_models(db: Session = Depends(get_db)):
     from app.models.system_config import SystemConfig
     cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
-    providers = []
+    providers_list = []
     if cfg and cfg.config_val:
         try:
             data = json.loads(cfg.config_val)
             for p in data:
-                providers.append({
-                    "id": p.get("id"),
-                    "name": p.get("name"),
-                    "model": p.get("model")
-                })
+                pid = p.get("id")
+                pname = p.get("name")
+                is_reachable = p.get("is_reachable", True)
+                
+                # Check models list
+                models = p.get("models")
+                if models and isinstance(models, list):
+                    for mname in models:
+                        providers_list.append({
+                            "id": f"{pid}:{mname}",
+                            "name": f"{mname} ({pname})",
+                            "model": mname,
+                            "provider_id": pid,
+                            "provider_name": pname,
+                            "is_reachable": is_reachable,
+                            "is_multimodal": resolve_multimodal_support(mname)
+                        })
+                elif p.get("model"):
+                    # Legacy fallback
+                    mname = p.get("model")
+                    providers_list.append({
+                        "id": f"{pid}:{mname}",
+                        "name": f"{mname} ({pname})",
+                        "model": mname,
+                        "provider_id": pid,
+                        "provider_name": pname,
+                        "is_reachable": is_reachable,
+                        "is_multimodal": resolve_multimodal_support(mname)
+                    })
         except Exception:
             pass
     
-    if not providers:
-        providers = [
-            {"id": "qwen", "name": "Qwen (通义千问)", "model": "gpt-5.5"},
-            {"id": "deepseek", "name": "DeepSeek", "model": "deepseek-chat"}
+    if not providers_list:
+        providers_list = [
+            {
+                "id": "deepseek:deepseek-chat",
+                "name": "deepseek-chat (DeepSeek)",
+                "model": "deepseek-chat",
+                "provider_id": "deepseek",
+                "provider_name": "DeepSeek",
+                "is_reachable": True,
+                "is_multimodal": False
+            },
+            {
+                "id": "qwen:gpt-5.5",
+                "name": "gpt-5.5 (Qwen)",
+                "model": "gpt-5.5",
+                "provider_id": "qwen",
+                "provider_name": "Qwen",
+                "is_reachable": True,
+                "is_multimodal": True
+            }
         ]
-    return providers
+    return providers_list
 

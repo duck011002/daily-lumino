@@ -170,3 +170,86 @@ def delete_admin_post(
     db.delete(post)
     db.commit()
     return {"status": "ok", "message": "文章已成功删除。"}
+
+
+from fastapi import File, UploadFile
+import re
+import uuid
+
+@router.post("/api/admin/blog/parse-markdown", dependencies=[Depends(require_root)])
+async def parse_markdown_blog(file: UploadFile = File(...)):
+    if not file.filename.endswith(".md") and not file.filename.endswith(".markdown"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="只能上传 Markdown (.md) 格式的文件。"
+        )
+    
+    contents = await file.read()
+    try:
+        content_str = contents.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            content_str = contents.decode("gbk")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="无法解析文件编码，请确保文件保存为 UTF-8 编码。"
+            )
+            
+    # 默认值
+    meta = {
+        "title": "",
+        "slug": "",
+        "cover_url": None,
+        "excerpt": None,
+        "tags": None
+    }
+    body = content_str
+    
+    # 检查是否以 --- 开头
+    pattern = r"^\s*---\s*\n(.*?)\n\s*---\s*\n(.*)"
+    match = re.match(pattern, content_str, re.DOTALL)
+    if match:
+        front_matter = match.group(1)
+        body = match.group(2)
+        
+        for line in front_matter.split("\n"):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ":" in line:
+                key, val = line.split(":", 1)
+                key = key.strip().lower()
+                val = val.strip()
+                
+                if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                    val = val[1:-1]
+                
+                if key == "title":
+                    meta["title"] = val
+                elif key == "slug":
+                    meta["slug"] = val
+                elif key == "cover_url":
+                    meta["cover_url"] = val
+                elif key == "excerpt":
+                    meta["excerpt"] = val
+                elif key == "tags":
+                    if val.startswith("[") and val.endswith("]"):
+                        val = val[1:-1]
+                    tags_list = [t.strip() for t in val.split(",") if t.strip()]
+                    meta["tags"] = tags_list
+    else:
+        lines = [l.strip() for l in content_str.split("\n") if l.strip()]
+        if lines:
+            first_line = lines[0]
+            if first_line.startswith("#"):
+                meta["title"] = first_line.lstrip("#").strip()
+            else:
+                meta["title"] = first_line
+            meta["slug"] = f"post-{uuid.uuid4().hex[:8]}"
+            
+    return {
+        "meta": meta,
+        "content": body
+    }
+

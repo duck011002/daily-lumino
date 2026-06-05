@@ -17,14 +17,24 @@ def get_system_config(db: Session, key: str) -> str:
     return ""
 
 
+def resolve_multimodal_support(model_id: str) -> bool:
+    lowered = model_id.lower()
+    return "qwen" in lowered or "vl" in lowered or "vision" in lowered or "multimodal" in lowered
+
+
 def get_llm_client_and_model(db: Session, model_id: str):
+    provider_id = model_id
+    model_name = None
+    if ":" in model_id:
+        provider_id, model_name = model_id.split(":", 1)
+
     # Try to dynamically load provider from system config "ai_providers"
     providers_json = get_system_config(db, "ai_providers")
     if providers_json:
         try:
             providers = json.loads(providers_json)
             for p in providers:
-                if p.get("id") == model_id:
+                if p.get("id") == provider_id:
                     api_key = p.get("api_key")
                     if api_key:
                         try:
@@ -33,32 +43,41 @@ def get_llm_client_and_model(db: Session, model_id: str):
                             # Fallback if stored plain
                             pass
                     base_url = p.get("base_url")
-                    model_name = p.get("model")
+                    
+                    # Determine model name
+                    if not model_name:
+                        models_list = p.get("models")
+                        if models_list and isinstance(models_list, list) and len(models_list) > 0:
+                            model_name = models_list[0]
+                        else:
+                            model_name = p.get("model") or "gpt-3.5-turbo"
                     
                     if not api_key:
-                         raise ValueError(f"AI 服务商 {model_id} 的 API Key 未配置。")
-                         
+                         raise ValueError(f"AI 服务商 {provider_id} 的 API Key 未配置。")
+                          
                     client = OpenAI(api_key=api_key, base_url=base_url or None)
                     return client, model_name
         except Exception as e:
             print(f"解析 ai_providers 配置失败: {e}")
 
     # Fallback to legacy static keys if not found dynamically
-    if model_id == "qwen":
+    if provider_id == "qwen":
         api_key_enc = get_system_config(db, "qwen_api_key")
         base_url = get_system_config(db, "qwen_base_url")
         api_key = decrypt_value(api_key_enc)
-        model_name = "gpt-5.5"
-    elif model_id == "deepseek":
+        if not model_name:
+            model_name = "gpt-5.5"
+    elif provider_id == "deepseek":
         api_key_enc = get_system_config(db, "deepseek_api_key")
         base_url = get_system_config(db, "deepseek_base_url")
         api_key = decrypt_value(api_key_enc)
-        model_name = "deepseek-chat"
+        if not model_name:
+            model_name = "deepseek-chat"
     else:
         raise ValueError(f"不支持的 AI 服务商或模型: {model_id}")
 
     if not api_key:
-        raise ValueError(f"服务商 {model_id} 的 API Key 未配置。")
+        raise ValueError(f"服务商 {provider_id} 的 API Key 未配置。")
 
     # Initialize openai client
     client = OpenAI(api_key=api_key, base_url=base_url or None)
@@ -72,7 +91,7 @@ def build_messages_payload(
     model_id: str,
 ) -> List[Dict[str, Any]]:
     payload = []
-    is_qwen = model_id == "qwen" or "qwen" in model_id.lower()
+    is_qwen = resolve_multimodal_support(model_id)
 
     # Format previous messages in the session
     for msg in history:

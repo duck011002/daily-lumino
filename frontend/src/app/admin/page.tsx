@@ -82,7 +82,10 @@ interface AIProvider {
   name: string
   base_url: string
   api_key: string
-  model: string
+  model?: string
+  models: string[]
+  is_reachable?: boolean
+  last_checked?: string
 }
 
 type TabType = 'blog' | 'users' | 'configs' | 'quota'
@@ -134,12 +137,54 @@ export default function AdminConsole() {
   const [aiProviders, setAiProviders] = useState<AIProvider[]>([])
   const [editingProvider, setEditingProvider] = useState<AIProvider | null>(null)
   const [isProviderModalOpen, setIsProviderModalOpen] = useState(false)
-  const [providerForm, setProviderForm] = useState<AIProvider>({ id: '', name: '', base_url: '', api_key: '', model: '' })
+  const [providerForm, setProviderForm] = useState<AIProvider>({ id: '', name: '', base_url: '', api_key: '', models: [] })
+  const [modelsInput, setModelsInput] = useState('')
+  const [checkingAll, setCheckingAll] = useState(false)
   const [testingProviderId, setTestingProviderId] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<Record<string, { status: 'success' | 'error'; message: string }>>({})
   const [fetchingModelsId, setFetchingModelsId] = useState<string | null>(null)
   const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({})
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const mdInputRef = React.useRef<HTMLInputElement>(null)
+
+  const handleImportMarkdown = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    
+    const file = files[0]
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    setActionLoading(true)
+    try {
+      const res = await api.post('/admin/blog/parse-markdown', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      })
+      const { meta, content } = res.data
+      
+      setEditingPostId(null)
+      setFormTitle(meta.title || '')
+      setFormSlug(meta.slug || '')
+      setFormContent(content || '')
+      setFormCoverUrl(meta.cover_url || '')
+      setFormExcerpt(meta.excerpt || '')
+      setFormTags(meta.tags ? meta.tags.join(', ') : '')
+      setFormIsPublic(true)
+      setFormIsPublished(false)
+      setIsEditing(true)
+      
+      showToast('success', 'Markdown 导入成功！')
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '解析 Markdown 失败。')
+    } finally {
+      setActionLoading(false)
+      if (mdInputRef.current) {
+        mdInputRef.current.value = ''
+      }
+    }
+  }
 
   const handleCopyShareLink = async (slug: string) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
@@ -351,12 +396,20 @@ export default function AdminConsole() {
   const handleTestConnection = async (provider: AIProvider) => {
     setTestingProviderId(provider.id)
     setTestResult(prev => ({ ...prev, [provider.id]: undefined as any }))
+    
+    let testModel = 'gpt-3.5-turbo'
+    if (provider.models && provider.models.length > 0) {
+      testModel = provider.models[0]
+    } else if (provider.model) {
+      testModel = provider.model
+    }
+
     try {
       const res = await api.post('/admin/ai/test-connection', {
         id: provider.id,
         base_url: provider.base_url || null,
         api_key: provider.api_key,
-        model: provider.model,
+        model: testModel,
       })
       if (res.data.status === 'success') {
         setTestResult(prev => ({ ...prev, [provider.id]: { status: 'success', message: res.data.message } }))
@@ -373,7 +426,7 @@ export default function AdminConsole() {
     }
   }
 
-  const handleFetchModels = async (provider: AIProvider) => {
+  const handleFetchModels = async (provider: AIProvider, autoSave = true) => {
     setFetchingModelsId(provider.id)
     try {
       const res = await api.post('/admin/ai/models', {
@@ -384,6 +437,17 @@ export default function AdminConsole() {
       if (res.data.status === 'success' && Array.isArray(res.data.models)) {
         setFetchedModels(prev => ({ ...prev, [provider.id]: res.data.models }))
         showToast('success', `成功获取 ${res.data.models.length} 个模型！`)
+        
+        if (autoSave) {
+          const updated = aiProviders.map(p =>
+            p.id === provider.id ? { ...p, models: res.data.models } : p
+          )
+          const oldModels = provider.models || []
+          const isSame = oldModels.length === res.data.models.length && oldModels.every((m, idx) => m === res.data.models[idx])
+          if (!isSame) {
+            handleSaveAIProviders(updated)
+          }
+        }
       }
     } catch (err: any) {
       showToast('error', err.response?.data?.detail || '获取模型列表失败，请检查配置。')
@@ -391,6 +455,58 @@ export default function AdminConsole() {
       setFetchingModelsId(null)
     }
   }
+
+  const handleFetchModelsForForm = async () => {
+    if (!providerForm.api_key) {
+      alert('请先输入 API Key！')
+      return
+    }
+    const tempId = providerForm.id || 'temp'
+    setFetchingModelsId(tempId)
+    try {
+      const res = await api.post('/admin/ai/models', {
+        id: providerForm.id,
+        base_url: providerForm.base_url || null,
+        api_key: providerForm.api_key,
+      })
+      if (res.data.status === 'success' && Array.isArray(res.data.models)) {
+        setModelsInput(res.data.models.join(', '))
+        if (!providerForm.model && res.data.models.length > 0) {
+          setProviderForm(prev => ({ ...prev, model: res.data.models[0] }))
+        }
+        showToast('success', `自动获取成功，共 ${res.data.models.length} 个模型！`)
+      }
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '获取模型列表失败，请检查配置。')
+    } finally {
+      setFetchingModelsId(null)
+    }
+  }
+
+  const handleCheckAllReachability = async () => {
+    setCheckingAll(true)
+    try {
+      const res = await api.post('/admin/ai/check-all')
+      if (res.data.status === 'success') {
+        setAiProviders(res.data.providers)
+        showToast('success', '所有服务商连通性检测完成！')
+      }
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '连通性检测失败。')
+    } finally {
+      setCheckingAll(false)
+    }
+  }
+
+  // Auto detect and fetch models for any provider with empty models list
+  useEffect(() => {
+    if (!loadingConfigs && aiProviders.length > 0) {
+      const firstEmptyProvider = aiProviders.find(p => (!p.models || p.models.length === 0) && fetchingModelsId !== p.id)
+      if (firstEmptyProvider) {
+        handleFetchModels(firstEmptyProvider, true)
+      }
+    }
+  }, [aiProviders, loadingConfigs, fetchingModelsId])
 
   const handleAddOrEditProvider = (provider: AIProvider) => {
     let updated: AIProvider[]
@@ -705,9 +821,26 @@ export default function AdminConsole() {
                     {/* Table Title and Actions */}
                     <div className="flex items-center justify-between pt-4 pb-2 border-b border-secondary dark:border-darkBorder">
                       <h2 className="text-xl font-bold text-onSurface dark:text-foreground">随笔文章</h2>
-                      <Button onClick={handleOpenCreate} size="sm" className="shadow-sm">
-                        <Plus size={16} className="mr-1" /> 新建随笔
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          ref={mdInputRef}
+                          onChange={handleImportMarkdown}
+                          accept=".md,.markdown"
+                          className="hidden"
+                        />
+                        <Button
+                          onClick={() => mdInputRef.current?.click()}
+                          variant="ghost"
+                          size="sm"
+                          className="shadow-sm border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50"
+                        >
+                          导入 Markdown
+                        </Button>
+                        <Button onClick={handleOpenCreate} size="sm" className="shadow-sm">
+                          <Plus size={16} className="mr-1" /> 新建随笔
+                        </Button>
+                      </div>
                     </div>
 
                     {/* Blog Posts Data Table */}
@@ -1070,12 +1203,14 @@ export default function AdminConsole() {
                       {configs
                         .filter(
                           (c) =>
-                            c.config_key !== 'ai_providers' &&
-                            !c.config_key.startsWith('qwen_') &&
-                            !c.config_key.startsWith('deepseek_')
+                            c.config_key !== 'ai_providers'
                         )
                         .map((config) => {
-                          const isSensitive = ['lsky_api_token'].includes(config.config_key)
+                          const isSensitive =
+                            ['lsky_api_token'].includes(config.config_key) ||
+                            config.config_key.toLowerCase().includes('key') ||
+                            config.config_key.toLowerCase().includes('token') ||
+                            config.config_key.toLowerCase().includes('secret')
                           const isVisible = visibleKeys[config.config_key] || false
 
                           return (
@@ -1149,16 +1284,28 @@ export default function AdminConsole() {
                         像 Chatbox 一样管理您的 AI 大模型服务商。在此处添加、修改或删除自定义 AI API 提供商。
                       </p>
                     </div>
-                    <Button
-                      onClick={() => {
-                        setProviderForm({ id: '', name: '', base_url: '', api_key: '', model: '' })
-                        setEditingProvider(null)
-                        setIsProviderModalOpen(true)
-                      }}
-                      size="sm"
-                    >
-                      <Plus size={14} className="mr-1" /> 添加服务商
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={handleCheckAllReachability}
+                        disabled={checkingAll}
+                        variant="ghost"
+                        size="sm"
+                      >
+                        {checkingAll && <Loader2 size={14} className="mr-1 animate-spin" />}
+                        一键检测所有连通性
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setProviderForm({ id: '', name: '', base_url: '', api_key: '', model: '', models: [] })
+                          setModelsInput('')
+                          setEditingProvider(null)
+                          setIsProviderModalOpen(true)
+                        }}
+                        size="sm"
+                      >
+                        <Plus size={14} className="mr-1" /> 添加服务商
+                      </Button>
+                    </div>
                   </div>
 
                   {loadingConfigs ? (
@@ -1194,6 +1341,14 @@ export default function AdminConsole() {
                                     <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary/10 text-primary uppercase">
                                       {provider.id}
                                     </span>
+                                    {provider.is_reachable !== undefined && (
+                                      <span
+                                        className={`inline-block w-2 h-2 rounded-full ${
+                                          provider.is_reachable ? 'bg-emerald-500' : 'bg-red-500'
+                                        }`}
+                                        title={provider.is_reachable ? `已连通 (${provider.last_checked ? new Date(provider.last_checked).toLocaleString() : '刚刚'})` : '未连通'}
+                                      />
+                                    )}
                                   </h4>
                                   <p className="text-[11px] font-mono text-onSurface/50 dark:text-foreground/50 truncate max-w-[280px]">
                                     {provider.base_url || 'https://api.openai.com/v1 (默认)'}
@@ -1229,29 +1384,32 @@ export default function AdminConsole() {
                                   </span>
                                 </div>
 
-                                <div className="flex justify-between items-center text-onSurface/70 dark:text-foreground/70">
-                                  <span>当前模型:</span>
-                                  {models.length > 0 ? (
-                                    <select
-                                      value={provider.model}
-                                      onChange={(e) => {
-                                        const updated = aiProviders.map(p =>
-                                          p.id === provider.id ? { ...p, model: e.target.value } : p
-                                        )
-                                        handleSaveAIProviders(updated)
-                                      }}
-                                      className="rounded bg-surface dark:bg-darkBg border border-secondary dark:border-darkBorder text-xs text-onSurface dark:text-foreground py-0.5 px-2 focus:outline-none focus:ring-1 focus:ring-primary"
-                                    >
-                                      {!models.includes(provider.model) && (
-                                        <option value={provider.model}>{provider.model}</option>
+                                <div className="flex flex-col gap-1.5 pt-1.5">
+                                  <div className="flex justify-between items-center text-onSurface/70 dark:text-foreground/70">
+                                    <span>默认模型:</span>
+                                    <span className="font-bold text-primary font-mono">{provider.model || '未选择'}</span>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] text-onSurface/50 dark:text-foreground/50">支持模型列表 ({provider.models?.length || 0}):</span>
+                                    <div className="flex flex-wrap gap-1 mt-1 max-h-24 overflow-y-auto pr-1">
+                                      {provider.models && provider.models.length > 0 ? (
+                                        provider.models.map((m) => (
+                                          <span
+                                            key={m}
+                                            className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono transition-colors border ${
+                                              m === provider.model
+                                                ? 'bg-primary/20 border-primary/30 text-primary font-bold'
+                                                : 'bg-secondary/40 dark:bg-darkBorder/40 border-secondary/60 dark:border-darkBorder/60 text-onSurface/70 dark:text-foreground/70'
+                                            }`}
+                                          >
+                                            {m}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="text-[10px] text-amber-500 italic">暂无模型列表，请获取或检测</span>
                                       )}
-                                      {models.map(m => (
-                                        <option key={m} value={m}>{m}</option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <span className="font-semibold text-primary">{provider.model || '未选择'}</span>
-                                  )}
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1373,14 +1531,37 @@ export default function AdminConsole() {
 
                         <div className="space-y-1">
                           <label className="block font-semibold text-onSurface/70 dark:text-foreground/70">
-                            默认模型 (如不知道可稍后通过列表获取)
+                            默认模型
                           </label>
                           <input
                             type="text"
                             value={providerForm.model}
                             onChange={(e) => setProviderForm(prev => ({ ...prev, model: e.target.value }))}
-                            placeholder="例如: gpt-4o, deepseek-chat"
+                            placeholder="例如: gpt-4o"
                             className="w-full px-3 py-2 rounded-xl border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center">
+                            <label className="block font-semibold text-onSurface/70 dark:text-foreground/70">
+                              支持模型列表 (逗号分隔)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleFetchModelsForForm}
+                              disabled={fetchingModelsId === (providerForm.id || 'temp')}
+                              className="text-[10px] font-semibold text-primary hover:underline flex items-center gap-0.5 disabled:opacity-50"
+                            >
+                              {fetchingModelsId === (providerForm.id || 'temp') && <Loader2 size={10} className="animate-spin" />}
+                              自动从 API 获取列表
+                            </button>
+                          </div>
+                          <textarea
+                            value={modelsInput}
+                            onChange={(e) => setModelsInput(e.target.value)}
+                            placeholder="例如: gpt-4o, gpt-3.5-turbo (或者点击上方自动获取)"
+                            className="w-full px-3 py-2 rounded-xl border border-secondary dark:border-darkBorder bg-surface dark:bg-darkBg text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono h-20 resize-none"
                           />
                         </div>
                       </div>
@@ -1402,7 +1583,21 @@ export default function AdminConsole() {
                               alert('标识、名称和 API Key 不能为空！')
                               return
                             }
-                            handleAddOrEditProvider(providerForm)
+                            const modelsArr = modelsInput
+                              .split(',')
+                              .map(m => m.trim())
+                              .filter(m => m.length > 0)
+                            
+                            let defaultModel = providerForm.model ? providerForm.model.trim() : ''
+                            if (!defaultModel && modelsArr.length > 0) {
+                              defaultModel = modelsArr[0]
+                            }
+                            
+                            handleAddOrEditProvider({
+                              ...providerForm,
+                              models: modelsArr,
+                              model: defaultModel
+                            })
                           }}
                           size="sm"
                         >
