@@ -27,6 +27,11 @@ export default function Register() {
       return
     }
 
+    if (username.trim().length < 3) {
+      setErrorMsg('用户名长度不能少于 3 个字符。')
+      return
+    }
+
     if (password.length < 8) {
       setErrorMsg('密码长度不能少于 8 位。')
       return

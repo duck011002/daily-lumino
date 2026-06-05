@@ -24,3 +24,6 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+askpass.bat
+frontend/tsconfig.tsbuildinfo
+frontend/tsconfig.tsbuildinfo

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import api from '@/lib/api'
+import api, { getErrorMessage } from '@/lib/api'
 
 export interface User {
   id: number
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       setUser(null)
       setLoading(false)
-      throw new Error(err.response?.data?.detail || '登录失败，请检查用户名或密码。')
+      throw new Error(getErrorMessage(err, '登录失败，请检查用户名或密码。'))
     }
   }
 
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await login(data.username, data.password)
     } catch (err: any) {
       setLoading(false)
-      throw new Error(err.response?.data?.detail || '注册失败，请检查输入项。')
+      throw new Error(getErrorMessage(err, '注册失败，请检查输入项。'))
     }
   }
 

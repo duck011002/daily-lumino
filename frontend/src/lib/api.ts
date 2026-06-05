@@ -37,4 +37,43 @@ api.interceptors.response.use(
   }
 )
 
+export function getErrorMessage(err: any, defaultMsg: string = '操作失败，请重试。'): string {
+  if (err.response?.data?.detail) {
+    const detail = err.response.data.detail
+    if (Array.isArray(detail)) {
+      return detail
+        .map((e: any) => {
+          const field = e.loc ? e.loc[e.loc.length - 1] : ''
+          const fieldMap: Record<string, string> = {
+            username: '用户名',
+            email: '邮箱地址',
+            password: '密码',
+            display_name: '显示昵称',
+            invite_code: '邀请码',
+          }
+          const translatedField = fieldMap[field] || field
+          let msg = e.msg || '格式错误'
+          if (msg.includes('at least 3 characters') || msg.includes('should have at least 3 characters')) {
+            msg = '长度不能少于 3 个字符'
+          } else if (msg.includes('at least 8 characters') || msg.includes('should have at least 8 characters')) {
+            msg = '长度不能少于 8 个字符'
+          } else if (msg === 'field required') {
+            msg = '必填字段'
+          } else if (msg.includes('value is not a valid email address')) {
+            msg = '请输入有效的邮箱地址'
+          }
+          return translatedField ? `${translatedField}: ${msg}` : msg
+        })
+        .join('; ')
+    }
+    if (typeof detail === 'string') {
+      return detail
+    }
+    if (typeof detail === 'object' && detail !== null) {
+      return JSON.stringify(detail)
+    }
+  }
+  return err.message || defaultMsg
+}
+
 export default api
