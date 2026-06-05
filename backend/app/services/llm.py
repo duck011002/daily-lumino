@@ -84,6 +84,94 @@ def get_llm_client_and_model(db: Session, model_id: str):
     return client, model_name
 
 
+def get_discipline_llm(db: Session, task_type: str = "text"):
+    """
+    Get LLM client and model for discipline tasks (diet, fitness analysis, daily report).
+    Priority 1: ModelScope
+      - Text: Qwen/Qwen3.5-35B-A3B
+      - Vision: Qwen/Qwen3-VL-235B-A22B-Instruct
+    Priority 2: Aliyun BaiLian (Qwen)
+      - Text: qwen-plus
+      - Vision: qwen-vl-max
+    """
+    providers_json = get_system_config(db, "ai_providers")
+    providers = []
+    if providers_json:
+        try:
+            providers = json.loads(providers_json)
+        except Exception as e:
+            print(f"Failed to parse ai_providers in get_discipline_llm: {e}")
+
+    def get_provider_client(provider_id: str, default_model: str):
+        for p in providers:
+            if p.get("id") == provider_id:
+                api_key_enc = p.get("api_key")
+                if not api_key_enc:
+                    continue
+                try:
+                    api_key = decrypt_value(api_key_enc)
+                except Exception:
+                    api_key = api_key_enc
+                
+                base_url = p.get("base_url")
+                
+                # Check if the provider lists Qwen-VL or Qwen3.5
+                model_name = default_model
+                models_list = p.get("models") or []
+                if task_type == "vision":
+                    vl_models = [m for m in models_list if "vl" in m.lower() or "vision" in m.lower() or "image" in m.lower()]
+                    if vl_models:
+                        model_name = vl_models[0]
+                else:
+                    txt_models = [m for m in models_list if not ("vl" in m.lower() or "vision" in m.lower() or "image" in m.lower())]
+                    if txt_models:
+                        model_name = txt_models[0]
+                    elif models_list:
+                        model_name = models_list[0]
+                        
+                client = OpenAI(api_key=api_key, base_url=base_url or None)
+                return client, model_name
+        return None
+
+    # Try ModelScope (Priority 1)
+    try:
+        res = get_provider_client(
+            "modelscope", 
+            "Qwen/Qwen3-VL-235B-A22B-Instruct" if task_type == "vision" else "Qwen/Qwen3.5-35B-A3B"
+        )
+        if res:
+            return res[0], res[1]
+    except Exception as e:
+        print(f"Failed to load ModelScope client: {e}")
+
+    # Try Aliyun BaiLian (Priority 2)
+    try:
+        res = get_provider_client(
+            "qwen", 
+            "qwen-vl-max" if task_type == "vision" else "qwen-plus"
+        )
+        if res:
+            return res[0], res[1]
+    except Exception as e:
+        print(f"Failed to load Qwen (BaiLian) client: {e}")
+
+    # Static Fallback if dynamic config failed
+    try:
+        api_key_enc = get_system_config(db, "qwen_api_key")
+        base_url = get_system_config(db, "qwen_base_url")
+        api_key = decrypt_value(api_key_enc)
+        if api_key:
+            client = OpenAI(api_key=api_key, base_url=base_url or None)
+            model_name = "qwen-vl-max" if task_type == "vision" else "qwen-plus"
+            return client, model_name
+    except Exception as e:
+        print(f"Static fallback config failed: {e}")
+
+    raise ValueError("无法加载任何自律记录 AI 客户端配置。")
+
+
+
+
 def build_messages_payload(
     history: List[ChatMessage],
     current_content: str,

@@ -110,6 +110,7 @@ export default function DisciplinePage() {
   const [analyzingDiet, setAnalyzingDiet] = useState(false)
   const [analyzingFitness, setAnalyzingFitness] = useState(false)
   const [savingLog, setSavingLog] = useState(false)
+  const [generatingReport, setGeneratingReport] = useState(false)
 
   // Health Data Import State
   const [isDragging, setIsDragging] = useState(false)
@@ -310,6 +311,36 @@ export default function DisciplinePage() {
     }
   }
 
+  const triggerReportGeneration = async (dateStr: string, force: boolean = false, tempLogData?: any) => {
+    setGeneratingReport(true)
+    try {
+      const payload = {
+        weight: tempLogData ? tempLogData.weight : (editWeight ? parseFloat(editWeight) : null),
+        step_count: tempLogData ? tempLogData.step_count : (editSteps ? parseInt(editSteps) : null),
+        active_energy: tempLogData ? tempLogData.active_energy : (editActiveEnergy ? parseFloat(editActiveEnergy) : null),
+        diet_text: tempLogData ? tempLogData.diet_text : (editDietText || null),
+        diet_image_url: tempLogData ? tempLogData.diet_image_url : (editDietImageUrl || null),
+        fitness_text: tempLogData ? tempLogData.fitness_text : (editFitnessText || null),
+        fitness_image_url: tempLogData ? tempLogData.fitness_image_url : (editFitnessImageUrl || null),
+        intake_calories: tempLogData ? tempLogData.intake_calories : (editIntakeCalories ? parseInt(editIntakeCalories) : null),
+        burned_calories: tempLogData ? tempLogData.burned_calories : (editBurnedCalories ? parseInt(editBurnedCalories) : null),
+      }
+      
+      const res = await api.post(`/discipline/logs/${dateStr}/report?force=${force}`, payload)
+      setAiAnalysis(res.data.report)
+      
+      // Update logs list in memory
+      setLogs((prev) =>
+        prev.map((l) => (l.log_date === dateStr ? { ...l, ai_analysis: res.data.report } : l))
+      )
+    } catch (err: any) {
+      console.error('生成 AI 报告失败', err)
+      showToast('error', '生成每日 AI 健康分析报告失败。')
+    } finally {
+      setGeneratingReport(false)
+    }
+  }
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -391,17 +422,43 @@ export default function DisciplinePage() {
   const handleOpenDayModal = (dateStr: string) => {
     const existingLog = logs.find(l => l.log_date === dateStr)
     setSelectedDateStr(dateStr)
-    setEditWeight(existingLog?.weight ? String(existingLog.weight) : '')
-    setEditSteps(existingLog?.step_count ? String(existingLog.step_count) : '')
-    setEditActiveEnergy(existingLog?.active_energy ? String(existingLog.active_energy) : '')
-    setEditDietText(existingLog?.diet_text || '')
-    setEditDietImageUrl(existingLog?.diet_image_url || '')
-    setEditFitnessText(existingLog?.fitness_text || '')
-    setEditFitnessImageUrl(existingLog?.fitness_image_url || '')
-    setEditIntakeCalories(existingLog?.intake_calories ? String(existingLog.intake_calories) : '1800')
-    setEditBurnedCalories(existingLog?.burned_calories ? String(existingLog.burned_calories) : '')
-    setAiAnalysis(existingLog?.ai_analysis || '')
+    const w = existingLog?.weight ? String(existingLog.weight) : ''
+    const s = existingLog?.step_count ? String(existingLog.step_count) : ''
+    const ae = existingLog?.active_energy ? String(existingLog.active_energy) : ''
+    const dt = existingLog?.diet_text || ''
+    const di = existingLog?.diet_image_url || ''
+    const ft = existingLog?.fitness_text || ''
+    const fi = existingLog?.fitness_image_url || ''
+    const ic = existingLog?.intake_calories ? String(existingLog.intake_calories) : '1800'
+    const bc = existingLog?.burned_calories ? String(existingLog.burned_calories) : ''
+    const report = existingLog?.ai_analysis || ''
+
+    setEditWeight(w)
+    setEditSteps(s)
+    setEditActiveEnergy(ae)
+    setEditDietText(dt)
+    setEditDietImageUrl(di)
+    setEditFitnessText(ft)
+    setEditFitnessImageUrl(fi)
+    setEditIntakeCalories(ic)
+    setEditBurnedCalories(bc)
+    setAiAnalysis(report)
     setIsModalOpen(true)
+
+    if (!report) {
+      const tempLog = {
+        weight: w ? parseFloat(w) : null,
+        step_count: s ? parseInt(s) : null,
+        active_energy: ae ? parseFloat(ae) : null,
+        diet_text: dt || null,
+        diet_image_url: di || null,
+        fitness_text: ft || null,
+        fitness_image_url: fi || null,
+        intake_calories: ic ? parseInt(ic) : 1800,
+        burned_calories: bc ? parseInt(bc) : null
+      }
+      triggerReportGeneration(dateStr, false, tempLog)
+    }
   }
 
   // Save specific day's punch log
@@ -1018,7 +1075,7 @@ export default function DisciplinePage() {
                     <Loader2 className="animate-spin text-primary h-8 w-8" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-7 gap-2.5 text-center">
+                  <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 text-center">
                     {/* Header: Sunday to Saturday */}
                     {['日', '一', '二', '三', '四', '五', '六'].map((day, i) => (
                       <div key={i} className="text-xs font-semibold py-1.5 text-onSurface/40 dark:text-foreground/45">
@@ -1050,7 +1107,7 @@ export default function DisciplinePage() {
                         <div
                           key={idx}
                           onClick={() => handleOpenDayModal(cell.dateStr)}
-                          className={`min-h-[72px] p-2.5 rounded-2xl flex flex-col justify-between text-left cursor-pointer transition-all hover:scale-[1.03] select-none ${statusBg} ${
+                          className={`min-h-[56px] sm:min-h-[72px] p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl flex flex-col justify-between text-left cursor-pointer transition-all hover:scale-[1.03] select-none ${statusBg} ${
                             !cell.currentMonth ? 'opacity-30 pointer-events-none' : ''
                           } ${isToday ? 'ring-2 ring-primary/80 ring-offset-2 dark:ring-offset-darkBg' : ''}`}
                         >
@@ -1061,7 +1118,7 @@ export default function DisciplinePage() {
                             )}
                           </div>
 
-                          <div className="mt-2.5 space-y-0.5 text-[9px] font-mono leading-tight">
+                          <div className="mt-1 sm:mt-2.5 space-y-0.5 text-[8px] sm:text-[9px] font-mono leading-tight">
                             {dayLog?.weight && (
                               <div className="text-onSurface/60 dark:text-foreground/60 font-semibold">{dayLog.weight}kg</div>
                             )}
@@ -1566,15 +1623,39 @@ export default function DisciplinePage() {
               </div>
 
               {/* Section 4: AI Analysis Output Preview */}
-              {aiAnalysis && (
-                <div className="bg-primary/5 border border-primary/20 p-4.5 rounded-2xl space-y-1">
-                  <div className="text-xs font-bold text-primary flex items-center gap-1">
-                    <Sparkles size={12} />
-                    <span>AI 营养与运动点评诊断</span>
+              {(generatingReport || aiAnalysis) && (
+                <div className="bg-primary/5 border border-primary/20 p-4.5 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold text-primary flex items-center gap-1">
+                      <Sparkles size={12} />
+                      <span>每日 AI 健康分析报告</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => triggerReportGeneration(selectedDateStr, true)}
+                      disabled={generatingReport}
+                      className="text-[10px] text-primary hover:text-primary-hover hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-1 bg-primary/10 border border-primary/20 px-2 py-1 rounded-lg font-bold"
+                      title="重新生成报告"
+                    >
+                      {generatingReport ? (
+                        <Loader2 size={10} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={10} />
+                      )}
+                      <span>{generatingReport ? '生成中...' : '重新生成'}</span>
+                    </button>
                   </div>
-                  <p className="text-xs text-onSurface/80 dark:text-foreground/80 leading-relaxed font-mono whitespace-pre-wrap">
-                    {aiAnalysis}
-                  </p>
+                  {generatingReport ? (
+                    <div className="space-y-2 py-1.5 animate-pulse">
+                      <div className="h-3 bg-primary/10 rounded w-full"></div>
+                      <div className="h-3 bg-primary/10 rounded w-[92%]"></div>
+                      <div className="h-3 bg-primary/10 rounded w-[80%]"></div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-onSurface/80 dark:text-foreground/80 leading-relaxed font-mono whitespace-pre-wrap">
+                      {aiAnalysis}
+                    </p>
+                  )}
                 </div>
               )}
 

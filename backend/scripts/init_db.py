@@ -92,8 +92,40 @@ def init_db():
             print("存储配额已存在，跳过初始化。")
 
         # 3. Initialize default system configs
-        qwen_key_enc = encrypt_value("sk-ce6e4d7dcd7780a1e0cec8305d5893a4973c1cd6e28137b35bd06a28c42e5bb4")
+        import json
+        modelscope_key_enc = encrypt_value("ms-cd1c3de7-b885-4c53-b2a1-9404d47480bb")
+        qwen_key_enc = encrypt_value("sk-03967b5aef294262a5da3346bb5f4ca8")
         deepseek_key_enc = encrypt_value("sk-733c49696e974e1a9d60beaacf55ca77")
+
+        providers = [
+            {
+                "id": "modelscope",
+                "name": "ModelScope",
+                "base_url": "https://api-inference.modelscope.cn/v1/",
+                "api_key": modelscope_key_enc,
+                "model": "Qwen/Qwen3.5-35B-A3B",
+                "models": [
+                    "Qwen/Qwen3.5-35B-A3B",
+                    "Qwen/Qwen3-VL-235B-A22B-Instruct",
+                    "Qwen/Qwen3.5-27B",
+                    "Qwen/Qwen3.5-397B-A17B"
+                ],
+                "is_reachable": True
+            },
+            {
+                "id": "qwen",
+                "name": "系统Agent API",
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "api_key": qwen_key_enc,
+                "model": "qwen-vl-max",
+                "models": [
+                    "qwen-vl-max",
+                    "qwen-plus"
+                ],
+                "is_reachable": True
+            }
+        ]
+        providers_json = json.dumps(providers, ensure_ascii=False)
 
         default_configs = [
             ("site_name", "Lumino", "站点名称"),
@@ -110,6 +142,7 @@ def init_db():
             ),
             ("lsky_api_token", "", "lsky-pro Token，加密存储"),
             ("storage_quota_mb", "1024", "相册存储配额 MB"),
+            ("ai_providers", providers_json, "可用的 AI 服务商配置，包含模型列表、Key、Base URL 等"),
         ]
 
         for key, val, desc in default_configs:
@@ -124,7 +157,7 @@ def init_db():
                 print(f"初始化配置项 {key}")
             else:
                 # Overwrite keys/urls if they differ to make sure our provided keys are registered
-                if key in ("qwen_api_key", "qwen_base_url", "deepseek_api_key", "deepseek_base_url") or not cfg.config_val:
+                if key in ("qwen_api_key", "qwen_base_url", "deepseek_api_key", "deepseek_base_url", "ai_providers") or not cfg.config_val:
                     cfg.config_val = val
                     print(f"更新配置项 {key}")
 

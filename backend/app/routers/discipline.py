@@ -17,7 +17,7 @@ from app.database import get_db
 from app.dependencies import get_current_user, require_root
 from app.models.user import User
 from app.models.discipline import UserHealthProfile, DailyDisciplineLog
-from app.services.llm import get_llm_client_and_model
+from app.services.llm import get_llm_client_and_model, get_discipline_llm
 
 router = APIRouter(prefix="/api/discipline", tags=["discipline"])
 
@@ -86,6 +86,20 @@ class AIAnalysisRequest(BaseModel):
 class AIAnalysisResponse(BaseModel):
     calories: int
     analysis: str
+
+class DailyReportRequest(BaseModel):
+    weight: Optional[float] = None
+    step_count: Optional[int] = None
+    active_energy: Optional[float] = None
+    diet_text: Optional[str] = None
+    diet_image_url: Optional[str] = None
+    fitness_text: Optional[str] = None
+    fitness_image_url: Optional[str] = None
+    intake_calories: Optional[int] = None
+    burned_calories: Optional[int] = None
+
+class DailyReportResponse(BaseModel):
+    report: str
 
 class ShortcutSyncRequest(BaseModel):
     date: Optional[str] = Field(None, description="打卡日期 (YYYY-MM-DD)，若为空默认为今天")
@@ -279,13 +293,9 @@ def analyze_diet(
         raise HTTPException(status_code=400, detail="请输入食物图片 URL 或文本描述。")
 
     try:
-        client, model_name = get_llm_client_and_model(db, "qwen:qwen-vl-max")
+        client, model_name = get_discipline_llm(db, task_type="vision" if req.image_url else "text")
     except Exception as e:
-        # Fallback to general qwen client
-        try:
-            client, model_name = get_llm_client_and_model(db, "qwen")
-        except Exception:
-            raise HTTPException(status_code=500, detail="AI 服务端未正确配置，请联系管理员。")
+        raise HTTPException(status_code=500, detail=f"AI 服务端未正确配置: {str(e)}")
 
     # Construct messages payload
     prompt = (
@@ -349,12 +359,9 @@ def analyze_fitness(
         raise HTTPException(status_code=400, detail="请提供运动描述或运动截图。")
 
     try:
-        client, model_name = get_llm_client_and_model(db, "qwen:qwen-vl-max")
-    except Exception:
-        try:
-            client, model_name = get_llm_client_and_model(db, "qwen")
-        except Exception:
-            raise HTTPException(status_code=500, detail="AI 服务端未正确配置。")
+        client, model_name = get_discipline_llm(db, task_type="vision" if req.image_url else "text")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI 服务端未正确配置: {str(e)}")
 
     prompt = (
         "你是一个专业的健身教练。请仔细分析用户提供的打卡运动图文信息：\n"
@@ -638,3 +645,112 @@ def shortcut_sync(
     db.commit()
     db.refresh(log)
     return log
+
+
+@router.post("/logs/{log_date}/report", response_model=DailyReportResponse)
+def generate_daily_report(
+    log_date: str,
+    req: DailyReportRequest,
+    force: bool = Query(False, description="是否强制重新生成"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_discipline)
+):
+    try:
+        target_date = datetime.strptime(log_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="日期格式必须为 YYYY-MM-DD")
+
+    # If not force refresh, check if we already have it in the database
+    log = db.scalar(
+        select(DailyDisciplineLog)
+        .where(
+            and_(
+                DailyDisciplineLog.user_id == current_user.id,
+                DailyDisciplineLog.log_date == target_date
+            )
+        )
+    )
+    
+    if not force and log and log.ai_analysis:
+        return DailyReportResponse(report=log.ai_analysis)
+
+    # Resolve BMR parameters
+    profile = db.scalar(
+        select(UserHealthProfile).where(UserHealthProfile.user_id == current_user.id)
+    )
+    base_height = profile.height if profile else 170.0
+    
+    # Use weight from request, then DB, then profile default
+    weight = req.weight
+    if weight is None:
+        weight = log.weight if log and log.weight is not None else (profile.initial_weight if profile else 65.0)
+        
+    bmr = calculate_bmr(base_height, weight)
+    
+    # Calculate BMI
+    bmi = weight / ((base_height / 100) ** 2) if base_height > 0 else 22.0
+    bmi_status = "正常"
+    if bmi < 18.5:
+        bmi_status = "偏瘦"
+    elif bmi < 24.0:
+        bmi_status = "正常"
+    elif bmi < 28.0:
+        bmi_status = "超重"
+    else:
+        bmi_status = "肥胖"
+
+    # Total intake and burned
+    intake = req.intake_calories if req.intake_calories is not None else (log.intake_calories if log else 1800)
+    act_energy = req.active_energy if req.active_energy is not None else (log.active_energy if log and log.active_energy is not None else 0.0)
+    burned = req.burned_calories if req.burned_calories is not None else (log.burned_calories if log else int(bmr + act_energy))
+    gap = burned - intake
+
+    # Construct prompt
+    prompt = (
+        "你是一个专业的私人健康、运动与营养顾问。请根据用户今天（或该日期）的自律打卡数据，生成一份简明扼要、有针对性、充满鼓励性的每日健康分析点评报告。\n\n"
+        "【打卡数据】\n"
+        f"日期: {log_date}\n"
+        f"体重: {weight} kg (BMI: {bmi:.1f}, 状态: {bmi_status})\n"
+        f"今日步数: {req.step_count if req.step_count is not None else (log.step_count if log else '未记录')} 步\n"
+        f"饮食摄入热量: {intake} kcal\n"
+        f"饮食描述: {req.diet_text or (log.diet_text if log else '无')}\n"
+        f"运动/日常能耗: {act_energy} kcal\n"
+        f"健身描述: {req.fitness_text or (log.fitness_text if log else '无')}\n"
+        f"BMR基础代谢: {int(bmr)} kcal\n"
+        f"总消耗热量: {burned} kcal\n"
+        f"热量赤字缺口: {gap} kcal (正值表示消耗大于摄入，有利于减重；负值表示盈余)\n\n"
+        "【报告要求】\n"
+        "1. 点评今天热量赤字缺口是否达标，饮食和运动是否合理；\n"
+        "2. 提供一条针对性的改善建议（如增加饮水、调整碳水、补充蛋白质或建议有氧/力量训练组合）；\n"
+        "3. 字数控制在 250 字以内，语气亲切专业；\n"
+        "4. 直接输出报告正文，不要包含任何前导词或 markdown 标记。"
+    )
+
+    try:
+        client, model_name = get_discipline_llm(db, task_type="text")
+        
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400
+        )
+        report_text = response.choices[0].message.content.strip()
+        
+        # Save to DB if log exists
+        if log:
+            log.ai_analysis = report_text
+            db.commit()
+            
+        return DailyReportResponse(report=report_text)
+    except Exception as e:
+        print(f"Error generating daily report: {e}")
+        fallback_msg = (
+            f"今日健康分析：您今天摄入了 {intake} kcal，消耗了 {burned} kcal，"
+            f"热量赤字为 {gap} kcal。当前 BMI 为 {bmi:.1f} ({bmi_status})。"
+            f"建议继续保持健康的饮食和运动习惯！"
+        )
+        if log:
+            log.ai_analysis = fallback_msg
+            db.commit()
+        return DailyReportResponse(report=fallback_msg)
+
