@@ -150,6 +150,10 @@ def update_config(
                         np["api_key"] = existing_map.get(pid, "")
                     else:
                         np["api_key"] = encrypt_value(new_key)
+                        np["is_reachable"] = True
+                        np["last_checked"] = datetime.now().isoformat()
+                elif "is_reachable" not in np:
+                    np["is_reachable"] = True
             val_to_save = json.dumps(new_providers, ensure_ascii=False)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"解析或处理 ai_providers 失败: {str(e)}")
@@ -277,7 +281,27 @@ def test_connection(req: AITestConnectionRequest, db: Session = Depends(get_db))
             model=req.model,
             messages=[{"role": "user", "content": "ping"}],
             max_tokens=1,
+            timeout=10.0,
         )
+        # Automatically mark as reachable in the database if it was saved
+        if req.id:
+            cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
+            if cfg and cfg.config_val:
+                try:
+                    providers = json.loads(cfg.config_val)
+                    updated = False
+                    for p in providers:
+                        if p.get("id") == req.id:
+                            p["is_reachable"] = True
+                            p["last_checked"] = datetime.now().isoformat()
+                            updated = True
+                            break
+                    if updated:
+                        cfg.config_val = json.dumps(providers, ensure_ascii=False)
+                        db.commit()
+                except Exception as e:
+                    print(f"Failed to auto-update is_reachable on test success: {e}")
+                    
         return {"status": "success", "message": "连接测试成功！"}
     except Exception as e:
         return {"status": "error", "message": f"连接测试失败: {str(e)}"}
@@ -330,7 +354,7 @@ def check_all_providers(db: Session = Depends(get_db)):
                 model=test_model,
                 messages=[{"role": "user", "content": "ping"}],
                 max_tokens=1,
-                timeout=5.0,
+                timeout=10.0,
             )
             return True
         except Exception as e:

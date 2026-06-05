@@ -271,14 +271,11 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
                   return (
                     <button
                       key={m.id}
-                      disabled={!m.is_reachable}
                       onClick={() => handleSwitchModel(m.id)}
                       className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all flex items-center justify-between ${
                         isCurrent
                           ? 'bg-primary/10 text-primary font-bold'
-                          : m.is_reachable
-                          ? 'text-onSurface/85 dark:text-foreground/85 hover:bg-secondary/40 dark:hover:bg-darkBorder/40'
-                          : 'text-onSurface/40 dark:text-foreground/45 cursor-not-allowed opacity-50'
+                          : 'text-onSurface/85 dark:text-foreground/85 hover:bg-secondary/40 dark:hover:bg-darkBorder/40'
                       }`}
                     >
                       <div className="flex flex-col min-w-0">
