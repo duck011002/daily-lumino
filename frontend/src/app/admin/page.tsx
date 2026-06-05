@@ -839,13 +839,18 @@ export default function AdminConsole() {
 
                     {/* Table Title and Actions */}
                     <div className="flex items-center justify-between pt-4 pb-2 border-b border-secondary dark:border-darkBorder">
-                      <h2 className="text-xl font-bold text-onSurface dark:text-foreground">随笔文章</h2>
+                      <div>
+                        <h2 className="text-xl font-bold text-onSurface dark:text-foreground">随笔文章</h2>
+                        <p className="text-[10px] text-onSurface/50 dark:text-foreground/50 mt-0.5">
+                          支持直接导入 Markdown 文本，或包含本地图片目录的 ZIP 压缩包（系统将自动托管图片至云端图床）。
+                        </p>
+                      </div>
                       <div className="flex items-center gap-2">
                         <input
                           type="file"
                           ref={mdInputRef}
                           onChange={handleImportMarkdown}
-                          accept=".md,.markdown"
+                          accept=".md,.markdown,.zip"
                           className="hidden"
                         />
                         <Button
@@ -854,7 +859,7 @@ export default function AdminConsole() {
                           size="sm"
                           className="shadow-sm border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50"
                         >
-                          导入 Markdown
+                          导入 Markdown / ZIP
                         </Button>
                         <Button onClick={handleOpenCreate} size="sm" className="shadow-sm">
                           <Plus size={16} className="mr-1" /> 新建随笔

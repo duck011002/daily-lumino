@@ -193,3 +193,50 @@ def test_blog_access_control(client: TestClient, blog_test_setup):
         "/api/admin/blog/posts/999",
         cookies=normal_cookies
     ).status_code == 403
+
+
+from unittest.mock import patch
+
+def test_parse_markdown_endpoints(client: TestClient, blog_test_setup):
+    admin_cookies = blog_test_setup["admin"]
+
+    # 1. Test parsing standard .md file
+    md_content = b"---\ntitle: \"My Post\"\nslug: \"my-post\"\n---\n# Header\nThis is my post content."
+    res = client.post(
+        "/api/admin/blog/parse-markdown",
+        files={"file": ("post.md", md_content, "text/markdown")},
+        cookies=admin_cookies,
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["meta"]["title"] == "My Post"
+    assert data["meta"]["slug"] == "my-post"
+    assert "# Header" in data["content"]
+
+    # 2. Test parsing .zip file containing md and images
+    import io
+    import zipfile
+    
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
+        zip_file.writestr("post.md", b"---\ntitle: \"My Zip Post\"\nslug: \"my-zip-post\"\n---\n# Header\n![Logo](./images/logo.png)")
+        zip_file.writestr("images/logo.png", b"fake_image_bytes")
+        
+    zip_buffer.seek(0)
+    
+    with patch("app.routers.blog.upload_file_to_lsky") as mock_upload:
+        async def mock_upload_coro(filename, content, content_type, db):
+            return "http://mock-lsky.fun/logo.png"
+        mock_upload.side_effect = mock_upload_coro
+        
+        res_zip = client.post(
+            "/api/admin/blog/parse-markdown",
+            files={"file": ("post.zip", zip_buffer, "application/zip")},
+            cookies=admin_cookies,
+        )
+        assert res_zip.status_code == 200
+        data_zip = res_zip.json()
+        assert data_zip["meta"]["title"] == "My Zip Post"
+        assert data_zip["meta"]["slug"] == "my-zip-post"
+        assert "![Logo](http://mock-lsky.fun/logo.png)" in data_zip["content"]
+        assert mock_upload.called
