@@ -27,6 +27,23 @@ intentionally excluded from this document.
 - The MCP endpoint returned `401` without a token, which confirms it is not
   publicly usable before explicit server configuration.
 
+## HTTPS Enablement For The Existing Domain
+
+- The existing `lovestory1314.fun` domain is the active public hostname while
+  the new `.work` domain finishes DNS propagation and subsequent setup.
+- A Let's Encrypt certificate for `lovestory1314.fun` was issued on 2026-07-27
+  and is valid through 2026-10-25.
+- Nginx now redirects HTTP to HTTPS and serves the application and `/api/*`
+  over TLS. Public health and blog checks passed after the configuration change.
+- Application settings now use `https://lovestory1314.fun` for generated public
+  links and secure cookies. Existing browser sessions may need to log in again.
+- Certbot uses the Nginx authenticator for renewal. A daily cron task runs
+  `certbot renew` and reloads Nginx; a dry-run renewal succeeded without taking
+  the site offline.
+- The MCP endpoint is now transport-safe at
+  `https://lovestory1314.fun/api/mcp/blog/`, but remains disabled until a
+  dedicated bearer token and author ID are intentionally configured.
+
 ## Cloudflare And Domain Status
 
 - Existing public domain: `lovestory1314.fun`.
