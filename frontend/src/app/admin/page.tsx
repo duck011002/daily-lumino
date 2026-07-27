@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   ShieldAlert, Settings, Users, Key, Database, BookOpen, Plus, Loader2,
   Trash2, Edit, ArrowLeft, Save, Globe, Eye, CheckCircle, AlertCircle,
-  Copy, Check, UserMinus, UserCheck, ShieldCheck, ToggleLeft, ToggleRight, Share2
+  Copy, Check, UserMinus, UserCheck, ShieldCheck, ToggleLeft, ToggleRight, Share2, Bot
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/hooks/useAuth'
@@ -91,6 +91,17 @@ interface InviteCode {
   created_at: string
 }
 
+interface MCPBlogToken {
+  id: number
+  label: string
+  author_id: number
+  author_name: string
+  allow_auto_publish: boolean
+  is_active: boolean
+  created_at: string
+  last_used_at: string | null
+}
+
 interface AIProvider {
   id: string
   name: string
@@ -102,7 +113,7 @@ interface AIProvider {
   last_checked?: string
 }
 
-type TabType = 'blog' | 'users' | 'configs' | 'quota'
+type TabType = 'blog' | 'users' | 'mcp' | 'configs' | 'quota'
 
 export default function AdminConsole() {
   const { user, loading: authLoading } = useAuth()
@@ -148,6 +159,14 @@ export default function AdminConsole() {
   const [loadingInvites, setLoadingInvites] = useState(true)
   const [inviteExpireHours, setInviteExpireHours] = useState<number>(24)
   const [creatingInvite, setCreatingInvite] = useState(false)
+
+  const [mcpTokens, setMcpTokens] = useState<MCPBlogToken[]>([])
+  const [loadingMcpTokens, setLoadingMcpTokens] = useState(true)
+  const [mcpLabel, setMcpLabel] = useState('Codex Desktop')
+  const [mcpAuthorId, setMcpAuthorId] = useState('')
+  const [mcpAutoPublish, setMcpAutoPublish] = useState(false)
+  const [creatingMcpToken, setCreatingMcpToken] = useState(false)
+  const [newMcpToken, setNewMcpToken] = useState<string | null>(null)
   
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [copiedShareSlug, setCopiedShareSlug] = useState<string | null>(null)
@@ -337,6 +356,26 @@ export default function AdminConsole() {
     }
   }
 
+  const fetchMcpTokens = async () => {
+    setLoadingMcpTokens(true)
+    try {
+      const [tokensRes, usersRes] = await Promise.all([
+        api.get('/admin/mcp-blog/tokens'),
+        api.get('/admin/users'),
+      ])
+      setMcpTokens(tokensRes.data)
+      setUsers(usersRes.data)
+      if (!mcpAuthorId) {
+        const defaultAuthor = usersRes.data.find((item: UserResponse) => item.is_root) || usersRes.data.find((item: UserResponse) => item.can_write_blog)
+        if (defaultAuthor) setMcpAuthorId(String(defaultAuthor.id))
+      }
+    } catch (err) {
+      console.error('获取 MCP 凭据失败', err)
+    } finally {
+      setLoadingMcpTokens(false)
+    }
+  }
+
   // Dynamic tab switcher hook
   useEffect(() => {
     if (user?.is_root) {
@@ -345,6 +384,8 @@ export default function AdminConsole() {
         fetchCategories()
       } else if (activeTab === 'users') {
         fetchUsers()
+      } else if (activeTab === 'mcp') {
+        fetchMcpTokens()
       } else if (activeTab === 'configs') {
         fetchConfigs()
       } else if (activeTab === 'quota') {
@@ -666,6 +707,45 @@ export default function AdminConsole() {
     }
   }
 
+  const handleCreateMcpToken = async () => {
+    if (!mcpLabel.trim() || !mcpAuthorId) {
+      showToast('warning', '请填写凭据名称并选择博客作者。')
+      return
+    }
+    setCreatingMcpToken(true)
+    try {
+      const res = await api.post('/admin/mcp-blog/tokens', {
+        label: mcpLabel.trim(),
+        author_id: Number(mcpAuthorId),
+        allow_auto_publish: mcpAutoPublish,
+      })
+      setMcpTokens((prev) => [res.data, ...prev])
+      setNewMcpToken(res.data.token)
+      showToast('success', 'MCP 凭据已创建，请立即复制令牌。')
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '创建 MCP 凭据失败。')
+    } finally {
+      setCreatingMcpToken(false)
+    }
+  }
+
+  const handleUpdateMcpToken = async (token: MCPBlogToken, changes: Partial<MCPBlogToken>) => {
+    try {
+      const res = await api.patch(`/admin/mcp-blog/tokens/${token.id}`, changes)
+      setMcpTokens((prev) => prev.map((item) => item.id === token.id ? res.data : item))
+      showToast('success', `MCP 凭据已${res.data.is_active ? '更新' : '停用'}。`)
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '更新 MCP 凭据失败。')
+    }
+  }
+
+  const handleCopyMcpCommand = async () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://lovestory1314.fun'
+    const command = `codex mcp add lumino-blog --url ${origin}/api/mcp/blog/ --bearer-token-env-var LUMINO_BLOG_MCP_TOKEN`
+    const success = await copyText(command)
+    showToast(success ? 'success' : 'error', success ? 'Codex 连接命令已复制。' : '复制失败，请手动复制。')
+  }
+
   // Blog Tab Actions
   const handleOpenCreate = () => {
     setEditingPostId(null)
@@ -855,6 +935,21 @@ export default function AdminConsole() {
             >
               <Users size={18} />
               <span>用户账号管理</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('mcp')
+                setIsEditing(false)
+              }}
+              className={`flex-shrink-0 lg:w-full flex items-center space-x-2 lg:space-x-3 px-4 py-2.5 lg:py-3 rounded-xl transition-colors text-sm lg:text-base whitespace-nowrap ${
+                activeTab === 'mcp'
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-onSurface/70 dark:text-foreground/70 hover:bg-secondary/50 dark:hover:bg-darkBorder/50'
+              }`}
+            >
+              <Bot size={18} />
+              <span>AI 发布 MCP</span>
             </button>
 
             <button
@@ -1364,6 +1459,47 @@ export default function AdminConsole() {
                       </tbody>
                     </table>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* ======================================= */}
+            {/* ============== TAB: MCP ============== */}
+            {/* ======================================= */}
+            {activeTab === 'mcp' && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="rounded-2xl border border-secondary bg-white p-6 shadow-sm dark:border-darkBorder dark:bg-darkCard">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2"><Bot size={20} className="text-primary" /><h2 className="text-xl font-bold text-onSurface dark:text-foreground">AI 技术博客发布 MCP</h2></div>
+                      <p className="mt-2 max-w-2xl text-xs leading-6 text-onSurface/60 dark:text-foreground/60">为 Codex、Claude 或其他 AI 客户端创建独立凭据。凭据绑定具体博客作者，可随时停用；原始令牌仅在创建后显示一次。</p>
+                    </div>
+                    <button onClick={handleCopyMcpCommand} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-secondary px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/5 dark:border-darkBorder"><Copy size={14} />复制 Codex 连接命令</button>
+                  </div>
+                </div>
+
+                {newMcpToken && (
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-500/40 dark:bg-amber-500/10">
+                    <p className="text-sm font-bold text-amber-800 dark:text-amber-300">新 MCP 令牌，只显示这一次</p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row"><code className="flex-1 break-all rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-xs text-onSurface dark:border-amber-500/30 dark:bg-darkBg dark:text-foreground">{newMcpToken}</code><Button size="sm" onClick={() => copyToClipboard(newMcpToken)}><Copy size={14} className="mr-1" />复制令牌</Button></div>
+                    <p className="mt-3 text-xs leading-5 text-amber-800/80 dark:text-amber-300/80">令牌放入本机环境变量 <code>LUMINO_BLOG_MCP_TOKEN</code>，再执行上方复制的连接命令。关闭本提示后无法查看原值，只能创建新令牌替换。</p>
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-secondary bg-white p-6 shadow-sm dark:border-darkBorder dark:bg-darkCard">
+                  <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end">
+                    <div><label className="mb-1 block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">凭据名称</label><input value={mcpLabel} onChange={(e) => setMcpLabel(e.target.value)} maxLength={100} placeholder="例如 Codex Desktop" className="w-full rounded-lg border border-secondary bg-surface px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg" /></div>
+                    <div><label className="mb-1 block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">发布作者</label><select value={mcpAuthorId} onChange={(e) => setMcpAuthorId(e.target.value)} className="w-full rounded-lg border border-secondary bg-surface px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg"><option value="">请选择可写博客的用户</option>{users.filter((item) => item.is_active && (item.is_root || item.can_write_blog)).map((item) => <option key={item.id} value={item.id}>{item.display_name || item.username}{item.is_root ? '（超管）' : ''}</option>)}</select></div>
+                    <label className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-secondary px-3 py-2 text-xs font-semibold text-onSurface/70 dark:border-darkBorder dark:text-foreground/70"><input type="checkbox" checked={mcpAutoPublish} onChange={(e) => setMcpAutoPublish(e.target.checked)} className="rounded text-primary focus:ring-primary" />允许自动公开</label>
+                    <Button size="sm" onClick={handleCreateMcpToken} isLoading={creatingMcpToken}><Plus size={14} className="mr-1" />创建凭据</Button>
+                  </div>
+                  <p className="mt-3 text-xs text-onSurface/50 dark:text-foreground/50">建议关闭“允许自动公开”。关闭后，AI 只能创建草稿，需要你在博客后台审核发布。</p>
+                </div>
+
+                {loadingMcpTokens ? <div className="py-16 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /></div> : mcpTokens.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-secondary py-16 text-center dark:border-darkBorder"><Bot className="mx-auto h-10 w-10 text-onSurface/25 dark:text-foreground/25" /><p className="mt-3 text-sm text-onSurface/55 dark:text-foreground/55">尚未创建 MCP 凭据。</p></div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-secondary bg-white shadow-sm dark:border-darkBorder dark:bg-darkCard"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-b border-secondary bg-secondary/40 text-onSurface/70 dark:border-darkBorder dark:bg-darkBg dark:text-foreground/70"><tr><th className="px-5 py-3">名称</th><th className="px-5 py-3">博客作者</th><th className="px-5 py-3">最近使用</th><th className="px-5 py-3 text-center">自动发布</th><th className="px-5 py-3 text-center">状态</th></tr></thead><tbody className="divide-y divide-secondary dark:divide-darkBorder">{mcpTokens.map((token) => <tr key={token.id}><td className="px-5 py-4 font-semibold text-onSurface dark:text-foreground">{token.label}</td><td className="px-5 py-4 text-xs text-onSurface/70 dark:text-foreground/70">{token.author_name}<span className="ml-1 font-mono opacity-50">#{token.author_id}</span></td><td className="px-5 py-4 text-xs text-onSurface/60 dark:text-foreground/60">{token.last_used_at ? new Date(token.last_used_at).toLocaleString() : '尚未使用'}</td><td className="px-5 py-4 text-center"><button onClick={() => handleUpdateMcpToken(token, { allow_auto_publish: !token.allow_auto_publish })} className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${token.allow_auto_publish ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' : 'bg-secondary text-onSurface/60 dark:bg-darkBorder dark:text-foreground/60'}`}>{token.allow_auto_publish ? '已允许' : '仅草稿'}</button></td><td className="px-5 py-4 text-center"><button onClick={() => handleUpdateMcpToken(token, { is_active: !token.is_active })} className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${token.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300'}`}>{token.is_active ? '启用，点击停用' : '已停用，点击启用'}</button></td></tr>)}</tbody></table></div>
                 )}
               </div>
             )}

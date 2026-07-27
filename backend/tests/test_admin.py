@@ -5,8 +5,10 @@ from sqlalchemy import select
 
 from app.models.user import User
 from app.models.invite_code import InviteCode
+from app.models.mcp_blog_token import MCPBlogToken
 from app.models.system_config import SystemConfig
 from app.models.storage_quota import StorageQuota
+from app.mcp_blog import resolve_mcp_blog_identity
 from app.services.auth import hash_password
 from app.utils.crypto import decrypt_value
 
@@ -214,6 +216,44 @@ def test_storage_quota_updates(client: TestClient, admin_test_setup, db):
     assert float(quota_db.max_size_mb) == 5120.0
 
 
+def test_mcp_blog_token_management(client: TestClient, admin_test_setup, db):
+    admin_cookies = admin_test_setup["admin"]
+    admin_id = db.scalar(select(User.id).where(User.username == "adminuser"))
+
+    create_res = client.post(
+        "/api/admin/mcp-blog/tokens",
+        json={"label": "Codex desktop", "author_id": admin_id, "allow_auto_publish": False},
+        cookies=admin_cookies,
+    )
+    assert create_res.status_code == 201
+    created = create_res.json()
+    assert created["token"].startswith("lmb_mcp_")
+    assert "token_hash" not in created
+
+    stored = db.scalar(select(MCPBlogToken).where(MCPBlogToken.id == created["id"]))
+    assert stored is not None
+    assert created["token"] not in stored.token_hash
+    assert stored.is_active is True
+
+    identity = resolve_mcp_blog_identity(db, created["token"], record_usage=False)
+    assert identity is not None
+    assert identity.author_id == admin_id
+
+    list_res = client.get("/api/admin/mcp-blog/tokens", cookies=admin_cookies)
+    assert list_res.status_code == 200
+    assert "token" not in list_res.json()[0]
+
+    disable_res = client.patch(
+        f"/api/admin/mcp-blog/tokens/{created['id']}",
+        json={"is_active": False},
+        cookies=admin_cookies,
+    )
+    assert disable_res.status_code == 200
+    assert disable_res.json()["is_active"] is False
+
+    assert resolve_mcp_blog_identity(db, created["token"], record_usage=False) is None
+
+
 def test_admin_authorization_restrictions(client: TestClient, admin_test_setup):
     normal_cookies = admin_test_setup["normal"]
 
@@ -226,3 +266,5 @@ def test_admin_authorization_restrictions(client: TestClient, admin_test_setup):
     assert client.post("/api/admin/invite-codes", json={"expires_in_hours": 24}, cookies=normal_cookies).status_code == 403
     assert client.get("/api/admin/storage-quota", cookies=normal_cookies).status_code == 403
     assert client.patch("/api/admin/storage-quota", json={"max_size_mb": 100.0}, cookies=normal_cookies).status_code == 403
+    assert client.get("/api/admin/mcp-blog/tokens", cookies=normal_cookies).status_code == 403
+    assert client.post("/api/admin/mcp-blog/tokens", json={"label": "nope", "author_id": 1}, cookies=normal_cookies).status_code == 403

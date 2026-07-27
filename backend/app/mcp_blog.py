@@ -2,10 +2,12 @@
 
 import base64
 import binascii
+import hashlib
 import re
 import uuid
+from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from hmac import compare_digest
 from typing import Any
 
 from fastapi import HTTPException
@@ -17,6 +19,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.config import settings
 from app.database import SessionLocal
 from app.models.blog import BlogCategory, BlogPost
+from app.models.mcp_blog_token import MCPBlogToken
 from app.models.user import User
 from app.services.upload import upload_file_to_lsky
 
@@ -33,10 +36,48 @@ blog_mcp = FastMCP(
 )
 
 
+@dataclass(frozen=True)
+class MCPBlogIdentity:
+    author_id: int
+    allow_auto_publish: bool
+
+
+current_mcp_blog_identity: ContextVar[MCPBlogIdentity | None] = ContextVar(
+    "current_mcp_blog_identity", default=None
+)
+
+
+def hash_mcp_blog_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def resolve_mcp_blog_identity(
+    db, token: str, *, record_usage: bool = True
+) -> MCPBlogIdentity | None:
+    if not token:
+        return None
+    credential = db.scalar(
+        select(MCPBlogToken).where(
+            MCPBlogToken.token_hash == hash_mcp_blog_token(token),
+            MCPBlogToken.is_active.is_(True),
+        )
+    )
+    if not credential:
+        return None
+    if record_usage:
+        credential.last_used_at = datetime.now(UTC).replace(tzinfo=None)
+        db.commit()
+    return MCPBlogIdentity(
+        author_id=credential.author_id,
+        allow_auto_publish=credential.allow_auto_publish,
+    )
+
+
 def _get_mcp_author(db) -> User:
-    if settings.MCP_BLOG_AUTHOR_ID is None:
-        raise ValueError("MCP_BLOG_AUTHOR_ID has not been configured.")
-    author = db.get(User, settings.MCP_BLOG_AUTHOR_ID)
+    identity = current_mcp_blog_identity.get()
+    if not identity:
+        raise ValueError("MCP blog credential was not resolved.")
+    author = db.get(User, identity.author_id)
     if not author or not author.is_active or (not author.is_root and not author.can_write_blog):
         raise ValueError("The configured MCP blog author is unavailable or lacks blog permission.")
     return author
@@ -80,7 +121,8 @@ def _create_post(
         while db.scalar(select(BlogPost.id).where(BlogPost.slug == slug)):
             slug = _new_slug(title, supplied_slug)
 
-        can_publish = publish and settings.MCP_BLOG_ALLOW_AUTO_PUBLISH
+        identity = current_mcp_blog_identity.get()
+        can_publish = publish and bool(identity and identity.allow_auto_publish)
         post = BlogPost(
             title=title.strip(),
             slug=slug,
@@ -189,7 +231,8 @@ def create_blog_post(
     description="Publish a previously created MCP blog draft after explicit user approval."
 )
 def publish_blog_post(post_id: int) -> dict[str, str]:
-    if not settings.MCP_BLOG_ALLOW_AUTO_PUBLISH:
+    identity = current_mcp_blog_identity.get()
+    if not identity or not identity.allow_auto_publish:
         raise ValueError(
             "Auto-publish is disabled. Publish the draft from Lumino's blog workspace."
         )
@@ -211,7 +254,7 @@ def publish_blog_post(post_id: int) -> dict[str, str]:
 
 
 class MCPBlogTokenMiddleware:
-    """Protect the MCP endpoint with a dedicated non-user bearer token."""
+    """Resolve an administrator-issued MCP credential for every MCP request."""
 
     def __init__(self, app: ASGIApp):
         self.app = app
@@ -226,8 +269,11 @@ class MCPBlogTokenMiddleware:
             for key, value in scope["headers"]
         }
         authorization = headers.get("authorization", "")
-        token = authorization.removeprefix("Bearer ")
-        if not settings.MCP_BLOG_TOKEN or not compare_digest(token, settings.MCP_BLOG_TOKEN):
+        token = authorization.removeprefix("Bearer ").strip()
+        with SessionLocal() as db:
+            identity = resolve_mcp_blog_identity(db, token)
+
+        if not identity:
             response = JSONResponse(
                 {"detail": "Invalid MCP blog token."},
                 status_code=401,
@@ -235,7 +281,11 @@ class MCPBlogTokenMiddleware:
             )
             await response(scope, receive, send)
             return
-        await self.app(scope, receive, send)
+        context_token = current_mcp_blog_identity.set(identity)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            current_mcp_blog_identity.reset(context_token)
 
 
 blog_mcp_asgi = MCPBlogTokenMiddleware(blog_mcp.streamable_http_app())

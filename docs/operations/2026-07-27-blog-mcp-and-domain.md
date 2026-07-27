@@ -75,36 +75,41 @@ intentionally excluded from this document.
 
 ## MCP Publishing Safety
 
-- The MCP endpoint requires a dedicated bearer token stored in server-only
-  configuration.
+- The MCP endpoint requires a dedicated bearer token issued only by a root
+  user in the Lumino admin console. The raw token is shown once at creation;
+  the database stores only its SHA-256 hash.
+- Each credential has its own label, bound blog author, active/inactive switch,
+  automatic-publishing permission, creation time, and last-used timestamp.
+- Revoking a credential takes effect on the next MCP request, without changing
+  server environment variables or restarting the application.
 - MCP tools can list sections, upload image bytes through the existing Lsky
   image-hosting integration, create a post, and publish a post.
 - MCP-created posts are drafts by default. Automatic public publishing is an
-  explicit server setting so a leaked token cannot silently publish content.
-- The MCP author is configured with a specific user ID, which provides a clear
-  authorship trail for AI-created posts.
+  explicit per-credential permission so a leaked token cannot silently publish
+  content unless that capability was deliberately granted.
+- The credential author provides a clear authorship trail for AI-created posts.
 
 ## MCP Client Setup (After HTTPS)
 
 - Do not configure a real MCP token while the public site is HTTP-only. A
   bearer token sent over HTTP can be intercepted.
-- After the domain has working HTTPS, expose the endpoint at
-  `https://<public-domain>/api/mcp/blog/` and set a long random
-  `MCP_BLOG_TOKEN` plus the author account ID in the server environment.
-- A compatible remote MCP client should send this header:
+- After the domain has working HTTPS, create a credential in `超级管理员后台 ->
+  AI 发布 MCP`, copy its one-time token into the local environment variable
+  `LUMINO_BLOG_MCP_TOKEN`, and connect the client to
+  `https://<public-domain>/api/mcp/blog/`.
+- Codex can register the remote server with:
 
-  ```json
-  {
-    "Authorization": "Bearer ${LUMINO_BLOG_TOKEN}"
-  }
+  ```bash
+  codex mcp add lumino-blog --url https://<public-domain>/api/mcp/blog/ --bearer-token-env-var LUMINO_BLOG_MCP_TOKEN
   ```
 
 - The available tools are `list_blog_categories`, `upload_blog_image`,
   `create_blog_post`, and `publish_blog_post`. The image tool uses the existing
   Lsky image bed and its quota; no image-bed secret is shared with the AI.
-- Keep `MCP_BLOG_ALLOW_AUTO_PUBLISH=false` for the first rollout. This lets AI
-  create image-rich drafts that can be reviewed in Lumino. Enable it only when
-  you intentionally want the MCP token to have public publishing authority.
+- Keep automatic publishing disabled for the first rollout. This lets AI create
+  image-rich drafts that can be reviewed in Lumino. Enable it only for a
+  specific credential when you intentionally want that AI client to have public
+  publishing authority.
 
 ## Follow-Up Checklist
 
@@ -113,4 +118,5 @@ intentionally excluded from this document.
   production hostname.
 - After DNS is live, issue origin TLS, add the new hostname to Nginx, and update
   the application public URL used in invitation emails.
-- Configure the MCP bearer token and the MCP author ID only after HTTPS is live.
+- Create the first MCP credential in the root admin console after this feature
+  is deployed, then configure the intended AI client with its one-time token.
