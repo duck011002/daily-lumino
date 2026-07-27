@@ -13,6 +13,10 @@ os.environ["DB_USER"] = "root"
 os.environ["DB_PASSWORD"] = "root"
 os.environ["DB_NAME"] = "lumino_test"
 os.environ["JWT_SECRET"] = "78b4081c3e34b9d5c3fa910f279d0315ef2f5342a8bdfebcbe2983c2718797f1"
+os.environ["ROOT_EMAIL"] = "root@example.com"
+os.environ["INVITE_REQUEST_ADMIN_EMAIL"] = "root@example.com"
+os.environ["FRONTEND_BASE_URL"] = "http://testserver"
+os.environ["INVITE_REQUEST_WORKER_ENABLED"] = "false"
 
 from app.database import Base, get_db
 from app.main import app

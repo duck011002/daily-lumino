@@ -12,7 +12,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8, max_length=255)
-    invite_code: str | None = None
+    invite_code: str = Field(..., min_length=1, max_length=64)
 
 
 class UserUpdate(BaseModel):

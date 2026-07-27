@@ -3,6 +3,7 @@ from app.models.album import Album, Photo
 from app.models.blog import BlogPost
 from app.models.chat import ChatMessage, ChatSession
 from app.models.invite_code import InviteCode
+from app.models.invite_request import InviteRequest
 from app.models.location_pin import LocationPin
 from app.models.note import Note
 from app.models.space import Space, SpaceInvite, SpaceMember
@@ -14,6 +15,7 @@ __all__ = [
     "Base",
     "User",
     "InviteCode",
+    "InviteRequest",
     "Space",
     "SpaceMember",
     "SpaceInvite",

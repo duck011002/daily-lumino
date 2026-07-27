@@ -7,31 +7,34 @@ from app.models.user import User
 from app.models.invite_code import InviteCode
 from app.models.system_config import SystemConfig
 from app.models.storage_quota import StorageQuota
+from app.services.auth import hash_password
 from app.utils.crypto import decrypt_value
 
 
 @pytest.fixture
 def admin_test_setup(client: TestClient, db):
-    # Register and login Normal User
-    client.post(
-        "/api/auth/register",
-        json={"username": "normaluser", "email": "normal@example.com", "password": "password123"},
+    normal_user = User(
+        username="normaluser",
+        email="normal@example.com",
+        password=hash_password("password123"),
+        display_name="Normal User",
+        is_active=True,
     )
+    admin_user = User(
+        username="adminuser",
+        email="admin@example.com",
+        password=hash_password("password123"),
+        display_name="Admin User",
+        is_root=True,
+        is_active=True,
+    )
+    db.add(normal_user)
+    db.add(admin_user)
+    db.commit()
+
     res_normal = client.post("/api/auth/login", json={"username_or_email": "normaluser", "password": "password123"})
     normal_cookies = res_normal.cookies
 
-    # Register Admin user
-    client.post(
-        "/api/auth/register",
-        json={"username": "adminuser", "email": "admin@example.com", "password": "password123"},
-    )
-    
-    # Manually upgrade adminuser to root in the database
-    admin_db = db.scalar(select(User).where(User.username == "adminuser"))
-    admin_db.is_root = True
-    db.commit()
-
-    # Login Admin
     res_admin = client.post("/api/auth/login", json={"username_or_email": "adminuser", "password": "password123"})
     admin_cookies = res_admin.cookies
 
