@@ -82,6 +82,9 @@ intentionally excluded from this document.
   automatic-publishing permission, creation time, and last-used timestamp.
 - Revoking a credential takes effect on the next MCP request, without changing
   server environment variables or restarting the application.
+- FastMCP's streamable HTTP session manager is started from the parent
+  FastAPI lifespan. This is required because mounted Starlette applications do
+  not automatically run their own lifespan handlers.
 - MCP tools can list sections, upload image bytes through the existing Lsky
   image-hosting integration, create a post, and publish a post.
 - MCP-created posts are drafts by default. Automatic public publishing is an

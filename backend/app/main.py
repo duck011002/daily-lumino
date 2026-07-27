@@ -1,12 +1,25 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.mcp_blog import blog_mcp_asgi
+from app.mcp_blog import blog_mcp, blog_mcp_asgi
 from app.routers import admin, albums, auth, blog, chat, discipline, notes, spaces, upload
 from app.services.invite_requests import start_invite_request_worker, stop_invite_request_worker
 
-app = FastAPI(title="Lumino API", version="1.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Mounted Starlette apps do not run their own lifespan under FastAPI.
+    async with blog_mcp.session_manager.run():
+        start_invite_request_worker()
+        try:
+            yield
+        finally:
+            stop_invite_request_worker()
+
+app = FastAPI(title="Lumino API", version="1.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,17 +39,6 @@ app.include_router(blog.router)
 app.include_router(upload.router)
 app.include_router(discipline.router)
 app.mount("/api/mcp/blog", blog_mcp_asgi)
-
-
-@app.on_event("startup")
-def on_startup():
-    start_invite_request_worker()
-
-
-@app.on_event("shutdown")
-def on_shutdown():
-    stop_invite_request_worker()
-
 
 @app.get("/api/health")
 def health():
