@@ -69,3 +69,9 @@ body {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+@layer components {
+  .writer-input {
+    @apply w-full rounded-xl border border-[#17211d]/15 bg-[#f6f4ee] px-3 py-2.5 text-sm outline-none transition focus:border-[#1d6347] dark:border-darkBorder dark:bg-darkBg;
+  }
+}

@@ -1,6 +1,6 @@
 from app.database import Base
 from app.models.album import Album, Photo
-from app.models.blog import BlogPost
+from app.models.blog import BlogCategory, BlogPost
 from app.models.chat import ChatMessage, ChatSession
 from app.models.invite_code import InviteCode
 from app.models.invite_request import InviteRequest
@@ -27,6 +27,7 @@ __all__ = [
     "LocationPin",
     "Note",
     "BlogPost",
+    "BlogCategory",
     "SystemConfig",
 ]
 

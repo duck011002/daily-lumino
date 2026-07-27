@@ -14,6 +14,7 @@ export interface User {
   is_active: boolean
   can_create_spaces: boolean
   is_discipline_authorized: boolean
+  can_write_blog: boolean
   created_at: string
   updated_at: string
 }

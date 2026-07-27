@@ -5,6 +5,33 @@ from pydantic import BaseModel, Field
 from app.schemas.user import UserResponse
 
 
+class BlogCategoryCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    slug: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=300)
+    sort_order: int = 0
+
+
+class BlogCategoryUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    slug: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=300)
+    sort_order: Optional[int] = None
+
+
+class BlogCategoryResponse(BaseModel):
+    id: int
+    name: str
+    slug: str
+    description: Optional[str] = None
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class BlogPostCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=300)
     slug: str = Field(..., min_length=1, max_length=300)
@@ -14,6 +41,7 @@ class BlogPostCreate(BaseModel):
     is_public: bool = False
     is_published: bool = False
     tags: Optional[List[str]] = None
+    category_id: Optional[int] = None
 
 
 class BlogPostUpdate(BaseModel):
@@ -25,6 +53,7 @@ class BlogPostUpdate(BaseModel):
     is_public: Optional[bool] = None
     is_published: Optional[bool] = None
     tags: Optional[List[str]] = None
+    category_id: Optional[int] = None
 
 
 class BlogPostResponse(BaseModel):
@@ -43,6 +72,7 @@ class BlogPostResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     author: Optional[UserResponse] = None
+    category: Optional[BlogCategoryResponse] = None
 
     class Config:
         from_attributes = True

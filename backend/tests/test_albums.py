@@ -6,12 +6,12 @@ from app.models.storage_quota import StorageQuota
 
 
 @pytest.fixture
-def space_users(client: TestClient, db):
+def space_users(client: TestClient, db, invite_code_factory):
     """Register and login two users, one creates a space, the other is not in the space."""
     # User 1
     client.post(
         "/api/auth/register",
-        json={"username": "albumuser1", "email": "a1@example.com", "password": "password123"},
+        json={"username": "albumuser1", "email": "a1@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     res1 = client.post("/api/auth/login", json={"username_or_email": "albumuser1", "password": "password123"})
     user1_cookies = res1.cookies
@@ -19,7 +19,7 @@ def space_users(client: TestClient, db):
     # User 2
     client.post(
         "/api/auth/register",
-        json={"username": "albumuser2", "email": "a2@example.com", "password": "password123"},
+        json={"username": "albumuser2", "email": "a2@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     res2 = client.post("/api/auth/login", json={"username_or_email": "albumuser2", "password": "password123"})
     user2_cookies = res2.cookies

@@ -16,7 +16,14 @@ from app.schemas.auth import (
 )
 from app.schemas.user import UserBase, UserCreate, UserResponse, UserUpdate
 from app.schemas.note import NoteCreate, NoteUpdate, NoteResponse
-from app.schemas.blog import BlogPostCreate, BlogPostUpdate, BlogPostResponse
+from app.schemas.blog import (
+    BlogCategoryCreate,
+    BlogCategoryResponse,
+    BlogCategoryUpdate,
+    BlogPostCreate,
+    BlogPostResponse,
+    BlogPostUpdate,
+)
 
 __all__ = [
     "UserBase",
@@ -44,6 +51,9 @@ __all__ = [
     "BlogPostCreate",
     "BlogPostUpdate",
     "BlogPostResponse",
+    "BlogCategoryCreate",
+    "BlogCategoryUpdate",
+    "BlogCategoryResponse",
 ]
 
 

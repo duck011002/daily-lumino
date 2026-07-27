@@ -2,25 +2,57 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from app.models.invite_code import InviteCode
 from app.models.user import User
 from app.models.blog import BlogPost
+from app.services.auth import hash_password
 
 
 @pytest.fixture
 def blog_test_setup(client: TestClient, db):
-    # Register and login User (non-root)
-    client.post(
-        "/api/auth/register",
-        json={"username": "normaluser", "email": "normal@example.com", "password": "password123"},
+    seed_root = User(
+        username="seedroot",
+        email="seedroot@example.com",
+        password=hash_password("password123"),
+        display_name="Seed Root",
+        is_root=True,
+        is_active=True,
     )
+    db.add(seed_root)
+    db.flush()
+    db.add_all(
+        [
+            InviteCode(code="NORMAL-INVITE", created_by=seed_root.id),
+            InviteCode(code="ADMIN-INVITE", created_by=seed_root.id),
+        ]
+    )
+    db.commit()
+
+    # Register and login User (non-root)
+    normal_register = client.post(
+        "/api/auth/register",
+        json={
+            "username": "normaluser",
+            "email": "normal@example.com",
+            "password": "password123",
+            "invite_code": "NORMAL-INVITE",
+        },
+    )
+    assert normal_register.status_code == 201
     res_normal = client.post("/api/auth/login", json={"username_or_email": "normaluser", "password": "password123"})
     normal_cookies = res_normal.cookies
 
     # Register Admin user
-    client.post(
+    admin_register = client.post(
         "/api/auth/register",
-        json={"username": "adminuser", "email": "admin@example.com", "password": "password123"},
+        json={
+            "username": "adminuser",
+            "email": "admin@example.com",
+            "password": "password123",
+            "invite_code": "ADMIN-INVITE",
+        },
     )
+    assert admin_register.status_code == 201
     
     # Manually upgrade adminuser to root in the database
     admin_db = db.scalar(select(User).where(User.username == "adminuser"))
@@ -193,6 +225,68 @@ def test_blog_access_control(client: TestClient, blog_test_setup):
         "/api/admin/blog/posts/999",
         cookies=normal_cookies
     ).status_code == 403
+
+
+def test_root_can_manage_categories_and_delegate_blog_writing(client: TestClient, blog_test_setup):
+    admin_cookies = blog_test_setup["admin"]
+    normal_cookies = blog_test_setup["normal"]
+
+    category_res = client.post(
+        "/api/admin/blog/categories",
+        json={
+            "name": "Agent / Skill",
+            "slug": "agent-skill",
+            "description": "AI agent engineering notes",
+            "sort_order": 10,
+        },
+        cookies=admin_cookies,
+    )
+    assert category_res.status_code == 201
+    category_id = category_res.json()["id"]
+    assert client.get("/api/blog/categories").json()[0]["slug"] == "agent-skill"
+
+    normal_user = client.get("/api/auth/me", cookies=normal_cookies).json()
+    permission_res = client.patch(
+        f"/api/admin/users/{normal_user['id']}",
+        json={"can_write_blog": True},
+        cookies=admin_cookies,
+    )
+    assert permission_res.status_code == 200
+    assert permission_res.json()["can_write_blog"] is True
+
+    writer_post = client.post(
+        "/api/blog/me/posts",
+        json={
+            "title": "How I build skills",
+            "slug": "writer-skill-post",
+            "content": "Technical notes",
+            "category_id": category_id,
+            "is_public": True,
+            "is_published": True,
+        },
+        cookies=normal_cookies,
+    )
+    assert writer_post.status_code == 201
+    assert writer_post.json()["category"]["slug"] == "agent-skill"
+
+    root_post = client.post(
+        "/api/admin/blog/posts",
+        json={"title": "Root article", "slug": "root-article", "content": "Root notes"},
+        cookies=admin_cookies,
+    )
+    assert root_post.status_code == 201
+    assert (
+        client.patch(
+            f"/api/blog/me/posts/{root_post.json()['id']}",
+            json={"title": "Attempted overwrite"},
+            cookies=normal_cookies,
+        ).status_code
+        == 403
+    )
+
+    filtered = client.get("/api/blog/posts?category=agent-skill")
+    assert filtered.status_code == 200
+    assert [post["slug"] for post in filtered.json()] == ["writer-skill-post"]
 
 
 from unittest.mock import patch

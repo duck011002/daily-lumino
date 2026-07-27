@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     INVITE_REQUEST_ADMIN_INTERVAL_SECONDS: int = 60
     INVITE_REQUEST_WORKER_ENABLED: bool = True
 
+    MCP_BLOG_TOKEN: str = ""
+    MCP_BLOG_AUTHOR_ID: int | None = None
+    MCP_BLOG_ALLOW_AUTO_PUBLISH: bool = False
+    MCP_BLOG_MAX_IMAGE_BYTES: int = 8 * 1024 * 1024
+
     LSKY_API_URL: str = ""
     LSKY_API_TOKEN: str = ""
 

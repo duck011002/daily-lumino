@@ -1,4 +1,5 @@
 import os
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,6 +21,9 @@ os.environ["INVITE_REQUEST_WORKER_ENABLED"] = "false"
 
 from app.database import Base, get_db
 from app.main import app
+from app.models.invite_code import InviteCode
+from app.models.user import User
+from app.services.auth import hash_password
 
 # SQLite in-memory database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -56,6 +60,29 @@ def db():
     session.close()
     transaction.rollback()
     connection.close()
+
+
+@pytest.fixture
+def invite_code_factory(db):
+    """Create explicit one-time invite codes for fixtures that need registration."""
+    issuer = User(
+        username="fixtureissuer",
+        email="fixtureissuer@example.com",
+        password=hash_password("password123"),
+        display_name="Fixture Issuer",
+        is_root=True,
+        is_active=True,
+    )
+    db.add(issuer)
+    db.flush()
+
+    def create_code() -> str:
+        code = f"test-invite-{uuid4().hex[:16]}"
+        db.add(InviteCode(code=code, created_by=issuer.id))
+        db.commit()
+        return code
+
+    return create_code
 
 
 @pytest.fixture

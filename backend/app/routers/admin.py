@@ -107,6 +107,9 @@ def update_user_status(user_id: int, status_in: UserStatusUpdate, db: Session = 
             )
         user.is_discipline_authorized = status_in.is_discipline_authorized
 
+    if status_in.can_write_blog is not None:
+        user.can_write_blog = status_in.can_write_blog
+
     db.commit()
     db.refresh(user)
     return user

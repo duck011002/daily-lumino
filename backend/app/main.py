@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import admin, albums, auth, blog, chat, notes, spaces, upload, discipline
+from app.mcp_blog import blog_mcp_asgi
+from app.routers import admin, albums, auth, blog, chat, discipline, notes, spaces, upload
 from app.services.invite_requests import start_invite_request_worker, stop_invite_request_worker
 
 app = FastAPI(title="Lumino API", version="1.1.0")
@@ -24,6 +25,7 @@ app.include_router(notes.router)
 app.include_router(blog.router)
 app.include_router(upload.router)
 app.include_router(discipline.router)
+app.mount("/api/mcp/blog", blog_mcp_asgi)
 
 
 @app.on_event("startup")

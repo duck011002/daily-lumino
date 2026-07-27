@@ -34,6 +34,7 @@ interface UserResponse {
   is_active: boolean
   can_create_spaces: boolean
   is_discipline_authorized: boolean
+  can_write_blog: boolean
   created_at: string
   token_usage?: number
   space_count?: number
@@ -54,6 +55,15 @@ interface BlogPost {
   published_at: string | null
   created_at: string
   author: UserResponse | null
+  category: BlogCategory | null
+}
+
+interface BlogCategory {
+  id: number
+  name: string
+  slug: string
+  description: string | null
+  sort_order: number
 }
 
 interface SystemConfig {
@@ -102,6 +112,7 @@ export default function AdminConsole() {
   
   // States for Blog Tab
   const [posts, setPosts] = useState<BlogPost[]>([])
+  const [categories, setCategories] = useState<BlogCategory[]>([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [editingPostId, setEditingPostId] = useState<number | null>(null)
@@ -115,6 +126,9 @@ export default function AdminConsole() {
   const [formTags, setFormTags] = useState('')
   const [formIsPublic, setFormIsPublic] = useState(true)
   const [formIsPublished, setFormIsPublished] = useState(true)
+  const [formCategoryId, setFormCategoryId] = useState('')
+  const [categoryName, setCategoryName] = useState('')
+  const [categorySlug, setCategorySlug] = useState('')
 
   // States for Users Tab
   const [users, setUsers] = useState<UserResponse[]>([])
@@ -229,6 +243,34 @@ export default function AdminConsole() {
     }
   }
 
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get('/admin/blog/categories')
+      setCategories(res.data)
+    } catch (err) {
+      console.error('获取博客分区失败', err)
+    }
+  }
+
+  const handleCreateCategory = async () => {
+    if (!categoryName.trim() || !categorySlug.trim()) {
+      showToast('warning', '请填写分区名称和标识。')
+      return
+    }
+    try {
+      await api.post('/admin/blog/categories', {
+        name: categoryName.trim(),
+        slug: categorySlug.trim(),
+      })
+      setCategoryName('')
+      setCategorySlug('')
+      fetchCategories()
+      showToast('success', '技术分区已创建。')
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '创建分区失败。')
+    }
+  }
+
   const fetchUsers = async () => {
     setLoadingUsers(true)
     try {
@@ -300,6 +342,7 @@ export default function AdminConsole() {
     if (user?.is_root) {
       if (activeTab === 'blog') {
         fetchPosts()
+        fetchCategories()
       } else if (activeTab === 'users') {
         fetchUsers()
       } else if (activeTab === 'configs') {
@@ -369,6 +412,18 @@ export default function AdminConsole() {
       setUsers((prev) =>
         prev.map((u) => (u.id === targetUser.id ? { ...u, is_discipline_authorized: newPermission } : u))
       )
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '权限更新失败。')
+    }
+  }
+
+  const handleToggleUserBlogPermission = async (targetUser: UserResponse) => {
+    if (targetUser.id === user?.id || targetUser.is_root) return
+    try {
+      const newPermission = !targetUser.can_write_blog
+      await api.patch(`/admin/users/${targetUser.id}`, { can_write_blog: newPermission })
+      showToast('success', `已${newPermission ? '开通' : '取消'}用户 ${targetUser.username} 的博客写作权限`)
+      setUsers((prev) => prev.map((item) => item.id === targetUser.id ? { ...item, can_write_blog: newPermission } : item))
     } catch (err: any) {
       showToast('error', err.response?.data?.detail || '权限更新失败。')
     }
@@ -622,6 +677,7 @@ export default function AdminConsole() {
     setFormTags('')
     setFormIsPublic(true)
     setFormIsPublished(false)
+    setFormCategoryId('')
     setIsEditing(true)
   }
 
@@ -635,6 +691,7 @@ export default function AdminConsole() {
     setFormTags(post.tags ? post.tags.join(', ') : '')
     setFormIsPublic(post.is_public)
     setFormIsPublished(post.is_published)
+    setFormCategoryId(post.category ? String(post.category.id) : '')
     setIsEditing(true)
   }
 
@@ -657,6 +714,7 @@ export default function AdminConsole() {
       cover_url: formCoverUrl.trim() || null,
       excerpt: formExcerpt.trim() || null,
       tags: tagsArray.length > 0 ? tagsArray : null,
+      category_id: formCategoryId ? Number(formCategoryId) : null,
       is_public: formIsPublic,
       is_published: formIsPublished,
     }
@@ -855,6 +913,21 @@ export default function AdminConsole() {
                       </div>
                     </div>
 
+                    <div className="rounded-2xl border border-secondary bg-white p-5 shadow-sm dark:border-darkBorder dark:bg-darkCard">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-primary">技术博客分区</p>
+                          <p className="mt-1 text-xs text-onSurface/55 dark:text-foreground/55">新增后会直接显示在访客博客页的筛选栏中。</p>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-[150px_180px_auto]">
+                          <input value={categoryName} onChange={(e) => setCategoryName(e.target.value)} placeholder="如 Agent / Skill" className="rounded-lg border border-secondary bg-white px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg" />
+                          <input value={categorySlug} onChange={(e) => setCategorySlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="agent-skill" className="rounded-lg border border-secondary bg-white px-3 py-2 text-xs font-mono outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg" />
+                          <Button onClick={handleCreateCategory} size="sm"><Plus size={14} className="mr-1" />新增分区</Button>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">{categories.length ? categories.map((category) => <span key={category.id} className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-onSurface/70 dark:bg-darkBorder dark:text-foreground/70">{category.name}<span className="ml-1.5 font-mono font-normal opacity-60">{category.slug}</span></span>) : <span className="text-xs text-onSurface/45 dark:text-foreground/45">尚未创建分区。</span>}</div>
+                    </div>
+
                     {/* Table Title and Actions */}
                     <div className="flex items-center justify-between pt-4 pb-2 border-b border-secondary dark:border-darkBorder">
                       <div>
@@ -1023,6 +1096,13 @@ export default function AdminConsole() {
                             maxLength={500}
                           />
                         </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 mb-1">技术分区</label>
+                          <select value={formCategoryId} onChange={(e) => setFormCategoryId(e.target.value)} className="w-full rounded-xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard px-4 py-2.5 text-sm text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
+                            <option value="">未分类</option>
+                            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                          </select>
+                        </div>
                       </div>
 
                       <div className="space-y-4">
@@ -1139,6 +1219,7 @@ export default function AdminConsole() {
                           <th className="px-5 py-3 font-semibold text-center">账号状态</th>
                           <th className="px-5 py-3 font-semibold text-center">创建空间权限</th>
                           <th className="px-5 py-3 font-semibold text-center">自律记录授权</th>
+                          <th className="px-5 py-3 font-semibold text-center">博客写作权限</th>
                           <th className="px-5 py-3 font-semibold text-center">快捷控制</th>
                         </tr>
                       </thead>
@@ -1232,6 +1313,22 @@ export default function AdminConsole() {
                                     targetUser.is_discipline_authorized ? 'translate-x-6' : 'translate-x-1'
                                   }`}
                                 />
+                              </button>
+                            </td>
+                            <td className="px-5 py-4 text-center">
+                              <button
+                                onClick={() => handleToggleUserBlogPermission(targetUser)}
+                                disabled={targetUser.id === user?.id || targetUser.is_root}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-primary/40 ${
+                                  targetUser.id === user?.id || targetUser.is_root
+                                    ? 'cursor-not-allowed bg-secondary opacity-40 dark:bg-darkBorder'
+                                    : targetUser.can_write_blog
+                                    ? 'bg-primary'
+                                    : 'bg-onSurface/20 dark:bg-darkBorder'
+                                }`}
+                                title={targetUser.can_write_blog ? '取消博客写作权限' : '开通博客写作权限'}
+                              >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${targetUser.can_write_blog ? 'translate-x-6' : 'translate-x-1'}`} />
                               </button>
                             </td>
                             <td className="px-5 py-4">

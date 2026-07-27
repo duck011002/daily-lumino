@@ -1,29 +1,87 @@
 from datetime import UTC, datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.dependencies import get_current_user, require_root
-from app.models.blog import BlogPost
+from app.dependencies import require_blog_writer, require_root
+from app.models.blog import BlogCategory, BlogPost
 from app.models.user import User
-from app.schemas.blog import BlogPostCreate, BlogPostResponse, BlogPostUpdate
+from app.schemas.blog import (
+    BlogCategoryCreate,
+    BlogCategoryResponse,
+    BlogCategoryUpdate,
+    BlogPostCreate,
+    BlogPostResponse,
+    BlogPostUpdate,
+)
 
 router = APIRouter(tags=["blog"])
 
 
+def get_category_or_404(db: Session, category_id: int | None) -> BlogCategory | None:
+    if category_id is None:
+        return None
+    category = db.get(BlogCategory, category_id)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="博客分区不存在。")
+    return category
+
+
+def ensure_post_manager(post: BlogPost, current_user: User) -> None:
+    if not current_user.is_root and post.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只能管理自己的博客文章。")
+
+
+def build_post(
+    post_in: BlogPostCreate,
+    current_user: User,
+    db: Session,
+) -> BlogPost:
+    existing = db.scalar(select(BlogPost).where(BlogPost.slug == post_in.slug))
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="标识链接 (Slug) 已存在，请换一个唯一的标识链接。",
+        )
+
+    get_category_or_404(db, post_in.category_id)
+    published_at = datetime.now(UTC).replace(tzinfo=None) if post_in.is_published else None
+    return BlogPost(
+        title=post_in.title,
+        slug=post_in.slug,
+        content=post_in.content,
+        cover_url=post_in.cover_url,
+        excerpt=post_in.excerpt,
+        is_public=post_in.is_public,
+        is_published=post_in.is_published,
+        tags=post_in.tags,
+        category_id=post_in.category_id,
+        author_id=current_user.id,
+        published_at=published_at,
+    )
+
+
 # ========== PUBLIC ROUTE ==========
 
+@router.get("/api/blog/categories", response_model=List[BlogCategoryResponse])
+def list_public_categories(db: Session = Depends(get_db)):
+    return db.scalars(select(BlogCategory).order_by(BlogCategory.sort_order, BlogCategory.name)).all()
+
+
 @router.get("/api/blog/posts", response_model=List[BlogPostResponse])
-def list_public_posts(db: Session = Depends(get_db)):
-    posts = db.scalars(
+def list_public_posts(category: str | None = Query(None), db: Session = Depends(get_db)):
+    statement = (
         select(BlogPost)
-        .options(joinedload(BlogPost.author))
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
         .where(BlogPost.is_public == True, BlogPost.is_published == True)
         .order_by(BlogPost.published_at.desc())
-    ).all()
+    )
+    if category:
+        statement = statement.join(BlogPost.category).where(BlogCategory.slug == category)
+    posts = db.scalars(statement).all()
     return posts
 
 
@@ -31,7 +89,7 @@ def list_public_posts(db: Session = Depends(get_db)):
 def get_public_post_by_slug(slug: str, db: Session = Depends(get_db)):
     post = db.scalar(
         select(BlogPost)
-        .options(joinedload(BlogPost.author))
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
         .where(BlogPost.slug == slug, BlogPost.is_public == True, BlogPost.is_published == True)
     )
     if not post:
@@ -47,13 +105,150 @@ def get_public_post_by_slug(slug: str, db: Session = Depends(get_db)):
     return post
 
 
+# ========== BLOG WRITER ROUTES ==========
+
+@router.get("/api/blog/me/posts", response_model=List[BlogPostResponse])
+def list_my_posts(
+    current_user: User = Depends(require_blog_writer),
+    db: Session = Depends(get_db),
+):
+    return db.scalars(
+        select(BlogPost)
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
+        .where(BlogPost.author_id == current_user.id)
+        .order_by(BlogPost.created_at.desc())
+    ).all()
+
+
+@router.post("/api/blog/me/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)
+def create_my_post(
+    post_in: BlogPostCreate,
+    current_user: User = Depends(require_blog_writer),
+    db: Session = Depends(get_db),
+):
+    post = build_post(post_in, current_user, db)
+    db.add(post)
+    db.commit()
+    return db.scalar(
+        select(BlogPost)
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
+        .where(BlogPost.id == post.id)
+    )
+
+
+@router.patch("/api/blog/me/posts/{post_id}", response_model=BlogPostResponse)
+def update_my_post(
+    post_id: int,
+    post_in: BlogPostUpdate,
+    current_user: User = Depends(require_blog_writer),
+    db: Session = Depends(get_db),
+):
+    post = db.scalar(
+        select(BlogPost)
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
+        .where(BlogPost.id == post_id)
+    )
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
+    ensure_post_manager(post, current_user)
+    return apply_post_update(post, post_in, db)
+
+
+@router.delete("/api/blog/me/posts/{post_id}")
+def delete_my_post(
+    post_id: int,
+    current_user: User = Depends(require_blog_writer),
+    db: Session = Depends(get_db),
+):
+    post = db.get(BlogPost, post_id)
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
+    ensure_post_manager(post, current_user)
+    db.delete(post)
+    db.commit()
+    return {"status": "ok", "message": "文章已成功删除。"}
+
+
 # ========== ADMIN ROUTE ==========
+
+@router.get("/api/admin/blog/categories", response_model=List[BlogCategoryResponse])
+def list_admin_categories(
+    db: Session = Depends(get_db), current_user: User = Depends(require_root)
+):
+    return db.scalars(select(BlogCategory).order_by(BlogCategory.sort_order, BlogCategory.name)).all()
+
+
+@router.post("/api/admin/blog/categories", response_model=BlogCategoryResponse, status_code=status.HTTP_201_CREATED)
+def create_category(
+    category_in: BlogCategoryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_root),
+):
+    existing = db.scalar(
+        select(BlogCategory).where(
+            (BlogCategory.name == category_in.name) | (BlogCategory.slug == category_in.slug)
+        )
+    )
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分区名称或标识已存在。")
+    category = BlogCategory(**category_in.model_dump())
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+@router.patch("/api/admin/blog/categories/{category_id}", response_model=BlogCategoryResponse)
+def update_category(
+    category_id: int,
+    category_in: BlogCategoryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_root),
+):
+    category = db.get(BlogCategory, category_id)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="博客分区不存在。")
+    changes = category_in.model_dump(exclude_unset=True)
+    if "name" in changes or "slug" in changes:
+        existing = db.scalar(
+            select(BlogCategory).where(
+                BlogCategory.id != category_id,
+                (
+                    (BlogCategory.name == changes.get("name", category.name))
+                    | (BlogCategory.slug == changes.get("slug", category.slug))
+                ),
+            )
+        )
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分区名称或标识已存在。")
+    for key, value in changes.items():
+        setattr(category, key, value)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
+@router.delete("/api/admin/blog/categories/{category_id}")
+def delete_category(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_root),
+):
+    category = db.get(BlogCategory, category_id)
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="博客分区不存在。")
+    for post in category.posts:
+        post.category_id = None
+    db.delete(category)
+    db.commit()
+    return {"status": "ok", "message": "博客分区已删除，原文章已归入未分类。"}
+
 
 @router.get("/api/admin/blog/posts", response_model=List[BlogPostResponse], dependencies=[Depends(require_root)])
 def list_admin_posts(db: Session = Depends(get_db)):
     posts = db.scalars(
         select(BlogPost)
-        .options(joinedload(BlogPost.author))
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
         .order_by(BlogPost.created_at.desc())
     ).all()
     return posts
@@ -65,30 +260,7 @@ def create_admin_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root),
 ):
-    # Check if slug is unique
-    existing = db.scalar(select(BlogPost).where(BlogPost.slug == post_in.slug))
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="标识链接 (Slug) 已存在，请换一个唯一的标识链接。",
-        )
-
-    published_at = None
-    if post_in.is_published:
-        published_at = datetime.now(UTC).replace(tzinfo=None)
-
-    post = BlogPost(
-        title=post_in.title,
-        slug=post_in.slug,
-        content=post_in.content,
-        cover_url=post_in.cover_url,
-        excerpt=post_in.excerpt,
-        is_public=post_in.is_public,
-        is_published=post_in.is_published,
-        tags=post_in.tags,
-        author_id=current_user.id,
-        published_at=published_at,
-    )
+    post = build_post(post_in, current_user, db)
     db.add(post)
     db.commit()
     db.refresh(post)
@@ -96,7 +268,7 @@ def create_admin_post(
     # Reload with author relationship loaded
     return db.scalar(
         select(BlogPost)
-        .options(joinedload(BlogPost.author))
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
         .where(BlogPost.id == post.id)
     )
 
@@ -118,9 +290,15 @@ def update_admin_post(
             status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。"
         )
 
+    return apply_post_update(post, post_in, db)
+
+
+def apply_post_update(post: BlogPost, post_in: BlogPostUpdate, db: Session) -> BlogPost:
     # Check slug uniqueness if it is changing
     if post_in.slug is not None and post_in.slug != post.slug:
-        existing = db.scalar(select(BlogPost).where(BlogPost.slug == post_in.slug, BlogPost.id != post_id))
+        existing = db.scalar(
+            select(BlogPost).where(BlogPost.slug == post_in.slug, BlogPost.id != post.id)
+        )
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -140,6 +318,9 @@ def update_admin_post(
         post.excerpt = post_in.excerpt
     if post_in.tags is not None:
         post.tags = post_in.tags
+    if "category_id" in post_in.model_fields_set:
+        get_category_or_404(db, post_in.category_id)
+        post.category_id = post_in.category_id
     if post_in.is_public is not None:
         post.is_public = post_in.is_public
 
@@ -172,7 +353,6 @@ def delete_admin_post(
     return {"status": "ok", "message": "文章已成功删除。"}
 
 
-from fastapi import File, UploadFile
 import re
 import uuid
 import os
@@ -182,10 +362,11 @@ import zipfile
 import mimetypes
 from app.services.upload import upload_file_to_lsky
 
-@router.post("/api/admin/blog/parse-markdown", dependencies=[Depends(require_root)])
+@router.post("/api/admin/blog/parse-markdown")
 async def parse_markdown_blog(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_blog_writer),
 ):
     filename_lower = file.filename.lower()
     if not filename_lower.endswith(".md") and not filename_lower.endswith(".markdown") and not filename_lower.endswith(".zip"):

@@ -9,11 +9,11 @@ from app.models.note import Note
 
 
 @pytest.fixture
-def notes_test_setup(client: TestClient, db):
+def notes_test_setup(client: TestClient, db, invite_code_factory):
     # Register and login User 1
     client.post(
         "/api/auth/register",
-        json={"username": "noteuser1", "email": "n1@example.com", "password": "password123"},
+        json={"username": "noteuser1", "email": "n1@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     res1 = client.post("/api/auth/login", json={"username_or_email": "noteuser1", "password": "password123"})
     user1_cookies = res1.cookies
@@ -21,7 +21,7 @@ def notes_test_setup(client: TestClient, db):
     # Register and login User 2
     client.post(
         "/api/auth/register",
-        json={"username": "noteuser2", "email": "n2@example.com", "password": "password123"},
+        json={"username": "noteuser2", "email": "n2@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     res2 = client.post("/api/auth/login", json={"username_or_email": "noteuser2", "password": "password123"})
     user2_cookies = res2.cookies
@@ -29,7 +29,7 @@ def notes_test_setup(client: TestClient, db):
     # Register and login User 3 (Not in space)
     client.post(
         "/api/auth/register",
-        json={"username": "noteuser3", "email": "n3@example.com", "password": "password123"},
+        json={"username": "noteuser3", "email": "n3@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     res3 = client.post("/api/auth/login", json={"username_or_email": "noteuser3", "password": "password123"})
     user3_cookies = res3.cookies
