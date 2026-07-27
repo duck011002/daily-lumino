@@ -1,24 +1,44 @@
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.models.chat import ChatModelType, ChatSession
+from app.models.invite_code import InviteCode
+from app.models.user import User
+from app.services.auth import hash_password
 
 
 @pytest.fixture
 def auth_headers(client: TestClient, db):
     # Register and login a user to get auth token / cookies
+    suffix = uuid4().hex[:10]
+    root_user = User(
+        username=f"chat-root-{suffix}",
+        email=f"chat-root-{suffix}@example.com",
+        password=hash_password("password123"),
+        display_name="Chat Root",
+        is_root=True,
+        is_active=True,
+    )
+    db.add(root_user)
+    db.flush()
+    invite_code = f"chat-invite-{suffix}"
+    db.add(InviteCode(code=invite_code, created_by=root_user.id))
+    db.commit()
+
     user_data = {
-        "username": "chattester",
-        "email": "chattester@example.com",
+        "username": f"chattester-{suffix}",
+        "email": f"chattester-{suffix}@example.com",
         "password": "password123",
         "display_name": "Chat Tester",
+        "invite_code": invite_code,
     }
     client.post("/api/auth/register", json=user_data)
     login_res = client.post(
         "/api/auth/login",
-        json={"username_or_email": "chattester", "password": "password123"},
+        json={"username_or_email": user_data["username"], "password": "password123"},
     )
     # The login endpoint sets HTTPOnly cookies on client, so client holds the session cookie.
     return login_res.cookies
@@ -143,3 +163,48 @@ def test_send_message_stream(mock_openai_class, client: TestClient, auth_headers
         assert "Hello" in content
         assert "world!" in content
         assert "done" in content
+
+
+@patch("app.services.llm.OpenAI")
+def test_send_message_updates_tokens_used(mock_openai_class, client: TestClient, auth_headers, db):
+    mock_client = MagicMock()
+    mock_openai_class.return_value = mock_client
+
+    mock_chunk_1 = MagicMock()
+    mock_chunk_1.choices = [MagicMock()]
+    mock_chunk_1.choices[0].delta.content = "Hi"
+
+    mock_client.chat.completions.create.return_value = [mock_chunk_1]
+
+    with patch("app.services.llm.get_system_config") as mock_get_cfg:
+        mock_get_cfg.return_value = "mock_key"
+
+        # Create session
+        res_create = client.post(
+            "/api/chat/sessions",
+            json={"title": "Token Test", "model": "qwen"},
+            cookies=auth_headers,
+        )
+        session_id = res_create.json()["id"]
+
+        # Send message
+        res = client.post(
+            f"/api/chat/sessions/{session_id}/messages",
+            json={"content": "Hello world!"},
+            cookies=auth_headers,
+        )
+        assert res.status_code == 200
+
+        # Query messages from db and check tokens_used
+        from app.models.chat import ChatMessage
+        from sqlalchemy import select
+        messages = db.scalars(select(ChatMessage).where(ChatMessage.session_id == session_id)).all()
+        assert len(messages) == 2
+        user_msg = next(m for m in messages if m.role == "user")
+        assistant_msg = next(m for m in messages if m.role == "assistant")
+
+        assert user_msg.tokens_used > 0
+        assert user_msg.tokens_used == 4
+
+        assert assistant_msg.tokens_used > 0
+        assert assistant_msg.tokens_used == 1

@@ -89,8 +89,30 @@ export function getErrorMessage(err: any, defaultMsg: string = '操作失败，�
     }
   }
 
-  if (typeof err.message === 'string' && err.message !== '[object Object]') {
-    return err.message
+  // Handle custom backend response like { message: "..." } or { error: "..." }
+  if (err.response?.data?.message && typeof err.response.data.message === 'string') {
+    return err.response.data.message
+  }
+  if (err.response?.data?.error && typeof err.response.data.error === 'string') {
+    return err.response.data.error
+  }
+
+  if (typeof err === 'string') {
+    return err
+  }
+  if (err instanceof Error) {
+    return err.message && err.message !== '[object Object]' ? err.message : defaultMsg
+  }
+  if (err && typeof err === 'object') {
+    if (err.message && typeof err.message === 'string' && err.message !== '[object Object]') {
+      return err.message
+    }
+    try {
+      const stringified = JSON.stringify(err)
+      return stringified !== '{}' ? stringified : defaultMsg
+    } catch {
+      return defaultMsg
+    }
   }
   return defaultMsg
 }
