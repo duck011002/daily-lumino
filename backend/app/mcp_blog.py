@@ -157,6 +157,13 @@ def _create_post(
         }
 
 
+def _get_owned_post(db, post_id: int, author_id: int) -> BlogPost:
+    post = db.get(BlogPost, post_id)
+    if not post or post.author_id != author_id:
+        raise ValueError("The MCP blog post was not found.")
+    return post
+
+
 @blog_mcp.tool(description="List the available public-facing technical blog categories.")
 def list_blog_categories() -> list[dict[str, Any]]:
     with SessionLocal() as db:
@@ -225,6 +232,87 @@ def create_blog_post(
         supplied_slug=slug,
         publish=publish,
     )
+
+
+@blog_mcp.tool(
+    description=(
+        "Get a blog post owned by this MCP credential's configured author. "
+        "Use this before revising an existing draft."
+    )
+)
+def get_blog_post(post_id: int) -> dict[str, Any]:
+    with SessionLocal() as db:
+        author = _get_mcp_author(db)
+        post = _get_owned_post(db, post_id, author.id)
+        return {
+            "id": post.id,
+            "title": post.title,
+            "slug": post.slug,
+            "content": post.content,
+            "excerpt": post.excerpt,
+            "cover_url": post.cover_url,
+            "tags": post.tags,
+            "category_slug": post.category.slug if post.category else None,
+            "status": "published" if post.is_published and post.is_public else "draft",
+        }
+
+
+@blog_mcp.tool(
+    description=(
+        "Update an existing blog post owned by this MCP credential's configured author. "
+        "Identify the post with post_id. Omitted fields are left unchanged; this tool never "
+        "changes publication status."
+    )
+)
+def update_blog_post(
+    post_id: int,
+    title: str | None = None,
+    content: str | None = None,
+    category_slug: str | None = None,
+    excerpt: str | None = None,
+    cover_url: str | None = None,
+    tags: list[str] | None = None,
+    clear_category: bool = False,
+) -> dict[str, Any]:
+    if title is not None and not title.strip():
+        raise ValueError("title cannot be empty.")
+    if content is not None and not content.strip():
+        raise ValueError("content cannot be empty.")
+    if category_slug is not None and clear_category:
+        raise ValueError("Provide category_slug or clear_category, not both.")
+
+    with SessionLocal() as db:
+        author = _get_mcp_author(db)
+        post = _get_owned_post(db, post_id, author.id)
+
+        if title is not None:
+            post.title = title.strip()
+        if content is not None:
+            post.content = content
+        if excerpt is not None:
+            post.excerpt = excerpt or None
+        if cover_url is not None:
+            post.cover_url = cover_url or None
+        if tags is not None:
+            post.tags = tags
+        if clear_category:
+            post.category_id = None
+        elif category_slug is not None:
+            category = _get_category(db, category_slug)
+            post.category_id = category.id if category else None
+
+        db.commit()
+        db.refresh(post)
+        return {
+            "id": post.id,
+            "slug": post.slug,
+            "status": "published" if post.is_published and post.is_public else "draft",
+            "url": (
+                f"{settings.FRONTEND_BASE_URL.rstrip('/')}/blog/{post.slug}"
+                if post.is_published and post.is_public
+                else None
+            ),
+        }
 
 
 @blog_mcp.tool(

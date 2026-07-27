@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -5,6 +7,7 @@ from sqlalchemy import select
 from app.models.invite_code import InviteCode
 from app.models.user import User
 from app.models.blog import BlogPost
+from app.mcp_blog import MCPBlogIdentity, current_mcp_blog_identity, get_blog_post, update_blog_post
 from app.services.auth import hash_password
 
 
@@ -67,6 +70,72 @@ def blog_test_setup(client: TestClient, db):
         "normal": normal_cookies,
         "admin": admin_cookies
     }
+
+
+def test_mcp_can_revise_only_its_own_blog_post(db, monkeypatch):
+    import app.mcp_blog
+    from app.models.blog import BlogCategory
+
+    author = User(
+        username="mcpwriter",
+        email="mcpwriter@example.com",
+        password=hash_password("password123"),
+        display_name="MCP Writer",
+        can_write_blog=True,
+        is_active=True,
+    )
+    other_author = User(
+        username="otherwriter",
+        email="otherwriter@example.com",
+        password=hash_password("password123"),
+        display_name="Other Writer",
+        can_write_blog=True,
+        is_active=True,
+    )
+    category = BlogCategory(name="Agent", slug="agent")
+    db.add_all([author, other_author, category])
+    db.flush()
+    post = BlogPost(
+        title="Original title",
+        slug="original-title",
+        content="Original content",
+        author_id=author.id,
+    )
+    other_post = BlogPost(
+        title="Other title",
+        slug="other-title",
+        content="Other content",
+        author_id=other_author.id,
+    )
+    db.add_all([post, other_post])
+    db.commit()
+
+    @contextmanager
+    def test_session():
+        yield db
+
+    monkeypatch.setattr(app.mcp_blog, "SessionLocal", test_session)
+    context_token = current_mcp_blog_identity.set(
+        MCPBlogIdentity(author_id=author.id, allow_auto_publish=False)
+    )
+    try:
+        updated = update_blog_post(
+            post_id=post.id,
+            title="Revised title",
+            content="Revised content",
+            category_slug="agent",
+            tags=["FastMCP"],
+        )
+        assert updated["status"] == "draft"
+        fetched = get_blog_post(post.id)
+        assert fetched["title"] == "Revised title"
+        assert fetched["content"] == "Revised content"
+        assert fetched["category_slug"] == "agent"
+        assert fetched["tags"] == ["FastMCP"]
+        with pytest.raises(ValueError, match="not found"):
+            update_blog_post(post_id=other_post.id, title="Should not change")
+    finally:
+        current_mcp_blog_identity.reset(context_token)
 
 
 def test_admin_blog_crud(client: TestClient, blog_test_setup, db):

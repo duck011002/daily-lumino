@@ -85,8 +85,16 @@ intentionally excluded from this document.
 - FastMCP's streamable HTTP session manager is started from the parent
   FastAPI lifespan. This is required because mounted Starlette applications do
   not automatically run their own lifespan handlers.
+- The service uses FastMCP with streamable HTTP mounted at `/api/mcp/blog/`.
+  Every request passes through bearer-token middleware before FastMCP sees the
+  MCP protocol request.
 - MCP tools can list sections, upload image bytes through the existing Lsky
-  image-hosting integration, create a post, and publish a post.
+  image-hosting integration, create a post, read a post, revise a post, and
+  publish a post.
+- Post reads and revisions require a numeric `post_id` and are restricted to
+  posts owned by the author bound to that credential. An MCP client cannot use
+  a post ID to read or alter another author's work. Revisions preserve the
+  existing publication state; publishing remains a separate protected action.
 - MCP-created posts are drafts by default. Automatic public publishing is an
   explicit per-credential permission so a leaked token cannot silently publish
   content unless that capability was deliberately granted.
@@ -107,8 +115,11 @@ intentionally excluded from this document.
   ```
 
 - The available tools are `list_blog_categories`, `upload_blog_image`,
-  `create_blog_post`, and `publish_blog_post`. The image tool uses the existing
-  Lsky image bed and its quota; no image-bed secret is shared with the AI.
+  `create_blog_post`, `get_blog_post`, `update_blog_post`, and
+  `publish_blog_post`. A safe editing flow is: get the article by `post_id`,
+  prepare the replacement fields, call `update_blog_post`, then explicitly
+  publish only after review. The image tool uses the existing Lsky image bed
+  and its quota; no image-bed secret is shared with the AI.
 - Keep automatic publishing disabled for the first rollout. This lets AI create
   image-rich drafts that can be reviewed in Lumino. Enable it only for a
   specific credential when you intentionally want that AI client to have public
