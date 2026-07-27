@@ -1,13 +1,13 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 
-export default function Register() {
+function RegisterForm() {
   const searchParams = useSearchParams()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -243,5 +243,13 @@ export default function Register() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function Register() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   )
 }
