@@ -15,6 +15,18 @@ intentionally excluded from this document.
 - Invite request mail delivery uses the configured SMTP mailbox. Credentials are
   stored only in the server environment file.
 
+## 2026-07-27 Deployment Result
+
+- Production was upgraded to commit `425e03a`.
+- Alembic migration `d91b7b43ce11` completed successfully; it only adds the
+  blog-category table and permission/category fields.
+- Backend health, public blog page, and the new public categories endpoint
+  returned successful responses after restart.
+- The category list is intentionally empty until a root user creates the first
+  sections in the admin console.
+- The MCP endpoint returned `401` without a token, which confirms it is not
+  publicly usable before explicit server configuration.
+
 ## Cloudflare And Domain Status
 
 - Existing public domain: `lovestory1314.fun`.
