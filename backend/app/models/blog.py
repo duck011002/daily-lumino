@@ -37,6 +37,7 @@ class BlogPost(Base):
     excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     tags: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     author_id: Mapped[int] = mapped_column(
         BIGINT_FK, ForeignKey("users.id"), nullable=False, index=True

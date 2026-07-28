@@ -1,14 +1,33 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, Sparkles, Lock, Image as ImageIcon, FileText, BookOpen, ChevronRight } from 'lucide-react'
+import { ArrowUpRight, Calendar, ChevronRight, FileText, Image as ImageIcon, Lock, Sparkles } from 'lucide-react'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
+import api from '@/lib/api'
+
+interface FeaturedPost {
+  id: number
+  title: string
+  slug: string
+  excerpt: string | null
+  cover_url: string | null
+  published_at: string | null
+  category: { name: string } | null
+}
+
+const formatDate = (value: string | null) =>
+  value ? new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(value)) : '近期发布'
 
 export default function Home() {
   const { user } = useAuth()
+  const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([])
+
+  useEffect(() => {
+    api.get('/blog/featured').then((response) => setFeaturedPosts(response.data)).catch(() => setFeaturedPosts([]))
+  }, [])
 
   const features = [
     {
@@ -70,7 +89,7 @@ export default function Home() {
       </header>
 
       {/* Main hero section */}
-      <main className="flex-1 max-w-7xl mx-auto px-6 flex flex-col justify-center items-center text-center z-10 py-16">
+      <main className="flex-1 max-w-7xl mx-auto px-6 flex flex-col items-center text-center z-10 py-16 md:py-20">
         <div className="space-y-6 max-w-3xl animate-fade-in">
           <h1 className="text-5xl md:text-7xl font-display font-bold text-onSurface dark:text-foreground leading-tight">
             把私密生活与<br />
@@ -104,17 +123,13 @@ export default function Home() {
           </div>
         </div>
 
-        <section className="mt-20 w-full rounded-[2rem] border border-primary/20 bg-primary/[0.04] p-7 text-left dark:bg-primary/[0.08] md:p-10">
-          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Public entry</p>
-              <h2 className="mt-3 font-display text-3xl font-bold text-onSurface dark:text-foreground">公开技术作品集</h2>
-              <p className="mt-3 text-sm leading-7 text-onSurface/65 dark:text-foreground/65">浏览 Agent、MCP、深度学习与工程实践。这里是访客唯一可直接进入的内容区域。</p>
-            </div>
-            <Link href="/blog" className="inline-flex shrink-0 items-center gap-2 self-start rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white transition hover:bg-primary/90 md:self-auto">
-              进入技术博客 <ArrowUpRight size={17} />
-            </Link>
+        <section className="mt-16 w-full text-left md:mt-20">
+          <div className="flex items-end justify-between border-b border-secondary pb-5 dark:border-darkBorder">
+            <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Selected writing</p><h2 className="mt-2 font-display text-3xl font-bold text-onSurface dark:text-foreground">精选文章</h2></div>
+            <span className="hidden text-sm text-onSurface/50 dark:text-foreground/50 sm:block">最近发布优先</span>
           </div>
+          {featuredPosts.length ? <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3">{featuredPosts.map((post) => <Link key={post.id} href={`/blog/${post.slug}`} className="group relative flex min-h-64 flex-col overflow-hidden rounded-3xl border border-secondary bg-white p-6 shadow-[0_20px_55px_-45px_rgba(22,24,23,0.75)] transition hover:-translate-y-1 hover:border-primary/45 hover:shadow-xl dark:border-darkBorder dark:bg-darkCard"><div className="absolute inset-x-0 top-0 h-1 bg-primary/70" />{post.cover_url && <img src={post.cover_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.07] transition duration-500 group-hover:scale-105 group-hover:opacity-[0.12]" />}<div className="relative"><span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">{post.category?.name || '技术实践'}</span><h3 className="mt-5 font-display text-xl font-bold leading-snug text-onSurface dark:text-foreground">{post.title}</h3><p className="mt-3 line-clamp-3 text-sm leading-6 text-onSurface/60 dark:text-foreground/60">{post.excerpt || '打开文章，查看完整的实践记录与实现细节。'}</p></div><div className="relative mt-auto flex items-center justify-between pt-6 text-xs font-semibold text-onSurface/45 dark:text-foreground/45"><span className="flex items-center gap-1"><Calendar size={13} />{formatDate(post.published_at)}</span><ArrowUpRight size={18} className="text-primary transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" /></div></Link>)}</div> : <div className="mt-6 rounded-3xl border border-dashed border-secondary bg-white/45 px-6 py-10 text-center dark:border-darkBorder dark:bg-darkCard/30"><p className="font-display text-lg font-bold text-onSurface dark:text-foreground">精选内容正在整理</p><p className="mt-2 text-sm text-onSurface/55 dark:text-foreground/55">新的技术实践会在完成审核后出现在这里。</p></div>}
+          <div className="mt-5 flex justify-end"><Link href="/blog" className="group inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/30">浏览更多博客 <ArrowUpRight size={17} className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" /></Link></div>
         </section>
 
         <section className="mt-14 w-full">

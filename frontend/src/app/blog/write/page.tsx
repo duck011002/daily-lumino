@@ -4,10 +4,11 @@ import { Suspense, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Loader2, Save, Send, ShieldAlert } from 'lucide-react'
+import { Loader2, Save, Send, ShieldAlert } from 'lucide-react'
 import api from '@/lib/api'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import { useAuth } from '@/hooks/useAuth'
+import BackLink from '@/components/ui/BackLink'
 
 const MDEditor = dynamic(() => import('@uiw/react-md-editor'), { ssr: false })
 
@@ -122,7 +123,7 @@ function BlogWriterContent() {
 
   return <div className="min-h-screen bg-[#f6f4ee] text-[#17211d] dark:bg-darkBg dark:text-foreground">
     <header className="sticky top-0 z-30 border-b border-[#17211d]/10 bg-[#f6f4ee]/90 backdrop-blur dark:border-darkBorder dark:bg-darkBg/90">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:px-8"><Link href="/blog/manage" className="flex items-center gap-2 text-sm font-semibold hover:text-[#1d6347]"><ArrowLeft size={17} />返回文章管理</Link><ThemeToggle /></div>
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:px-8"><BackLink href="/blog/manage" label="返回文章管理" /><ThemeToggle /></div>
     </header>
     <main className="mx-auto max-w-6xl px-5 py-10 md:px-8">
       <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b56b19]">Writer workspace</p><h1 className="mt-2 font-display text-3xl font-bold">{isEditing ? '编辑技术文章' : '新建技术文章'}</h1></div><p className="max-w-md text-sm leading-6 text-[#17211d]/55 dark:text-foreground/55">保存草稿后只有你能看到；公开发布后会出现在访客博客页。</p></div>

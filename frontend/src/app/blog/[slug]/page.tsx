@@ -3,11 +3,12 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, User, Eye, Tag, Loader2, BookOpen } from 'lucide-react'
+import { Calendar, User, Eye, Tag, Loader2, BookOpen } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import api from '@/lib/api'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import { useTheme } from '@/hooks/useTheme'
+import BackLink from '@/components/ui/BackLink'
 
 // Import markdown preview dynamically to bypass hydration issues in SSR
 const MDPreview = dynamic(
@@ -78,11 +79,7 @@ export default function BlogPostDetail() {
     return (
       <div className="min-h-screen bg-surface dark:bg-darkBg flex flex-col items-center justify-center space-y-4 px-6 text-center">
         <p className="text-red-500 font-semibold text-lg max-w-md">{error || '文章未找到'}</p>
-        <Link href="/blog">
-          <button className="px-5 py-2.5 rounded-xl bg-primary text-white font-medium hover:bg-primary/95 transition-colors">
-            返回文章列表
-          </button>
-        </Link>
+        <BackLink href="/blog" label="返回文章列表" />
       </div>
     )
   }
@@ -92,12 +89,7 @@ export default function BlogPostDetail() {
       {/* Header */}
       <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Link href="/blog" className="text-primary hover:text-primary/80 transition-colors flex items-center gap-1 text-sm font-medium">
-              <ArrowLeft size={16} />
-              <span>所有文章</span>
-            </Link>
-          </div>
+          <BackLink href="/blog" label="所有文章" />
           <div className="flex items-center space-x-4">
             <ThemeToggle />
           </div>

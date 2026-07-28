@@ -5,12 +5,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   FolderHeart, Plus, Users, Heart, Home as HomeIcon,
-  Loader2, Trash2, Settings, ArrowLeft, User
+  Loader2, Trash2, Settings, User
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import BackLink from '@/components/ui/BackLink'
 
 interface SpaceSummary {
   id: number
@@ -139,9 +140,7 @@ export default function SpacesPage() {
       <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <Link href="/dashboard" className="text-primary hover:text-primary/80 transition-colors">
-              <ArrowLeft size={20} />
-            </Link>
+            <BackLink href="/dashboard" label="返回工作台" />
             <FolderHeart className="h-6 w-6 text-primary" />
             <h1 className="text-lg font-bold text-onSurface dark:text-foreground">我的私密空间</h1>
           </div>

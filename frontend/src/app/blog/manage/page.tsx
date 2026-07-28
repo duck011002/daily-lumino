@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft,
   Eye,
   FilePenLine,
   Globe2,
@@ -12,11 +11,13 @@ import {
   PenLine,
   Plus,
   Send,
+  Star,
   Trash2,
 } from 'lucide-react'
 import api from '@/lib/api'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import { useAuth } from '@/hooks/useAuth'
+import BackLink from '@/components/ui/BackLink'
 
 interface BlogPost {
   id: number
@@ -25,6 +26,7 @@ interface BlogPost {
   excerpt: string | null
   is_public: boolean
   is_published: boolean
+  is_featured: boolean
   view_count: number
   updated_at: string
   author: { username: string; display_name: string | null } | null
@@ -127,6 +129,19 @@ export default function BlogManagementPage() {
     }
   }
 
+  const changeFeatured = async (post: BlogPost) => {
+    setActingId(post.id)
+    setMessage('')
+    try {
+      await api.patch(`/blog/me/posts/${post.id}`, { is_featured: !post.is_featured })
+      await loadPosts()
+    } catch (err: any) {
+      setMessage(err.response?.data?.detail || '精选状态更新失败。')
+    } finally {
+      setActingId(null)
+    }
+  }
+
   if (authLoading || !canWrite) {
     return <div className="grid min-h-screen place-items-center bg-[#f6f4ee] dark:bg-darkBg"><Loader2 className="h-7 w-7 animate-spin text-[#b56b19]" /></div>
   }
@@ -135,7 +150,7 @@ export default function BlogManagementPage() {
     <div className="min-h-screen bg-[#f6f4ee] text-[#17211d] dark:bg-darkBg dark:text-foreground">
       <header className="sticky top-0 z-30 border-b border-[#17211d]/10 bg-[#f6f4ee]/90 backdrop-blur dark:border-darkBorder dark:bg-darkBg/90">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:px-8">
-          <Link href="/blog" className="flex items-center gap-2 text-sm font-semibold transition hover:text-[#1d6347]"><ArrowLeft size={17} />返回技术博客</Link>
+          <BackLink href="/blog" label="返回技术博客" />
           <ThemeToggle />
         </div>
       </header>
@@ -173,7 +188,7 @@ export default function BlogManagementPage() {
                 <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h2 className="truncate font-display text-lg font-bold">{post.title}</h2>{post.category && <span className="rounded-md bg-[#f1eee5] px-2 py-1 text-[10px] font-bold text-[#17211d]/60 dark:bg-darkBg dark:text-foreground/60">{post.category.name}</span>}</div><p className="mt-1 truncate text-sm text-[#17211d]/50 dark:text-foreground/50">{post.excerpt || '尚未填写摘要'}</p>{isRoot && <p className="mt-2 text-xs text-[#b56b19]">作者：{post.author?.display_name || post.author?.username || '未知'}</p>}</div>
                 <div className="hidden items-center md:flex"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${published ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'}`}>{published ? '已公开' : '草稿'}</span></div>
                 <div className="hidden items-center text-xs text-[#17211d]/50 dark:text-foreground/50 md:flex">{formatDate(post.updated_at)}</div>
-                <div className="flex items-center justify-end gap-2"><Link href={`/blog/write?postId=${post.id}`} className="rounded-lg border border-[#17211d]/15 p-2 text-[#17211d]/70 transition hover:border-[#163a2b] hover:text-[#163a2b] dark:border-darkBorder dark:text-foreground/70" title="编辑文章"><PenLine size={15} /></Link>{published ? <Link href={`/blog/${post.slug}`} className="rounded-lg border border-[#17211d]/15 p-2 text-[#17211d]/70 transition hover:border-[#163a2b] hover:text-[#163a2b] dark:border-darkBorder dark:text-foreground/70" title="查看公开文章"><Eye size={15} /></Link> : null}<button disabled={acting} onClick={() => changePublication(post)} className="rounded-lg border border-[#17211d]/15 p-2 text-[#17211d]/70 transition hover:border-[#163a2b] hover:text-[#163a2b] disabled:opacity-50 dark:border-darkBorder dark:text-foreground/70" title={published ? '撤回公开' : '公开发布'}>{acting ? <Loader2 size={15} className="animate-spin" /> : published ? <Globe2 size={15} /> : <Send size={15} />}</button><button disabled={acting} onClick={() => removePost(post)} className="rounded-lg border border-red-200 p-2 text-red-500 transition hover:bg-red-500 hover:text-white disabled:opacity-50 dark:border-red-500/30" title="删除文章"><Trash2 size={15} /></button></div>
+                <div className="flex items-center justify-end gap-2"><Link href={`/blog/write?postId=${post.id}`} className="rounded-lg border border-[#17211d]/15 p-2 text-[#17211d]/70 transition hover:border-[#163a2b] hover:text-[#163a2b] dark:border-darkBorder dark:text-foreground/70" title="编辑文章"><PenLine size={15} /></Link>{published ? <Link href={`/blog/${post.slug}`} className="rounded-lg border border-[#17211d]/15 p-2 text-[#17211d]/70 transition hover:border-[#163a2b] hover:text-[#163a2b] dark:border-darkBorder dark:text-foreground/70" title="查看公开文章"><Eye size={15} /></Link> : null}{isRoot && published ? <button disabled={acting} onClick={() => changeFeatured(post)} className={`rounded-lg border p-2 transition disabled:opacity-50 ${post.is_featured ? 'border-[#f7b84b] bg-[#f7b84b]/15 text-[#b56b19]' : 'border-[#17211d]/15 text-[#17211d]/60 hover:border-[#f7b84b] hover:text-[#b56b19] dark:border-darkBorder dark:text-foreground/60'}`} title={post.is_featured ? '取消首页精选' : '设为首页精选'}><Star size={15} fill={post.is_featured ? 'currentColor' : 'none'} /></button> : null}<button disabled={acting} onClick={() => changePublication(post)} className="rounded-lg border border-[#17211d]/15 p-2 text-[#17211d]/70 transition hover:border-[#163a2b] hover:text-[#163a2b] disabled:opacity-50 dark:border-darkBorder dark:text-foreground/70" title={published ? '撤回公开' : '公开发布'}>{acting ? <Loader2 size={15} className="animate-spin" /> : published ? <Globe2 size={15} /> : <Send size={15} />}</button><button disabled={acting} onClick={() => removePost(post)} className="rounded-lg border border-red-200 p-2 text-red-500 transition hover:bg-red-500 hover:text-white disabled:opacity-50 dark:border-red-500/30" title="删除文章"><Trash2 size={15} /></button></div>
               </div>
             })}
           </div>

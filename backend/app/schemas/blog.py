@@ -52,6 +52,7 @@ class BlogPostUpdate(BaseModel):
     excerpt: Optional[str] = None
     is_public: Optional[bool] = None
     is_published: Optional[bool] = None
+    is_featured: Optional[bool] = None
     tags: Optional[List[str]] = None
     category_id: Optional[int] = None
 
@@ -65,6 +66,7 @@ class BlogPostResponse(BaseModel):
     excerpt: Optional[str] = None
     is_public: bool
     is_published: bool
+    is_featured: bool
     tags: Optional[List[str]] = None
     author_id: int
     view_count: int

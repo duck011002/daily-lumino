@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -27,6 +27,7 @@ from app.schemas.blog import (
 )
 
 router = APIRouter(tags=["blog"])
+MAX_FEATURED_POSTS = 3
 
 
 def get_category_or_404(db: Session, category_id: int | None) -> BlogCategory | None:
@@ -106,6 +107,21 @@ def list_public_posts(category: str | None = Query(None), db: Session = Depends(
     return posts
 
 
+@router.get("/api/blog/featured", response_model=List[BlogPostResponse])
+def list_featured_posts(db: Session = Depends(get_db)):
+    return db.scalars(
+        select(BlogPost)
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
+        .where(
+            BlogPost.is_featured == True,
+            BlogPost.is_public == True,
+            BlogPost.is_published == True,
+        )
+        .order_by(BlogPost.published_at.desc())
+        .limit(MAX_FEATURED_POSTS)
+    ).all()
+
+
 @router.get("/api/blog/posts/{slug}", response_model=BlogPostResponse)
 def get_public_post_by_slug(slug: str, db: Session = Depends(get_db)):
     post = db.scalar(
@@ -174,6 +190,8 @@ def update_my_post(
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
     ensure_post_manager(post, current_user)
+    if "is_featured" in post_in.model_fields_set and not current_user.is_root:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只有超级管理员可以设置精选文章。")
     return apply_post_update(post, post_in, db)
 
 
@@ -352,6 +370,33 @@ def apply_post_update(post: BlogPost, post_in: BlogPostUpdate, db: Session) -> B
             if not post.published_at:
                 post.published_at = datetime.now(UTC).replace(tzinfo=None)
         post.is_published = post_in.is_published
+
+    if "is_featured" in post_in.model_fields_set:
+        if post_in.is_featured:
+            will_be_public = post_in.is_public if post_in.is_public is not None else post.is_public
+            will_be_published = (
+                post_in.is_published if post_in.is_published is not None else post.is_published
+            )
+            if not will_be_public or not will_be_published:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="只有已公开发布的文章可以设为精选。",
+                )
+            featured_count = db.scalar(
+                select(func.count(BlogPost.id)).where(
+                    BlogPost.is_featured == True,
+                    BlogPost.id != post.id,
+                )
+            )
+            if featured_count >= MAX_FEATURED_POSTS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"首页最多保留 {MAX_FEATURED_POSTS} 篇精选文章。",
+                )
+        post.is_featured = bool(post_in.is_featured)
+
+    if not post.is_public or not post.is_published:
+        post.is_featured = False
 
     db.commit()
     db.refresh(post)

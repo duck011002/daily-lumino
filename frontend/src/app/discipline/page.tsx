@@ -4,12 +4,13 @@ import React, { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Heart, ArrowLeft, Loader2, Calendar, Scale, Footprints, Flame,
+  Heart, Loader2, Calendar, Scale, Footprints, Flame,
   Apple, Dumbbell, UploadCloud, ChevronLeft, ChevronRight, Plus, Sparkles, Check, AlertCircle, Edit3, X
 } from 'lucide-react'
 import api from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import BackLink from '@/components/ui/BackLink'
 import Button from '@/components/ui/Button'
 import { copyText } from '@/lib/utils'
 
@@ -834,11 +835,7 @@ export default function DisciplinePage() {
       <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <Link href="/dashboard" passHref>
-              <button className="p-2 rounded-lg hover:bg-secondary dark:hover:bg-darkBorder transition-colors group">
-                <ArrowLeft className="h-4 w-4 text-onSurface/60 dark:text-foreground/60 group-hover:-translate-x-0.5 transition-transform" />
-              </button>
-            </Link>
+            <BackLink href="/dashboard" label="返回工作台" />
             <div className="flex items-center space-x-2">
               <span className="font-display text-xl font-bold tracking-wide text-primary">
                 Lumino

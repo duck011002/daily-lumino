@@ -82,6 +82,14 @@ intentionally excluded from this document.
 - Root users create a category with its visible name only. The backend assigns
   a unique internal slug so URL implementation details are not a required
   administrator input.
+- Root users can mark up to three public, published posts as homepage featured
+  articles from the same article workspace. The homepage requests only those
+  posts and sorts them by publication time descending; unpublishing a post
+  automatically removes its featured status.
+- Back navigation is provided by the shared `BackLink` component across the
+  blog, space, album, note, discipline, chat, and admin surfaces so return
+  actions have a visible label, keyboard focus treatment, and mobile-sized hit
+  target.
 
 ## MCP Publishing Safety
 

@@ -372,6 +372,46 @@ def test_root_can_manage_categories_and_delegate_blog_writing(client: TestClient
     assert [post["slug"] for post in filtered.json()] == ["writer-skill-post"]
 
 
+def test_root_can_manage_at_most_three_featured_posts(client: TestClient, blog_test_setup):
+    admin_cookies = blog_test_setup["admin"]
+    post_ids = []
+    for index in range(4):
+        response = client.post(
+            "/api/admin/blog/posts",
+            json={
+                "title": f"Featured {index}",
+                "slug": f"featured-{index}",
+                "content": "Technical content",
+                "is_public": True,
+                "is_published": True,
+            },
+            cookies=admin_cookies,
+        )
+        assert response.status_code == 201
+        post_ids.append(response.json()["id"])
+
+    for post_id in post_ids[:3]:
+        response = client.patch(
+            f"/api/blog/me/posts/{post_id}",
+            json={"is_featured": True},
+            cookies=admin_cookies,
+        )
+        assert response.status_code == 200
+        assert response.json()["is_featured"] is True
+
+    overflow = client.patch(
+        f"/api/blog/me/posts/{post_ids[3]}",
+        json={"is_featured": True},
+        cookies=admin_cookies,
+    )
+    assert overflow.status_code == 400
+    assert "最多保留 3 篇" in overflow.json()["detail"]
+
+    featured = client.get("/api/blog/featured")
+    assert featured.status_code == 200
+    assert len(featured.json()) == 3
+
+
 from unittest.mock import patch
 
 def test_parse_markdown_endpoints(client: TestClient, blog_test_setup):

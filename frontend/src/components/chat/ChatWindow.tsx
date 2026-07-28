@@ -2,10 +2,11 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
+import { Loader2, AlertCircle } from 'lucide-react'
 import api from '@/lib/api'
 import MessageBubble, { Message } from './MessageBubble'
 import ChatInput from './ChatInput'
+import BackLink from '@/components/ui/BackLink'
 
 interface ChatWindowProps {
   sessionId: number
@@ -247,9 +248,7 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
       {/* Top Header */}
       <div className="h-16 border-b border-secondary dark:border-darkBorder flex items-center justify-between px-6 bg-surface dark:bg-darkBg transition-colors duration-300 z-10">
         <div className="flex items-center space-x-3">
-          <Link href="/chat" className="md:hidden text-primary hover:text-primary/80 transition-colors mr-1">
-            <ArrowLeft size={18} />
-          </Link>
+          <BackLink href="/chat" label="会话列表" className="mr-1 md:hidden" />
           <h3 className="font-semibold text-onSurface dark:text-foreground text-base truncate max-w-xs md:max-w-md">
             {session?.title || '新对话'}
           </h3>

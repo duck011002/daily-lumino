@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ShieldAlert, Settings, Users, Key, Database, BookOpen, Plus, Loader2,
-  Trash2, Edit, ArrowLeft, Save, Globe, Eye, CheckCircle, AlertCircle,
+  Trash2, Edit, Save, Globe, Eye, CheckCircle, AlertCircle,
   Copy, Check, UserMinus, UserCheck, ShieldCheck, ToggleLeft, ToggleRight, Share2, Bot
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
@@ -15,6 +15,7 @@ import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import { copyText } from '@/lib/utils'
+import BackLink from '@/components/ui/BackLink'
 
 // Dynamic import of markdown editor to prevent hydration errors during SSR
 const MDEditor = dynamic(
@@ -848,9 +849,7 @@ export default function AdminConsole() {
           <p className="text-sm text-onSurface/70 dark:text-foreground/70">
             抱歉，您没有访问系统超级管理后台的权限。该页面仅对超级管理员（Root）开放。
           </p>
-          <Link href="/dashboard" passHref>
-            <Button>返回工作台</Button>
-          </Link>
+          <BackLink href="/dashboard" label="返回工作台" />
         </div>
       </div>
     )
@@ -867,10 +866,7 @@ export default function AdminConsole() {
       <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <Link href="/dashboard" className="text-primary hover:text-primary/80 transition-colors flex items-center gap-1 text-sm font-medium">
-              <ArrowLeft size={16} />
-              <span>工作台</span>
-            </Link>
+            <BackLink href="/dashboard" label="返回工作台" />
             <span className="text-onSurface/20 dark:text-foreground/20">|</span>
             <span className="font-display font-bold text-lg text-primary tracking-wide flex items-center gap-1.5">
               <Settings size={18} /> Lumino 系统超管后台

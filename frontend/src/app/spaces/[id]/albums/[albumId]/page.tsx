@@ -3,11 +3,12 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, Upload, Settings } from 'lucide-react'
+import { Loader2, Upload, Settings } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import BackLink from '@/components/ui/BackLink'
 import PhotoGrid from '@/components/album/PhotoGrid'
 import PhotoViewer, { Photo } from '@/components/album/PhotoViewer'
 
@@ -127,9 +128,7 @@ export default function AlbumDetailPage() {
     return (
       <div className="min-h-screen bg-surface dark:bg-darkBg flex flex-col items-center justify-center">
         <p className="text-red-500 mb-4">{error || '相册不存在'}</p>
-        <Link href={`/spaces/${spaceId}/albums`}>
-          <Button variant="outline">返回相册列表</Button>
-        </Link>
+        <BackLink href={`/spaces/${spaceId}/albums`} label="返回相册列表" />
       </div>
     )
   }
@@ -140,9 +139,7 @@ export default function AlbumDetailPage() {
       <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3 w-1/2">
-            <Link href={`/spaces/${spaceId}/albums`} className="text-primary hover:text-primary/80 transition-colors">
-              <ArrowLeft size={20} />
-            </Link>
+            <BackLink href={`/spaces/${spaceId}/albums`} label="返回相册列表" />
             
             {isRenaming ? (
               <div className="flex items-center space-x-2 w-full">

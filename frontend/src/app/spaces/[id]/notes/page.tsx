@@ -3,11 +3,12 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, FileText, Plus, Loader2, Trash2, Lock, FileEdit, Notebook } from 'lucide-react'
+import { FileText, Plus, Loader2, Trash2, Lock, FileEdit, Notebook } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import BackLink from '@/components/ui/BackLink'
 
 interface UserResponse {
   id: number
@@ -115,9 +116,7 @@ export default function SpaceNotesPage() {
     return (
       <div className="min-h-screen bg-surface dark:bg-darkBg flex flex-col items-center justify-center">
         <p className="text-red-500 mb-4">{error}</p>
-        <Link href={`/spaces/${spaceId}`}>
-          <Button variant="outline">返回空间</Button>
-        </Link>
+        <BackLink href={`/spaces/${spaceId}`} label="返回空间" />
       </div>
     )
   }
@@ -128,9 +127,7 @@ export default function SpaceNotesPage() {
       <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <Link href={`/spaces/${spaceId}`} className="text-primary hover:text-primary/80 transition-colors">
-              <ArrowLeft size={20} />
-            </Link>
+            <BackLink href={`/spaces/${spaceId}`} label="返回空间" />
             <FileText className="h-6 w-6 text-primary" />
             <h1 className="text-lg font-bold text-onSurface dark:text-foreground">空间记录</h1>
           </div>
