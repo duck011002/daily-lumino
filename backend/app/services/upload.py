@@ -1,9 +1,12 @@
 import httpx
+import ipaddress
 from decimal import Decimal
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from urllib.parse import urlparse, urlunparse
 
+from app.config import settings
 from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.utils.crypto import decrypt_value
@@ -15,6 +18,29 @@ def build_lsky_upload_url(base_url: str) -> str:
     if normalized_url.endswith("/api"):
         return f"{normalized_url}/v1/upload"
     return f"{normalized_url}/api/v1/upload"
+
+
+def build_lsky_public_url(file_url: str, api_base_url: str, public_base_url: str) -> str:
+    """Expose local image-bed uploads through Lumino's public HTTPS origin."""
+    api_host = urlparse(api_base_url).hostname
+    if not api_host or not _is_loopback_or_private_host(api_host):
+        return file_url
+
+    file_parts = urlparse(file_url)
+    public_parts = urlparse(public_base_url)
+    if not file_parts.path or not public_parts.scheme or not public_parts.netloc:
+        return file_url
+    return urlunparse((public_parts.scheme, public_parts.netloc, file_parts.path, "", file_parts.query, ""))
+
+
+def _is_loopback_or_private_host(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.is_loopback or address.is_private
 
 
 async def upload_file_to_lsky(filename: str, content: bytes, content_type: str, db: Session) -> str:
@@ -78,7 +104,11 @@ async def upload_file_to_lsky(filename: str, content: bytes, content_type: str, 
             quota.used_size_mb += Decimal(str(file_size_mb))
             db.commit()
 
-            return data["data"]["links"]["url"]
+            return build_lsky_public_url(
+                data["data"]["links"]["url"],
+                lsky_url,
+                settings.FRONTEND_BASE_URL,
+            )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

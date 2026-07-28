@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.models.storage_quota import StorageQuota
-from app.services.upload import build_lsky_upload_url
+from app.services.upload import build_lsky_public_url, build_lsky_upload_url
 
 
 @pytest.mark.parametrize(
@@ -17,6 +17,25 @@ from app.services.upload import build_lsky_upload_url
 )
 def test_build_lsky_upload_url(base_url, expected_url):
     assert build_lsky_upload_url(base_url) == expected_url
+
+
+@pytest.mark.parametrize(
+    ("file_url", "api_url", "expected_url"),
+    [
+        (
+            "http://114.55.55.110:40027/i/2026/07/28/image.png",
+            "http://127.0.0.1:40027/api",
+            "https://lovestory1314.fun/i/2026/07/28/image.png",
+        ),
+        (
+            "https://images.example.com/i/image.png",
+            "https://images.example.com/api",
+            "https://images.example.com/i/image.png",
+        ),
+    ],
+)
+def test_build_lsky_public_url(file_url, api_url, expected_url):
+    assert build_lsky_public_url(file_url, api_url, "https://lovestory1314.fun") == expected_url
 
 
 @pytest.fixture
