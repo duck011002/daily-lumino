@@ -3,6 +3,20 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.models.storage_quota import StorageQuota
+from app.services.upload import build_lsky_upload_url
+
+
+@pytest.mark.parametrize(
+    ("base_url", "expected_url"),
+    [
+        ("http://image-bed:40027", "http://image-bed:40027/api/v1/upload"),
+        ("http://image-bed:40027/", "http://image-bed:40027/api/v1/upload"),
+        ("http://image-bed:40027/api", "http://image-bed:40027/api/v1/upload"),
+        ("http://image-bed:40027/api/", "http://image-bed:40027/api/v1/upload"),
+    ],
+)
+def test_build_lsky_upload_url(base_url, expected_url):
+    assert build_lsky_upload_url(base_url) == expected_url
 
 
 @pytest.fixture

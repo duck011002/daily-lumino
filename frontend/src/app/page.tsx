@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, Calendar, ChevronRight, FileText, Image as ImageIcon, Lock, Sparkles } from 'lucide-react'
+import { ArrowUpRight, Calendar, FileText, Image as ImageIcon, Lock, Sparkles } from 'lucide-react'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
@@ -88,42 +88,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main hero section */}
-      <main className="flex-1 max-w-7xl mx-auto px-6 flex flex-col items-center text-center z-10 py-16 md:py-20">
-        <div className="space-y-6 max-w-3xl animate-fade-in">
-          <h1 className="text-5xl md:text-7xl font-display font-bold text-onSurface dark:text-foreground leading-tight">
-            把私密生活与<br />
-            <span className="text-primary bg-clip-text">技术实践</span>分开安放
-          </h1>
-          <p className="text-lg md:text-xl text-onSurface/70 dark:text-foreground/70 max-w-2xl mx-auto">
-            技术博客对所有访客开放；其余记录、对话与协作空间只在登录后为你和受邀成员服务。
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
-            {user ? (
-              <Link href="/blog" passHref>
-                <Button id="btn-hero-dashboard" size="lg" className="w-full sm:w-auto">
-                  浏览技术博客 <ChevronRight className="ml-1 h-5 w-5" />
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Link href="/blog" passHref>
-                  <Button id="btn-hero-register" size="lg" className="w-full sm:w-auto">
-                    浏览技术博客 <ChevronRight className="ml-1 h-5 w-5" />
-                  </Button>
-                </Link>
-                <Link href="/login" passHref>
-                  <Button id="btn-hero-login" variant="outline" size="lg" className="w-full sm:w-auto">
-                    登录私人空间
-                  </Button>
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-
-        <section className="mt-16 w-full text-left md:mt-20">
+      <main className="flex-1 max-w-7xl mx-auto px-6 z-10 py-8 md:py-12">
+        <section className="w-full text-left">
           <div className="flex items-end justify-between border-b border-secondary pb-5 dark:border-darkBorder">
             <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Selected writing</p><h2 className="mt-2 font-display text-3xl font-bold text-onSurface dark:text-foreground">精选文章</h2></div>
             <span className="hidden text-sm text-onSurface/50 dark:text-foreground/50 sm:block">最近发布优先</span>

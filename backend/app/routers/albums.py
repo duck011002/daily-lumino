@@ -12,6 +12,7 @@ from app.models.album import Album, Photo
 from app.models.space import SpaceMember
 from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
+from app.services.upload import build_lsky_upload_url
 from app.models.user import User
 from app.schemas.album import AlbumCreate, AlbumResponse, AlbumUpdate, PhotoResponse
 from app.utils.crypto import decrypt_value
@@ -203,7 +204,7 @@ async def upload_photo(
         )
 
     # Upload to Lsky Pro
-    upload_url = lsky_url.rstrip("/") + "/api/v1/upload"
+    upload_url = build_lsky_upload_url(lsky_url)
     headers = {
         "Authorization": f"Bearer {lsky_token}",
         "Accept": "application/json",

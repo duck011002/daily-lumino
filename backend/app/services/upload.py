@@ -8,6 +8,15 @@ from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.utils.crypto import decrypt_value
 
+
+def build_lsky_upload_url(base_url: str) -> str:
+    """Accept either the Lsky root URL or its /api API base URL."""
+    normalized_url = base_url.rstrip("/")
+    if normalized_url.endswith("/api"):
+        return f"{normalized_url}/v1/upload"
+    return f"{normalized_url}/api/v1/upload"
+
+
 async def upload_file_to_lsky(filename: str, content: bytes, content_type: str, db: Session) -> str:
     # 1. Read Lsky Pro configs
     url_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "lsky_api_url"))
@@ -46,8 +55,8 @@ async def upload_file_to_lsky(filename: str, content: bytes, content_type: str, 
             detail="空间存储配额不足。",
         )
 
-    # 3. Upload to Lsky Pro (v2 API format usually: /api/v1/upload)
-    upload_url = lsky_url.rstrip("/") + "/api/v1/upload"
+    # 3. Upload to Lsky Pro (v2 API format: /api/v1/upload)
+    upload_url = build_lsky_upload_url(lsky_url)
     headers = {
         "Authorization": f"Bearer {lsky_token}",
         "Accept": "application/json",
