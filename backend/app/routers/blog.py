@@ -1,3 +1,10 @@
+import mimetypes
+import os
+import re
+import shutil
+import tempfile
+import uuid
+import zipfile
 from datetime import UTC, datetime
 from typing import List
 
@@ -9,6 +16,7 @@ from app.database import get_db
 from app.dependencies import require_blog_writer, require_root
 from app.models.blog import BlogCategory, BlogPost
 from app.models.user import User
+from app.services.upload import upload_file_to_lsky
 from app.schemas.blog import (
     BlogCategoryCreate,
     BlogCategoryResponse,
@@ -28,6 +36,19 @@ def get_category_or_404(db: Session, category_id: int | None) -> BlogCategory | 
     if not category:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="博客分区不存在。")
     return category
+
+
+def build_category_slug(db: Session, name: str, supplied_slug: str | None) -> str:
+    """Keep the internal URL identifier out of the normal category workflow."""
+    source = (supplied_slug or name).strip().lower()
+    candidate = re.sub(r"[^a-z0-9]+", "-", source).strip("-")[:90]
+    if not candidate:
+        candidate = "category"
+
+    slug = candidate
+    while db.scalar(select(BlogCategory.id).where(BlogCategory.slug == slug)):
+        slug = f"{candidate[:80]}-{uuid.uuid4().hex[:8]}"
+    return slug
 
 
 def ensure_post_manager(post: BlogPost, current_user: User) -> None:
@@ -112,12 +133,14 @@ def list_my_posts(
     current_user: User = Depends(require_blog_writer),
     db: Session = Depends(get_db),
 ):
-    return db.scalars(
+    statement = (
         select(BlogPost)
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
-        .where(BlogPost.author_id == current_user.id)
         .order_by(BlogPost.created_at.desc())
-    ).all()
+    )
+    if not current_user.is_root:
+        statement = statement.where(BlogPost.author_id == current_user.id)
+    return db.scalars(statement).all()
 
 
 @router.post("/api/blog/me/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)
@@ -184,14 +207,13 @@ def create_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root),
 ):
-    existing = db.scalar(
-        select(BlogCategory).where(
-            (BlogCategory.name == category_in.name) | (BlogCategory.slug == category_in.slug)
-        )
-    )
+    existing = db.scalar(select(BlogCategory).where(BlogCategory.name == category_in.name))
     if existing:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分区名称或标识已存在。")
-    category = BlogCategory(**category_in.model_dump())
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分区名称已存在。")
+    category = BlogCategory(
+        **category_in.model_dump(exclude={"slug"}),
+        slug=build_category_slug(db, category_in.name, category_in.slug),
+    )
     db.add(category)
     db.commit()
     db.refresh(category)
@@ -312,9 +334,9 @@ def apply_post_update(post: BlogPost, post_in: BlogPostUpdate, db: Session) -> B
         post.slug = post_in.slug
     if post_in.content is not None:
         post.content = post_in.content
-    if post_in.cover_url is not None:
+    if "cover_url" in post_in.model_fields_set:
         post.cover_url = post_in.cover_url
-    if post_in.excerpt is not None:
+    if "excerpt" in post_in.model_fields_set:
         post.excerpt = post_in.excerpt
     if post_in.tags is not None:
         post.tags = post_in.tags
@@ -352,15 +374,6 @@ def delete_admin_post(
     db.commit()
     return {"status": "ok", "message": "文章已成功删除。"}
 
-
-import re
-import uuid
-import os
-import shutil
-import tempfile
-import zipfile
-import mimetypes
-from app.services.upload import upload_file_to_lsky
 
 @router.post("/api/admin/blog/parse-markdown")
 async def parse_markdown_blog(

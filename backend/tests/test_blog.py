@@ -198,6 +198,15 @@ def test_admin_blog_crud(client: TestClient, blog_test_setup, db):
     assert patch_res.json()["is_published"] is True
     assert patch_res.json()["published_at"] is not None
 
+    clear_optional_res = client.patch(
+        f"/api/admin/blog/posts/{post_id}",
+        json={"cover_url": None, "excerpt": None},
+        cookies=admin_cookies,
+    )
+    assert clear_optional_res.status_code == 200
+    assert clear_optional_res.json()["cover_url"] is None
+    assert clear_optional_res.json()["excerpt"] is None
+
     # Create another post to test duplicate slug during update
     client.post(
         "/api/admin/blog/posts",
@@ -304,7 +313,6 @@ def test_root_can_manage_categories_and_delegate_blog_writing(client: TestClient
         "/api/admin/blog/categories",
         json={
             "name": "Agent / Skill",
-            "slug": "agent-skill",
             "description": "AI agent engineering notes",
             "sort_order": 10,
         },
@@ -344,6 +352,12 @@ def test_root_can_manage_categories_and_delegate_blog_writing(client: TestClient
         cookies=admin_cookies,
     )
     assert root_post.status_code == 201
+    root_visible_posts = client.get("/api/blog/me/posts", cookies=admin_cookies)
+    assert root_visible_posts.status_code == 200
+    assert {post["slug"] for post in root_visible_posts.json()} >= {
+        "writer-skill-post",
+        "root-article",
+    }
     assert (
         client.patch(
             f"/api/blog/me/posts/{root_post.json()['id']}",

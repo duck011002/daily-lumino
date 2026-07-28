@@ -10,7 +10,7 @@ import {
   Code2,
   Eye,
   Loader2,
-  PenLine,
+  Settings2,
   Tag,
   User,
 } from 'lucide-react'
@@ -80,8 +80,8 @@ export default function PublicBlogList() {
           </Link>
           <div className="flex items-center gap-2">
             {canWrite && (
-              <Link href="/blog/write" className="hidden items-center gap-2 rounded-full bg-[#163a2b] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#24553f] sm:flex">
-                <PenLine size={15} /> 写文章
+              <Link href="/blog/manage" className="hidden items-center gap-2 rounded-full bg-[#163a2b] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#24553f] sm:flex">
+                <Settings2 size={15} /> 文章管理
               </Link>
             )}
             <ThemeToggle />

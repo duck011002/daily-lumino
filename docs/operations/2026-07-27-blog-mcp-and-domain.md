@@ -72,6 +72,16 @@ intentionally excluded from this document.
 - Public readers can see only posts that are both public and published.
 - The public page will emphasize featured work, sections, article metadata, and
   clear reader navigation.
+- The home page has one explicit visitor destination: the public technical
+  portfolio. Private product capabilities are presented as login-required
+  descriptions rather than cards that look clickable.
+- Blog management has one shared workspace at `/blog/manage`. Blog writers see
+  their own posts; root users see every author's post in that same workspace.
+  The legacy admin navigation now routes to this workspace instead of exposing
+  a second article CRUD implementation.
+- Root users create a category with its visible name only. The backend assigns
+  a unique internal slug so URL implementation details are not a required
+  administrator input.
 
 ## MCP Publishing Safety
 

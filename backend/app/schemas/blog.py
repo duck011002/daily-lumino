@@ -7,7 +7,7 @@ from app.schemas.user import UserResponse
 
 class BlogCategoryCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
-    slug: str = Field(..., min_length=1, max_length=100)
+    slug: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=300)
     sort_order: int = 0
 

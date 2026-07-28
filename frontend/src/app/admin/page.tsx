@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ShieldAlert, Settings, Users, Key, Database, BookOpen, Plus, Loader2,
   Trash2, Edit, ArrowLeft, Save, Globe, Eye, CheckCircle, AlertCircle,
@@ -116,10 +117,11 @@ interface AIProvider {
 type TabType = 'blog' | 'users' | 'mcp' | 'configs' | 'quota'
 
 export default function AdminConsole() {
+  const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const { isDark } = useTheme()
 
-  const [activeTab, setActiveTab] = useState<TabType>('blog')
+  const [activeTab, setActiveTab] = useState<TabType>('users')
   
   // States for Blog Tab
   const [posts, setPosts] = useState<BlogPost[]>([])
@@ -908,18 +910,11 @@ export default function AdminConsole() {
           {/* Navigation Sidebar */}
           <div className="w-full lg:w-64 flex-shrink-0 flex flex-row lg:flex-col lg:sticky lg:top-24 lg:h-fit overflow-x-auto lg:overflow-x-visible pb-3 lg:pb-0 gap-2 lg:gap-1.5 border-b border-secondary/40 lg:border-b-0 dark:border-darkBorder/40 scrollbar-none">
             <button
-              onClick={() => {
-                setActiveTab('blog')
-                setIsEditing(false)
-              }}
-              className={`flex-shrink-0 lg:w-full flex items-center space-x-2 lg:space-x-3 px-4 py-2.5 lg:py-3 rounded-xl transition-colors text-sm lg:text-base whitespace-nowrap ${
-                activeTab === 'blog'
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-onSurface/70 dark:text-foreground/70 hover:bg-secondary/50 dark:hover:bg-darkBorder/50'
-              }`}
+              onClick={() => router.push('/blog/manage')}
+              className="flex-shrink-0 lg:w-full flex items-center space-x-2 lg:space-x-3 px-4 py-2.5 lg:py-3 rounded-xl text-sm lg:text-base whitespace-nowrap text-onSurface/70 transition-colors hover:bg-secondary/50 dark:text-foreground/70 dark:hover:bg-darkBorder/50"
             >
               <BookOpen size={18} />
-              <span>公开博客管理</span>
+              <span>文章管理</span>
             </button>
 
             <button
