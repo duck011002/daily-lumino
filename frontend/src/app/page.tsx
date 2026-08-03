@@ -112,7 +112,7 @@ export default function Home() {
   }>
 
   return (
-    <div className="min-h-screen bg-[#f8f6f0] text-[#17211d] dark:bg-darkBg dark:text-foreground">
+    <div className="lumino-paper min-h-screen text-[#17211d] dark:text-foreground">
       <SiteNav />
 
       <main className="mx-auto max-w-7xl px-5 pb-20 pt-8 md:px-8 md:pt-12">
@@ -178,23 +178,27 @@ export default function Home() {
                   </p>
                 </div>
 
-                <div className="mt-7 border-t border-white/12 pt-5">
+                <div className="mt-7 border-t border-white/15 pt-5">
                   <p className="text-[11px] font-semibold text-white/48">
                     从前厅继续认识这座庭院
                   </p>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-3">
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     {destinations.map((item) => (
                       <Link
                         key={item.label}
                         href={item.href}
-                        className="group inline-flex items-center gap-2 text-sm transition"
+                        className="group flex min-w-0 items-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3.5 py-3 text-sm transition hover:border-[#f7b84b]/35 hover:bg-white/[0.07]"
                       >
-                        <item.icon size={14} className="text-[#f7b84b]" />
-                        <span className="font-bold text-white">{item.label}</span>
-                        <span className="text-white/48">· {item.meaning}</span>
+                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#f7b84b]/10">
+                          <item.icon size={14} className="text-[#f7b84b]" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block font-bold text-white">{item.label}</span>
+                          <span className="block truncate text-[11px] text-white/44">{item.meaning}</span>
+                        </span>
                         <ArrowRight
                           size={13}
-                          className="text-white/30 transition group-hover:translate-x-1 group-hover:text-[#f7b84b]"
+                          className="ml-auto shrink-0 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#f7b84b]"
                         />
                       </Link>
                     ))}
@@ -204,51 +208,62 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid gap-5">
-            <div className="rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] p-7 shadow-[0_24px_70px_-50px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b56b19]">
-                  About this place
+          <aside className="grid gap-5">
+            <div className="relative overflow-hidden rounded-[2rem] border border-[#244a38]/20 bg-[#f9f6ee]/90 p-7 shadow-[0_28px_70px_-52px_rgba(23,33,29,0.75)] dark:border-darkBorder dark:bg-darkCard">
+              <div className="absolute -right-14 -top-16 h-40 w-40 rounded-full border-[24px] border-[#1d6347]/[0.055]" />
+              <div className="relative flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#9b611f]">
+                  01 / About this place
                 </p>
-                <Sparkles size={18} className="text-[#f0a537]" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#1d6347]/15 bg-[#e5ebe2] px-2.5 py-1 text-[10px] font-bold text-[#1d6347] dark:bg-[#163a2b]/60 dark:text-[#f7b84b]">
+                  <Sparkles size={12} /> 开放
+                </span>
               </div>
-              <h2 className="mt-4 font-display text-2xl font-bold">一座开放的前厅</h2>
-              <p className="mt-3 text-sm leading-7 text-[#17211d]/58 dark:text-foreground/58">
+              <h2 className="relative mt-5 max-w-[15rem] font-display text-[1.7rem] font-bold leading-tight">
+                一座开放的前厅
+              </h2>
+              <p className="relative mt-4 text-sm leading-7 text-[#17211d]/62 dark:text-foreground/58">
                 更完整的个人介绍与收藏在书房，公开文章在博客；登录之后，内院才会为你打开。
               </p>
               <Link
                 href="/library"
-                className="group mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#1d6347] dark:text-[#f7b84b]"
+                className="group relative mt-5 inline-flex items-center gap-2 border-b border-[#1d6347]/25 pb-1 text-sm font-bold text-[#1d6347] dark:text-[#f7b84b]"
               >
                 走进书房
                 <ArrowRight size={15} className="transition group-hover:translate-x-1" />
               </Link>
               {profile.status_text && profile.status_public && (
-                <div className="mt-5 rounded-2xl bg-[#edf2e9] px-4 py-3 dark:bg-[#163a2b]/45">
+                <div className="relative mt-6 border-l-2 border-[#d49a3c] bg-[#e4e9df]/72 px-4 py-3.5 dark:bg-[#163a2b]/45">
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#1d6347] dark:text-[#f7b84b]">
                     此刻
                   </p>
-                  <p className="mt-1 text-sm font-semibold leading-6">{profile.status_text}</p>
+                  <p className="mt-1 font-display text-sm font-semibold leading-6">{profile.status_text}</p>
                 </div>
               )}
             </div>
 
-            <div className="rounded-[2rem] border border-[#17211d]/10 bg-white/65 p-7 dark:border-darkBorder dark:bg-darkCard/70">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b56b19]">
-                Find me
+            <div className="rounded-[2rem] border border-[#7b6747]/20 bg-[#ece6d8]/60 p-7 shadow-[0_22px_60px_-52px_rgba(23,33,29,0.7)] dark:border-darkBorder dark:bg-darkCard/70">
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#9b611f]">
+                02 / Find me
+              </p>
+              <h2 className="mt-3 font-display text-xl font-bold">在庭院之外相遇</h2>
+              <p className="mt-1 text-xs leading-5 text-[#17211d]/48 dark:text-foreground/48">
+                公开的联系入口，保持简单而克制。
               </p>
               {publicLinks.length > 0 ? (
-                <div className="mt-4 grid gap-2">
+                <div className="mt-5 divide-y divide-[#244a38]/10 border-y border-[#244a38]/10">
                   {publicLinks.slice(0, 4).map((item) => (
                     <a
                       key={item.id}
                       href={item.url}
                       target={item.url.startsWith('http') ? '_blank' : undefined}
                       rel={item.url.startsWith('http') ? 'noreferrer' : undefined}
-                      className="group flex items-center justify-between rounded-2xl border border-[#17211d]/8 bg-[#fffdf8] px-4 py-3 text-sm font-semibold transition hover:border-[#1d6347]/35 hover:text-[#1d6347] dark:border-darkBorder dark:bg-darkBg"
+                      className="group flex items-center justify-between py-3.5 text-sm font-semibold transition hover:text-[#1d6347]"
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        <item.icon size={15} className="shrink-0 text-[#b56b19]" />
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#b56b19]/20 bg-[#f8f4ea]/70 text-[#a6651d]">
+                          <item.icon size={14} />
+                        </span>
                         <span className="truncate">{item.label}</span>
                       </span>
                       <ArrowUpRight
@@ -264,7 +279,7 @@ export default function Home() {
                 </p>
               )}
             </div>
-          </div>
+          </aside>
         </section>
 
         <section className="mt-14">
@@ -325,13 +340,13 @@ export default function Home() {
                   <Link
                     key={post.id}
                     href={`/blog/${post.slug}`}
-                    className="group relative flex min-h-28 flex-col overflow-hidden rounded-3xl border border-[#17211d]/10 bg-[#fffdf8] p-5 transition hover:-translate-y-0.5 hover:border-[#1d6347]/40 hover:shadow-lg dark:border-darkBorder dark:bg-darkCard"
+                    className="group relative flex min-h-28 flex-col overflow-hidden rounded-3xl border border-[#244a38]/20 bg-[#f7f3ea] p-5 shadow-[0_12px_30px_-28px_rgba(23,33,29,0.8)] transition hover:-translate-y-0.5 hover:border-[#1d6347]/48 hover:bg-[#fbf8f0] hover:shadow-lg dark:border-darkBorder dark:bg-darkCard"
                   >
                     {post.cover_url && (
                       <img
                         src={post.cover_url}
                         alt=""
-                        className="absolute inset-0 h-full w-full object-cover opacity-[0.055] transition duration-500 group-hover:scale-105 group-hover:opacity-[0.1]"
+                        className="absolute inset-0 h-full w-full object-cover opacity-[0.075] transition duration-500 group-hover:scale-105 group-hover:opacity-[0.13]"
                       />
                     )}
                     <div className="relative flex items-center justify-between gap-2">
