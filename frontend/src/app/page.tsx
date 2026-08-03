@@ -6,6 +6,7 @@ import { Sparkles, Lock, Image as ImageIcon, FileText, BookOpen, ChevronRight } 
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
+import Logo from '@/components/layout/Logo'
 
 export default function Home() {
   const { user } = useAuth()
@@ -46,9 +47,9 @@ export default function Home() {
 
       {/* Header */}
       <header className="w-full max-w-7xl mx-auto px-6 h-20 flex items-center justify-between z-10">
-        <div className="flex items-center space-x-2">
-          <span className="font-display text-2xl font-bold tracking-wide text-primary">Lumino</span>
-        </div>
+        <Link href="/" className="flex items-center">
+          <Logo size={28} textSize="text-2xl" />
+        </Link>
         <div className="flex items-center space-x-4">
           <ThemeToggle />
           {user ? (

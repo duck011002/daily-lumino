@@ -119,6 +119,7 @@ def test_upload_and_delete_photo(client: TestClient, space_users, monkeypatch, d
     
     db.add(SystemConfig(config_key="lsky_api_url", config_val="http://fake-lsky.com"))
     db.add(SystemConfig(config_key="lsky_api_token", config_val=encrypt_value("fake-token")))
+    db.add(SystemConfig(config_key="lsky_public_url", config_val="https://img.example.com"))
     db.commit()
 
     # Mock httpx.AsyncClient.post
@@ -150,7 +151,7 @@ def test_upload_and_delete_photo(client: TestClient, space_users, monkeypatch, d
     )
     assert upload_res.status_code == 201
     photo_data = upload_res.json()
-    assert photo_data["url"] == "http://fake-lsky.com/image.jpg"
+    assert photo_data["url"] == "https://img.example.com/image.jpg"
     photo_id = photo_data["id"]
 
     # Check quota usage increased

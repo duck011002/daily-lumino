@@ -1,15 +1,23 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, User, Eye, Tag, Loader2, BookOpen } from 'lucide-react'
+import {
+  ArrowLeft,
+  BookOpen,
+  Calendar,
+  Clock3,
+  Eye,
+  Loader2,
+  Tag,
+  User,
+} from 'lucide-react'
 import dynamic from 'next/dynamic'
 import api from '@/lib/api'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import { useTheme } from '@/hooks/useTheme'
 
-// Import markdown preview dynamically to bypass hydration issues in SSR
 const MDPreview = dynamic(
   () => import('@uiw/react-markdown-preview').then((mod) => mod.default),
   { ssr: false }
@@ -18,30 +26,31 @@ const MDPreview = dynamic(
 import '@uiw/react-markdown-preview/markdown.css'
 
 interface UserResponse {
-  id: number
   username: string
   display_name: string | null
+  is_root?: boolean
 }
 
 interface BlogPost {
-  id: number
   title: string
   slug: string
   content: string
   cover_url: string | null
   excerpt: string | null
-  is_public: boolean
-  is_published: boolean
   tags: string[] | null
   view_count: number
   published_at: string | null
-  created_at: string
   author: UserResponse | null
+}
+
+const publicAuthorName = (author: UserResponse | null) => {
+  const name = author?.display_name || author?.username
+  const isAdmin = author?.is_root || name === '超级管理员' || name?.toLowerCase() === 'admin'
+  return isAdmin ? 'Lumino 编辑部' : name || 'Lumino 编辑部'
 }
 
 export default function BlogPostDetail() {
   const params = useParams()
-  const router = useRouter()
   const slug = params.slug as string
   const { isDark } = useTheme()
 
@@ -49,133 +58,143 @@ export default function BlogPostDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const fetchPostDetail = async () => {
-    try {
-      const res = await api.get(`/blog/posts/${slug}`)
-      setPost(res.data)
-    } catch (err: any) {
-      setError(err.response?.data?.detail || '无法获取文章内容或文章不存在。')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    if (slug) {
-      fetchPostDetail()
-    }
+    if (!slug) return
+
+    api.get(`/blog/posts/${slug}`)
+      .then((response) => setPost(response.data))
+      .catch((requestError: any) => {
+        setError(requestError.response?.data?.detail || '无法获取文章内容或文章不存在。')
+      })
+      .finally(() => setLoading(false))
   }, [slug])
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface dark:bg-darkBg flex items-center justify-center">
-        <Loader2 className="animate-spin text-primary h-8 w-8" />
+      <div className="grid min-h-screen place-items-center bg-[#eef1eb] dark:bg-darkBg">
+        <Loader2 className="h-8 w-8 animate-spin text-[#b56b19]" />
       </div>
     )
   }
 
   if (error || !post) {
     return (
-      <div className="min-h-screen bg-surface dark:bg-darkBg flex flex-col items-center justify-center space-y-4 px-6 text-center">
-        <p className="text-red-500 font-semibold text-lg max-w-md">{error || '文章未找到'}</p>
-        <Link href="/blog">
-          <button className="px-5 py-2.5 rounded-xl bg-primary text-white font-medium hover:bg-primary/95 transition-colors">
-            返回文章列表
-          </button>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-[#eef1eb] px-6 text-center dark:bg-darkBg">
+        <p className="max-w-md text-lg font-semibold text-red-500">{error || '文章未找到'}</p>
+        <Link
+          href="/blog"
+          className="inline-flex items-center gap-2 rounded-full bg-[#163a2b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#24553f]"
+        >
+          <ArrowLeft size={15} />
+          返回文章列表
         </Link>
       </div>
     )
   }
 
+  const publishedLabel = post.published_at
+    ? new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }).format(new Date(post.published_at))
+    : '近期发布'
+
   return (
-    <div className="min-h-screen bg-surface dark:bg-darkBg transition-colors duration-300 flex flex-col">
-      {/* Header */}
-      <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
-        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Link href="/blog" className="text-primary hover:text-primary/80 transition-colors flex items-center gap-1 text-sm font-medium">
-              <ArrowLeft size={16} />
-              <span>所有文章</span>
-            </Link>
-          </div>
-          <div className="flex items-center space-x-4">
-            <ThemeToggle />
-          </div>
+    <div className="relative min-h-screen overflow-hidden bg-[#eef1eb] text-[#17211d] dark:bg-darkBg dark:text-foreground">
+      <div
+        className="pointer-events-none fixed inset-0 opacity-70 dark:opacity-20"
+        style={{
+          backgroundImage: 'radial-gradient(rgba(22, 58, 43, 0.08) 1px, transparent 1px)',
+          backgroundSize: '18px 18px',
+        }}
+      />
+      <div className="pointer-events-none fixed -left-32 top-28 h-96 w-96 rounded-full bg-[#d5e4d8] blur-3xl dark:bg-[#163a2b]/40" />
+      <div className="pointer-events-none fixed -right-40 bottom-0 h-[30rem] w-[30rem] rounded-full bg-[#f7b84b]/15 blur-3xl" />
+
+      <header className="sticky top-0 z-30 border-b border-[#17211d]/10 bg-[#eef1eb]/85 backdrop-blur dark:border-darkBorder dark:bg-darkBg/85">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:px-8">
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[#1d6347] transition hover:text-[#b56b19] dark:text-[#f7b84b]"
+          >
+            <ArrowLeft size={16} />
+            所有文章
+          </Link>
+          <ThemeToggle />
         </div>
       </header>
 
-      {/* Hero Cover Banner */}
-      {post.cover_url && (
-        <div className="w-full max-h-[360px] h-[40vh] relative overflow-hidden bg-secondary dark:bg-darkBg border-b border-secondary dark:border-darkBorder">
-          <img
-            src={post.cover_url}
-            alt={post.title}
-            className="w-full h-full object-cover"
-          />
-        </div>
-      )}
-
-      {/* Article Content Layout */}
-      <main className="max-w-4xl mx-auto px-6 py-10 w-full flex-1 space-y-8">
-        {/* Title and Metadata */}
-        <div className="space-y-4 border-b border-secondary dark:border-darkBorder pb-6">
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {post.tags.map((tag, tIdx) => (
-                <span
-                  key={tIdx}
-                  className="inline-flex items-center text-xs font-semibold px-3 py-1 rounded-full bg-secondary/80 text-primary dark:bg-darkBorder dark:text-primary"
-                >
-                  <Tag size={10} className="mr-1" />
-                  {tag}
-                </span>
-              ))}
+      <main className="relative mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-14">
+        <article className="mx-auto max-w-4xl overflow-hidden rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] shadow-[0_32px_90px_-48px_rgba(23,33,29,0.6)] dark:border-darkBorder dark:bg-darkCard">
+          {post.cover_url && (
+            <div className="relative h-56 overflow-hidden md:h-80">
+              <img src={post.cover_url} alt={post.title} className="h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#17211d]/40 via-transparent to-transparent" />
             </div>
           )}
 
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-onSurface dark:text-foreground leading-tight">
-            {post.title}
-          </h1>
+          <div className="px-6 py-9 md:px-12 md:py-14">
+            {post.tags && post.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {post.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 rounded-full bg-[#e7efe8] px-3 py-1 text-xs font-semibold text-[#1d6347] dark:bg-[#163a2b] dark:text-[#f7b84b]"
+                  >
+                    <Tag size={10} />
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
 
-          {/* Author/Date/Views */}
-          <div className="flex flex-wrap items-center gap-4 text-xs md:text-sm text-onSurface/55 dark:text-foreground/55">
-            <span className="flex items-center gap-1.5 font-medium">
-              <User size={14} className="text-primary" />
-              {post.author?.display_name || post.author?.username}
-            </span>
-            <span>·</span>
-            <span className="flex items-center gap-1.5">
-              <Calendar size={14} />
-              {post.published_at ? new Date(post.published_at).toLocaleString() : '未发布'}
-            </span>
-            <span>·</span>
-            <span className="flex items-center gap-1.5">
-              <Eye size={14} />
-              阅读量: {post.view_count}
-            </span>
-          </div>
-        </div>
+            <h1 className="mt-5 font-display text-3xl font-bold leading-tight md:text-5xl">
+              {post.title}
+            </h1>
 
-        {/* Excerpt if exists */}
-        {post.excerpt && (
-          <div className="p-5 rounded-2xl bg-secondary/30 dark:bg-darkBorder/20 border-l-4 border-primary text-sm text-onSurface/75 dark:text-foreground/75 leading-relaxed italic">
-            <strong>摘要:</strong> {post.excerpt}
-          </div>
-        )}
+            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-[#17211d]/10 py-4 text-xs text-[#17211d]/55 dark:border-darkBorder dark:text-foreground/55 md:text-sm">
+              <span className="flex items-center gap-1.5 font-semibold text-[#1d6347] dark:text-[#f7b84b]">
+                <User size={14} />
+                {publicAuthorName(post.author)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Calendar size={14} />
+                {publishedLabel}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Eye size={14} />
+                {post.view_count} 次阅读
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Clock3 size={14} />
+                技术随笔
+              </span>
+            </div>
 
-        {/* Markdown Reader Body */}
-        <div className="flex flex-col overflow-hidden bg-transparent" data-color-mode={isDark ? 'dark' : 'light'}>
-          <div className="prose dark:prose-invert max-w-none text-onSurface dark:text-foreground">
-            <MDPreview source={post.content} />
+            {post.excerpt && (
+              <aside className="mt-7 rounded-2xl border border-[#b56b19]/20 bg-[#fdf5e7] px-5 py-4 text-sm leading-7 text-[#5e482c] dark:bg-[#2e2518] dark:text-[#f7dfb8]">
+                <strong className="mr-2">摘要</strong>
+                {post.excerpt}
+              </aside>
+            )}
+
+            <div
+              className="mt-10 border-t border-[#17211d]/10 pt-8 dark:border-darkBorder"
+              data-color-mode={isDark ? 'dark' : 'light'}
+            >
+              <div className="prose max-w-none dark:prose-invert [&_.wmde-markdown]:!bg-transparent [&_.wmde-markdown]:!text-inherit">
+                <MDPreview source={post.content} style={{ backgroundColor: 'transparent' }} />
+              </div>
+            </div>
           </div>
-        </div>
+        </article>
       </main>
 
-      {/* Footer */}
-      <footer className="w-full py-8 text-center border-t border-secondary dark:border-darkBorder bg-white/20 dark:bg-darkCard/20 mt-12">
-        <p className="text-xs text-onSurface/40 dark:text-foreground/40 flex items-center justify-center gap-1">
-          <BookOpen size={12} className="text-primary" />
-          <span>Lumino Blog · 探索属于内心的宁静</span>
+      <footer className="relative border-t border-[#17211d]/10 bg-[#eef1eb]/70 py-8 text-center dark:border-darkBorder dark:bg-darkBg/70">
+        <p className="flex items-center justify-center gap-1 text-xs text-[#17211d]/45 dark:text-foreground/45">
+          <BookOpen size={12} className="text-[#b56b19]" />
+          Lumino 编辑部 · 技术实践与思考
         </p>
       </footer>
     </div>

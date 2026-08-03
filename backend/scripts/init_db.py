@@ -195,6 +195,11 @@ def init_db():
                 "lsky-pro API 地址",
             ),
             ("lsky_api_token", "", "lsky-pro Token，加密存储"),
+            (
+                "lsky_public_url",
+                settings.LSKY_PUBLIC_URL,
+                "图床的公网 HTTPS 地址；用于将内网 HTTP 上传结果转换为浏览器可访问的图片 URL",
+            ),
             ("storage_quota_mb", "1024", "相册存储配额 MB"),
             ("ai_providers", providers_json, "可用的 AI 服务商配置，包含模型列表、Key、Base URL 等"),
         ]

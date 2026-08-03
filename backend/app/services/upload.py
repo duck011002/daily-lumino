@@ -1,21 +1,101 @@
-import httpx
 from decimal import Decimal
+from urllib.parse import urlsplit, urlunsplit
+
+import httpx
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.utils.crypto import decrypt_value
 
-async def upload_file_to_lsky(filename: str, content: bytes, content_type: str, db: Session) -> str:
+
+def public_image_url(raw_url: str, public_base_url: str | None = None) -> str:
+    """Return an HTTPS URL that browsers and remote clients can fetch.
+
+    Lsky may run on a private HTTP address such as ``http://10.0.0.5:40027``.
+    In that case ``lsky_public_url`` replaces only the origin while retaining the
+    returned path and query string. An already absolute HTTPS URL is returned
+    unchanged: it must never be concatenated with the configured public base.
+    """
+    source = urlsplit(raw_url)
+    if not source.scheme or not source.netloc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="图床返回了无效的图片地址。",
+        )
+
+    if source.scheme == "https":
+        return raw_url
+
+    if source.scheme != "http":
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="图床返回了不受支持的图片地址协议。",
+        )
+
+    if public_base_url:
+        public_base = urlsplit(public_base_url.rstrip("/"))
+        if public_base.scheme != "https" or not public_base.netloc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="图床公网地址必须是完整的 HTTPS 域名地址。",
+            )
+        base_path = public_base.path.rstrip("/")
+        source_path = source.path if source.path.startswith("/") else f"/{source.path}"
+        return urlunsplit(
+            (
+                "https",
+                public_base.netloc,
+                f"{base_path}{source_path}",
+                source.query,
+                "",
+            )
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail=(
+            "图床返回了非 HTTPS 图片地址。请配置 lsky_public_url 为图床的公网 HTTPS 域名。"
+        ),
+    )
+
+
+def lsky_upload_url(api_base_url: str) -> str:
+    """Build Lsky's v1 upload endpoint from either supported base URL form."""
+    base = api_base_url.rstrip("/")
+    if base.endswith("/api/v1/upload"):
+        return base
+    if base.endswith("/api/v1"):
+        return f"{base}/upload"
+    if base.endswith("/api"):
+        return f"{base}/v1/upload"
+    return f"{base}/api/v1/upload"
+
+
+async def upload_file_to_lsky(
+    filename: str, content: bytes, content_type: str, db: Session
+) -> str:
     # 1. Read Lsky Pro configs
     url_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "lsky_api_url"))
-    token_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "lsky_api_token"))
-    quota_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "storage_quota_mb"))
+    token_config = db.scalar(
+        select(SystemConfig).where(SystemConfig.config_key == "lsky_api_token")
+    )
+    quota_config = db.scalar(
+        select(SystemConfig).where(SystemConfig.config_key == "storage_quota_mb")
+    )
+    public_url_config = db.scalar(
+        select(SystemConfig).where(SystemConfig.config_key == "lsky_public_url")
+    )
 
     lsky_url = url_config.config_val if url_config else None
-    lsky_token = decrypt_value(token_config.config_val) if token_config and token_config.config_val else None
+    lsky_token = (
+        decrypt_value(token_config.config_val)
+        if token_config and token_config.config_val
+        else None
+    )
 
     if not lsky_url or not lsky_token:
         raise HTTPException(
@@ -47,7 +127,7 @@ async def upload_file_to_lsky(filename: str, content: bytes, content_type: str, 
         )
 
     # 3. Upload to Lsky Pro (v2 API format usually: /api/v1/upload)
-    upload_url = lsky_url.rstrip("/") + "/api/v1/upload"
+    upload_url = lsky_upload_url(lsky_url)
     headers = {
         "Authorization": f"Bearer {lsky_token}",
         "Accept": "application/json",
@@ -69,9 +149,16 @@ async def upload_file_to_lsky(filename: str, content: bytes, content_type: str, 
             quota.used_size_mb += Decimal(str(file_size_mb))
             db.commit()
 
-            return data["data"]["links"]["url"]
+            return public_image_url(
+                data["data"]["links"]["url"],
+                (
+                    public_url_config.config_val
+                    if public_url_config and public_url_config.config_val
+                    else settings.LSKY_PUBLIC_URL
+                ),
+            )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"请求图床失败: {str(e)}"
-            )
+            ) from e

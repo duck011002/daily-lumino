@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.album import Album, Photo
@@ -14,6 +15,7 @@ from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.models.user import User
 from app.schemas.album import AlbumCreate, AlbumResponse, AlbumUpdate, PhotoResponse
+from app.services.upload import lsky_upload_url, public_image_url
 from app.utils.crypto import decrypt_value
 
 router = APIRouter(prefix="/api/spaces/{space_id}/albums", tags=["albums"])
@@ -167,6 +169,9 @@ async def upload_photo(
     url_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "lsky_api_url"))
     token_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "lsky_api_token"))
     quota_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "storage_quota_mb"))
+    public_url_config = db.scalar(
+        select(SystemConfig).where(SystemConfig.config_key == "lsky_public_url")
+    )
 
     lsky_url = url_config.config_val if url_config else None
     lsky_token = decrypt_value(token_config.config_val) if token_config and token_config.config_val else None
@@ -203,7 +208,7 @@ async def upload_photo(
         )
 
     # Upload to Lsky Pro
-    upload_url = lsky_url.rstrip("/") + "/api/v1/upload"
+    upload_url = lsky_upload_url(lsky_url)
     headers = {
         "Authorization": f"Bearer {lsky_token}",
         "Accept": "application/json",
@@ -222,12 +227,31 @@ async def upload_photo(
                 )
             
             # Save photo to DB
+            links = data["data"]["links"]
             photo = Photo(
                 album_id=album_id,
                 space_id=space_id,
                 uploader_id=current_user.id,
-                url=data["data"]["links"]["url"],
-                thumb_url=data["data"]["links"].get("thumbnail_url"),
+                url=public_image_url(
+                    links["url"],
+                    (
+                        public_url_config.config_val
+                        if public_url_config and public_url_config.config_val
+                        else settings.LSKY_PUBLIC_URL
+                    ),
+                ),
+                thumb_url=(
+                    public_image_url(
+                        links["thumbnail_url"],
+                        (
+                            public_url_config.config_val
+                            if public_url_config and public_url_config.config_val
+                            else settings.LSKY_PUBLIC_URL
+                        ),
+                    )
+                    if links.get("thumbnail_url")
+                    else None
+                ),
                 file_size_kb=int(file_size_kb),
             )
             db.add(photo)

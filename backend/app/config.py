@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     LSKY_API_URL: str = ""
     LSKY_API_TOKEN: str = ""
+    LSKY_PUBLIC_URL: str = ""
 
     FRONTEND_ORIGINS: str = "http://localhost:3000"
     APP_ENV: str = "development"

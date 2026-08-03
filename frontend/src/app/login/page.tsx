@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import Logo from '@/components/layout/Logo'
 
 export default function Login() {
   const [usernameOrEmail, setUsernameOrEmail] = useState('')
@@ -44,11 +45,9 @@ export default function Login() {
 
       <div className="w-full max-w-md z-10">
         <div className="glassmorphism p-8 md:p-10 rounded-3xl shadow-xl transition-all duration-300">
-          <div className="text-center mb-8">
-            <Link href="/" passHref>
-              <span className="font-display text-3xl font-bold tracking-wide text-primary cursor-pointer">
-                Lumino
-              </span>
+          <div className="text-center mb-8 flex flex-col items-center">
+            <Link href="/" className="inline-flex justify-center">
+              <Logo size={36} textSize="text-3xl" />
             </Link>
             <h2 className="text-xl font-bold text-onSurface dark:text-foreground mt-4">
               欢迎回来
