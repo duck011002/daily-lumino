@@ -12,6 +12,7 @@ from app.models.space import Space, SpaceInvite, SpaceMember
 from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.models.user import User
+from app.models.visit_analytics import VisitDailyDimension, VisitDailySummary, VisitEvent
 
 __all__ = [
     "Base",
@@ -33,5 +34,8 @@ __all__ = [
     "BlogPost",
     "BlogCategory",
     "SystemConfig",
+    "VisitEvent",
+    "VisitDailySummary",
+    "VisitDailyDimension",
 ]
 

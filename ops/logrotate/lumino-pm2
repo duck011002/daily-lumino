@@ -1,0 +1,11 @@
+/root/.pm2/logs/*.log {
+    daily
+    rotate 7
+    maxsize 10M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}

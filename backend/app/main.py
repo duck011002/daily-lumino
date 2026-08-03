@@ -6,8 +6,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.mcp_blog import blog_mcp, blog_mcp_asgi
 from app.mcp_library import library_mcp, library_mcp_asgi
-from app.routers import admin, albums, auth, blog, chat, discipline, notes, site, spaces, upload
+from app.routers import (
+    admin,
+    albums,
+    auth,
+    blog,
+    chat,
+    discipline,
+    notes,
+    site,
+    spaces,
+    upload,
+    visit_analytics,
+)
 from app.services.invite_requests import start_invite_request_worker, stop_invite_request_worker
+from app.services.visit_analytics import (
+    start_visit_analytics_worker,
+    stop_visit_analytics_worker,
+)
 
 
 @asynccontextmanager
@@ -16,9 +32,11 @@ async def lifespan(_: FastAPI):
     async with blog_mcp.session_manager.run():
         async with library_mcp.session_manager.run():
             start_invite_request_worker()
+            start_visit_analytics_worker()
             try:
                 yield
             finally:
+                stop_visit_analytics_worker()
                 stop_invite_request_worker()
 
 app = FastAPI(title="Lumino API", version="1.1.0", lifespan=lifespan)
@@ -42,6 +60,8 @@ app.include_router(notes.router)
 app.include_router(blog.router)
 app.include_router(upload.router)
 app.include_router(discipline.router)
+app.include_router(visit_analytics.tracker_router)
+app.include_router(visit_analytics.admin_router)
 app.mount("/api/mcp/blog", blog_mcp_asgi)
 app.mount("/api/mcp/library", library_mcp_asgi)
 

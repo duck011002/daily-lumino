@@ -43,6 +43,10 @@ changed_files="$(git diff --name-only "$old_head" "$new_head")"
 backend_changed=0
 frontend_changed=0
 
+if grep -q '^ops/logrotate/lumino-pm2$' <<<"$changed_files" || [[ ! -f /etc/logrotate.d/lumino-pm2 ]]; then
+  install -m 0644 "$repo_dir/ops/logrotate/lumino-pm2" /etc/logrotate.d/lumino-pm2
+fi
+
 if grep -q '^backend/' <<<"$changed_files"; then
   backend_changed=1
 fi

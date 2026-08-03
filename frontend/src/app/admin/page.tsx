@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   ShieldAlert, Settings, Users, Key, Database, BookOpen, Plus, Loader2,
   Trash2, Edit, Save, Globe, Eye, CheckCircle, AlertCircle,
-  Copy, Check, UserMinus, UserCheck, ShieldCheck, ToggleLeft, ToggleRight, Share2, Bot
+  Copy, Check, UserMinus, UserCheck, ShieldCheck, ToggleLeft, ToggleRight, Share2, Bot, BarChart3
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/hooks/useAuth'
@@ -934,6 +934,14 @@ export default function AdminConsole() {
             >
               <Users size={18} />
               <span>用户账号管理</span>
+            </button>
+
+            <button
+              onClick={() => router.push('/admin/analytics')}
+              className="flex-shrink-0 lg:w-full flex items-center space-x-2 lg:space-x-3 px-4 py-2.5 lg:py-3 rounded-xl text-sm lg:text-base whitespace-nowrap text-onSurface/70 transition-colors hover:bg-secondary/50 dark:text-foreground/70 dark:hover:bg-darkBorder/50"
+            >
+              <BarChart3 size={18} />
+              <span>访问洞察</span>
             </button>
 
             <button
