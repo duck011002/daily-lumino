@@ -983,7 +983,7 @@ export default function AdminConsole() {
           </div>
 
           {/* Admin Panels Workspace */}
-          <div className="flex-1 min-h-[500px]">
+          <div className="min-w-0 flex-1 min-h-[500px]">
             {/* ======================================= */}
             {/* ============ TAB 1: BLOGS ============= */}
             {/* ======================================= */}
@@ -1292,6 +1292,10 @@ export default function AdminConsole() {
               <div className="space-y-6 animate-fade-in">
                 <div className="pb-3 border-b border-secondary dark:border-darkBorder flex items-center justify-between">
                   <h2 className="text-xl font-bold text-onSurface dark:text-foreground">用户账号管理</h2>
+                  <div className="text-right text-xs text-onSurface/50 dark:text-foreground/50">
+                    <p>共 {users.length} 个账号</p>
+                    <p className="mt-1">横向滚动可查看全部权限列</p>
+                  </div>
                 </div>
 
                 {loadingUsers ? (
@@ -1299,9 +1303,9 @@ export default function AdminConsole() {
                     <Loader2 className="animate-spin text-primary h-8 w-8" />
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard shadow-sm">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-secondary/40 dark:bg-darkBg text-onSurface/70 dark:text-foreground/70 border-b border-secondary dark:border-darkBorder">
+                  <div className="max-h-[70vh] max-w-full overflow-auto rounded-2xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard shadow-sm [scrollbar-gutter:stable]">
+                    <table className="min-w-[1560px] w-full text-left text-sm">
+                      <thead className="sticky top-0 z-10 whitespace-nowrap bg-secondary dark:bg-darkBg text-onSurface/70 dark:text-foreground/70 border-b border-secondary dark:border-darkBorder">
                         <tr>
                           <th className="px-5 py-3 font-semibold">基本信息</th>
                           <th className="px-5 py-3 font-semibold">电子邮箱</th>

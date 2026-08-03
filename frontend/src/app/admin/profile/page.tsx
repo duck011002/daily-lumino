@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   BookOpen,
   ExternalLink,
@@ -25,6 +24,7 @@ import {
 import api, { getErrorMessage } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import SiteNav from '@/components/layout/SiteNav'
+import BackLink from '@/components/ui/BackLink'
 import {
   defaultSiteProfile,
   MediaCategory,
@@ -249,13 +249,9 @@ export default function ProfileAdminPage() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <Link
-              href="/admin"
-              className="mb-4 inline-flex items-center gap-2 text-sm text-stone-500 transition hover:text-emerald-700 dark:hover:text-emerald-400"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              返回管理后台
-            </Link>
+            <div className="mb-4">
+              <BackLink href="/admin" label="返回管理后台" />
+            </div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-400">
               Personal study
             </p>

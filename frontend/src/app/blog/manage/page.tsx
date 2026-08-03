@@ -202,7 +202,10 @@ export default function BlogManagementPage() {
     <div className="min-h-screen bg-[#f6f4ee] text-[#17211d] dark:bg-darkBg dark:text-foreground">
       <header className="sticky top-0 z-30 border-b border-[#17211d]/10 bg-[#f6f4ee]/90 backdrop-blur dark:border-darkBorder dark:bg-darkBg/90">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:px-8">
-          <BackLink href="/blog" label="返回技术博客" />
+          <BackLink
+            href={isRoot ? '/admin' : '/blog'}
+            label={isRoot ? '返回管理后台' : '返回技术博客'}
+          />
           <ThemeToggle />
         </div>
       </header>

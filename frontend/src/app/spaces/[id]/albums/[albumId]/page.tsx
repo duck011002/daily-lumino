@@ -1,10 +1,8 @@
 'use client'
 
 import React, { useEffect, useState, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { Loader2, Upload, Settings } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
@@ -22,18 +20,28 @@ interface Album {
   photo_count: number
 }
 
+interface UploadProgress {
+  total: number
+  completed: number
+  succeeded: number
+  failed: number
+}
+
+const MAX_BATCH_FILES = 20
+const UPLOAD_CONCURRENCY = 3
+
 export default function AlbumDetailPage() {
   const params = useParams()
-  const router = useRouter()
   const spaceId = params.id as string
   const albumId = params.albumId as string
-  const { user } = useAuth()
 
   const [album, setAlbum] = useState<Album | null>(null)
   const [photos, setPhotos] = useState<Photo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
+  const [uploadMessage, setUploadMessage] = useState('')
 
   // Viewer state
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
@@ -65,25 +73,72 @@ export default function AlbumDetailPage() {
   }, [spaceId, albumId])
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const selectedFiles = Array.from(e.target.files || [])
+    if (selectedFiles.length === 0) return
+
+    const files = selectedFiles.slice(0, MAX_BATCH_FILES)
+    const limitNotice = selectedFiles.length > MAX_BATCH_FILES
+      ? `单次最多上传 ${MAX_BATCH_FILES} 张，已选择前 ${MAX_BATCH_FILES} 张。`
+      : ''
+    const uploadedByIndex: Array<Photo | undefined> = new Array(files.length)
+    const failedNames: string[] = []
+    let nextIndex = 0
 
     setUploading(true)
-    const formData = new FormData()
-    formData.append('file', file)
+    setUploadMessage(limitNotice)
+    setUploadProgress({ total: files.length, completed: 0, succeeded: 0, failed: 0 })
+
+    const markCompleted = (succeeded: boolean) => {
+      setUploadProgress((current) => current ? {
+        ...current,
+        completed: current.completed + 1,
+        succeeded: current.succeeded + (succeeded ? 1 : 0),
+        failed: current.failed + (succeeded ? 0 : 1),
+      } : current)
+    }
+
+    const worker = async () => {
+      while (nextIndex < files.length) {
+        const index = nextIndex
+        nextIndex += 1
+        const file = files[index]
+        const formData = new FormData()
+        formData.append('file', file)
+
+        try {
+          const response = await api.post(`/spaces/${spaceId}/albums/${albumId}/photos`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+          uploadedByIndex[index] = response.data
+          markCompleted(true)
+        } catch {
+          failedNames.push(file.name)
+          markCompleted(false)
+        }
+      }
+    }
 
     try {
-      const res = await api.post(`/spaces/${spaceId}/albums/${albumId}/photos`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      setPhotos([res.data, ...photos])
-      
-      // Update cover locally if this is the first photo
-      if (photos.length === 0 && album) {
-        setAlbum({ ...album, cover_url: res.data.url })
+      await Promise.all(
+        Array.from({ length: Math.min(UPLOAD_CONCURRENCY, files.length) }, () => worker())
+      )
+
+      const uploaded = uploadedByIndex.filter((photo): photo is Photo => Boolean(photo))
+      if (uploaded.length > 0) {
+        setPhotos((current) => [...uploaded, ...current])
+        setAlbum((current) => current && !current.cover_url
+          ? { ...current, cover_url: uploaded[0].url }
+          : current
+        )
       }
-    } catch (err: any) {
-      alert(err.response?.data?.detail || '上传失败')
+
+      if (failedNames.length > 0) {
+        const preview = failedNames.slice(0, 3).join('、')
+        const remaining = failedNames.length > 3 ? `等 ${failedNames.length} 个文件` : ''
+        setUploadMessage(`${limitNotice}${limitNotice ? ' ' : ''}成功 ${uploaded.length} 张，失败 ${failedNames.length} 张：${preview}${remaining}`)
+      } else {
+        setUploadMessage(`${limitNotice}${limitNotice ? ' ' : ''}已成功上传 ${uploaded.length} 张照片。`)
+      }
     } finally {
       setUploading(false)
       if (fileInputRef.current) {
@@ -165,6 +220,7 @@ export default function AlbumDetailPage() {
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
               ref={fileInputRef}
               className="hidden"
               onChange={handleUpload}
@@ -175,7 +231,7 @@ export default function AlbumDetailPage() {
               className="shadow-sm"
               isLoading={uploading}
             >
-              <Upload size={16} className="mr-1" /> 上传照片
+              <Upload size={16} className="mr-1" /> 批量上传
             </Button>
             <ThemeToggle />
           </div>
@@ -183,6 +239,29 @@ export default function AlbumDetailPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
+        {(uploadProgress || uploadMessage) && (
+          <div className="mb-6 rounded-xl border border-secondary bg-white p-4 text-sm shadow-sm dark:border-darkBorder dark:bg-darkCard">
+            {uploadProgress && (
+              <>
+                <div className="mb-2 flex items-center justify-between text-onSurface/70 dark:text-foreground/70">
+                  <span>{uploading ? '正在并发上传' : '本次上传完成'} {uploadProgress.completed}/{uploadProgress.total}</span>
+                  <span>成功 {uploadProgress.succeeded} · 失败 {uploadProgress.failed}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-secondary/60 dark:bg-darkBorder">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${(uploadProgress.completed / uploadProgress.total) * 100}%` }}
+                  />
+                </div>
+              </>
+            )}
+            {uploadMessage && (
+              <p className={`${uploadProgress ? 'mt-3' : ''} text-onSurface/70 dark:text-foreground/70`}>
+                {uploadMessage}
+              </p>
+            )}
+          </div>
+        )}
         <PhotoGrid 
           photos={photos} 
           onPhotoClick={(index) => setViewerIndex(index)}
