@@ -30,16 +30,37 @@ def default_site_profile() -> SiteProfile:
     )
 
 
-def load_site_profile(db: Session) -> SiteProfile:
-    config = db.scalar(
-        select(SystemConfig).where(SystemConfig.config_key == PROFILE_CONFIG_KEY)
-    )
+def load_site_profile(db: Session, *, for_update: bool = False) -> SiteProfile:
+    query = select(SystemConfig).where(SystemConfig.config_key == PROFILE_CONFIG_KEY)
+    if for_update:
+        query = query.with_for_update()
+    config = db.scalar(query)
     if not config or not config.config_val:
         return default_site_profile()
     try:
         return SiteProfile.model_validate_json(config.config_val)
     except (ValueError, TypeError):
         return default_site_profile()
+
+
+def save_site_profile(db: Session, profile: SiteProfile, updated_by: int) -> SiteProfile:
+    config = db.scalar(
+        select(SystemConfig)
+        .where(SystemConfig.config_key == PROFILE_CONFIG_KEY)
+        .with_for_update()
+    )
+    if not config:
+        config = SystemConfig(
+            config_key=PROFILE_CONFIG_KEY,
+            description="公开个人资料与书房收藏卡片",
+        )
+        db.add(config)
+    config.config_val = json.dumps(
+        profile.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")
+    )
+    config.updated_by = updated_by
+    db.commit()
+    return profile
 
 
 def public_site_profile(profile: SiteProfile) -> SiteProfile:
@@ -75,21 +96,4 @@ def update_admin_site_profile(
     current_user: User = Depends(require_root),
     db: Session = Depends(get_db),
 ):
-    config = db.scalar(
-        select(SystemConfig).where(SystemConfig.config_key == PROFILE_CONFIG_KEY)
-    )
-    if not config:
-        config = SystemConfig(
-            config_key=PROFILE_CONFIG_KEY,
-            description="公开个人资料与书房收藏卡片",
-        )
-        db.add(config)
-    config.config_val = json.dumps(
-        profile_in.model_dump(mode="json"),
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
-    config.updated_by = current_user.id
-    db.commit()
-    db.refresh(config)
-    return profile_in
+    return save_site_profile(db, profile_in, current_user.id)

@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     INVITE_REQUEST_WORKER_ENABLED: bool = True
 
     MCP_BLOG_MAX_IMAGE_BYTES: int = 8 * 1024 * 1024
+    MCP_LIBRARY_MAX_IMAGE_BYTES: int = 8 * 1024 * 1024
 
     LSKY_API_URL: str = ""
     LSKY_API_TOKEN: str = ""

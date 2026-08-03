@@ -84,6 +84,26 @@ class MCPBlogTokenCreateResponse(MCPBlogTokenResponse):
     token: str
 
 
+class MCPLibraryTokenCreate(BaseModel):
+    label: str = Field(..., min_length=1, max_length=100)
+
+
+class MCPLibraryTokenUpdate(BaseModel):
+    is_active: bool
+
+
+class MCPLibraryTokenResponse(BaseModel):
+    id: int
+    label: str
+    is_active: bool
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+class MCPLibraryTokenCreateResponse(MCPLibraryTokenResponse):
+    token: str
+
+
 class AITestConnectionRequest(BaseModel):
     id: str | None = None
     base_url: str | None = None

@@ -12,6 +12,7 @@ from app.database import get_db
 from app.dependencies import require_root
 from app.models.invite_code import InviteCode
 from app.models.mcp_blog_token import MCPBlogToken
+from app.models.mcp_library_token import MCPLibraryToken
 from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.models.user import User
@@ -30,6 +31,10 @@ from app.schemas.admin import (
     MCPBlogTokenCreateResponse,
     MCPBlogTokenResponse,
     MCPBlogTokenUpdate,
+    MCPLibraryTokenCreate,
+    MCPLibraryTokenCreateResponse,
+    MCPLibraryTokenResponse,
+    MCPLibraryTokenUpdate,
 )
 from app.schemas.user import UserResponse
 from app.utils.crypto import decrypt_value, encrypt_value
@@ -53,6 +58,13 @@ def mask_secret(value: str) -> str:
 
 def hash_mcp_blog_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def serialize_mcp_library_token(token: MCPLibraryToken) -> dict:
+    return {
+        "id": token.id, "label": token.label, "is_active": token.is_active,
+        "created_at": token.created_at, "last_used_at": token.last_used_at,
+    }
 
 
 def serialize_mcp_blog_token(token: MCPBlogToken) -> dict:
@@ -345,6 +357,44 @@ def update_mcp_blog_token(
     db.commit()
     db.refresh(token)
     return serialize_mcp_blog_token(token)
+
+
+@router.get("/mcp-library/tokens", response_model=list[MCPLibraryTokenResponse])
+def list_mcp_library_tokens(db: Session = Depends(get_db)):
+    tokens = db.scalars(select(MCPLibraryToken).order_by(MCPLibraryToken.id.desc())).all()
+    return [serialize_mcp_library_token(token) for token in tokens]
+
+
+@router.post("/mcp-library/tokens", response_model=MCPLibraryTokenCreateResponse, status_code=status.HTTP_201_CREATED)
+def create_mcp_library_token(
+    token_in: MCPLibraryTokenCreate,
+    current_user: User = Depends(require_root),
+    db: Session = Depends(get_db),
+):
+    raw_token = f"lml_mcp_{secrets.token_urlsafe(32)}"
+    token = MCPLibraryToken(
+        label=token_in.label.strip(), token_hash=hash_mcp_blog_token(raw_token),
+        created_by=current_user.id,
+    )
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+    return {**serialize_mcp_library_token(token), "token": raw_token}
+
+
+@router.patch("/mcp-library/tokens/{token_id}", response_model=MCPLibraryTokenResponse)
+def update_mcp_library_token(
+    token_id: int,
+    token_in: MCPLibraryTokenUpdate,
+    db: Session = Depends(get_db),
+):
+    token = db.get(MCPLibraryToken, token_id)
+    if not token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书房 MCP 凭据不存在。")
+    token.is_active = token_in.is_active
+    db.commit()
+    db.refresh(token)
+    return serialize_mcp_library_token(token)
 
 
 @router.get("/storage-quota", response_model=StorageQuotaResponse)

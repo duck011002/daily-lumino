@@ -10,6 +10,10 @@ from app.schemas.admin import (
     MCPBlogTokenCreateResponse,
     MCPBlogTokenResponse,
     MCPBlogTokenUpdate,
+    MCPLibraryTokenCreate,
+    MCPLibraryTokenCreateResponse,
+    MCPLibraryTokenResponse,
+    MCPLibraryTokenUpdate,
 )
 from app.schemas.album import AlbumCreate, AlbumResponse, AlbumUpdate, PhotoResponse
 from app.schemas.auth import (
@@ -43,6 +47,10 @@ __all__ = [
     "MCPBlogTokenCreateResponse",
     "MCPBlogTokenResponse",
     "MCPBlogTokenUpdate",
+    "MCPLibraryTokenCreate",
+    "MCPLibraryTokenCreateResponse",
+    "MCPLibraryTokenResponse",
+    "MCPLibraryTokenUpdate",
     "SystemConfigResponse",
     "SystemConfigUpdate",
     "StorageQuotaResponse",

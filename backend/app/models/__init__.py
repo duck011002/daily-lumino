@@ -6,6 +6,7 @@ from app.models.invite_code import InviteCode
 from app.models.invite_request import InviteRequest
 from app.models.location_pin import LocationPin
 from app.models.mcp_blog_token import MCPBlogToken
+from app.models.mcp_library_token import MCPLibraryToken
 from app.models.note import Note
 from app.models.space import Space, SpaceInvite, SpaceMember
 from app.models.storage_quota import StorageQuota
@@ -27,6 +28,7 @@ __all__ = [
     "StorageQuota",
     "LocationPin",
     "MCPBlogToken",
+    "MCPLibraryToken",
     "Note",
     "BlogPost",
     "BlogCategory",

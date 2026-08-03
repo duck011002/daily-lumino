@@ -25,6 +25,7 @@ import api, { getErrorMessage } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import SiteNav from '@/components/layout/SiteNav'
 import BackLink from '@/components/ui/BackLink'
+import LibraryMcpPanel from '@/components/admin/LibraryMcpPanel'
 import {
   defaultSiteProfile,
   MediaCategory,
@@ -57,6 +58,8 @@ const createId = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
+const LOCAL_DRAFT_KEY = 'lumino-library-profile-draft-v1'
+
 export default function ProfileAdminPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
@@ -68,6 +71,9 @@ export default function ProfileAdminPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   )
+  const [savedSnapshot, setSavedSnapshot] = useState('')
+  const currentSnapshot = useMemo(() => JSON.stringify({ profile, tagsText }), [profile, tagsText])
+  const isDirty = Boolean(savedSnapshot && savedSnapshot !== currentSnapshot)
 
   useEffect(() => {
     if (authLoading) return
@@ -79,8 +85,19 @@ export default function ProfileAdminPage() {
     const loadProfile = async () => {
       try {
         const response = await api.get<SiteProfile>('/admin/site-profile')
+        const serverTags = response.data.interest_tags.join('、')
         setProfile(response.data)
-        setTagsText(response.data.interest_tags.join('、'))
+        setTagsText(serverTags)
+        setSavedSnapshot(JSON.stringify({ profile: response.data, tagsText: serverTags }))
+        const stored = window.localStorage.getItem(LOCAL_DRAFT_KEY)
+        if (stored && window.confirm('发现上次未保存的书房草稿，是否恢复？')) {
+          try {
+            const draft = JSON.parse(stored) as { profile: SiteProfile; tagsText: string }
+            setProfile(draft.profile)
+            setTagsText(draft.tagsText)
+            setMessage({ type: 'success', text: '已恢复本地草稿，确认后请保存。' })
+          } catch { window.localStorage.removeItem(LOCAL_DRAFT_KEY) }
+        } else if (stored) window.localStorage.removeItem(LOCAL_DRAFT_KEY)
       } catch (error) {
         setMessage({ type: 'error', text: getErrorMessage(error, '读取书房资料失败。') })
       } finally {
@@ -90,6 +107,22 @@ export default function ProfileAdminPage() {
 
     void loadProfile()
   }, [authLoading, router, user])
+
+  useEffect(() => {
+    if (!isDirty) return
+    const timer = window.setTimeout(() => window.localStorage.setItem(LOCAL_DRAFT_KEY, currentSnapshot), 500)
+    return () => window.clearTimeout(timer)
+  }, [currentSnapshot, isDirty])
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [isDirty])
 
   const publicMedia = useMemo(
     () =>
@@ -219,7 +252,10 @@ export default function ProfileAdminPage() {
       }
       const response = await api.put<SiteProfile>('/admin/site-profile', payload)
       setProfile(response.data)
-      setTagsText(response.data.interest_tags.join('、'))
+      const savedTags = response.data.interest_tags.join('、')
+      setTagsText(savedTags)
+      setSavedSnapshot(JSON.stringify({ profile: response.data, tagsText: savedTags }))
+      window.localStorage.removeItem(LOCAL_DRAFT_KEY)
       setMessage({ type: 'success', text: '书房资料已保存，前厅与书房会立即使用新内容。' })
     } catch (error) {
       setMessage({ type: 'error', text: getErrorMessage(error, '保存书房资料失败。') })
@@ -294,9 +330,15 @@ export default function ProfileAdminPage() {
           </div>
         )}
 
+        <nav className="sticky top-32 z-30 mb-7 flex gap-2 overflow-x-auto rounded-2xl border border-stone-200/80 bg-white/90 p-2 shadow-sm backdrop-blur dark:border-stone-800 dark:bg-stone-900/90 sm:top-20">
+          {[['profile-card', '个人名片'], ['contact-links', '联系方式'], ['media-shelf', '收藏架'], ['library-mcp', 'AI 助手']].map(([id, label]) => (
+            <a key={id} href={`#${id}`} className="shrink-0 rounded-xl px-3 py-2 text-xs font-semibold text-stone-600 transition hover:bg-emerald-50 hover:text-emerald-700 dark:text-stone-300 dark:hover:bg-emerald-950">{label}</a>
+          ))}
+        </nav>
+
         <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-7">
-            <section className="rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
+            <section id="profile-card" className="scroll-mt-40 rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
               <div className="mb-6 flex items-center gap-3">
                 <span className="rounded-2xl bg-emerald-100 p-2.5 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                   <UserRound className="h-5 w-5" />
@@ -369,7 +411,7 @@ export default function ProfileAdminPage() {
               </div>
             </section>
 
-            <section className="rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
+            <section id="contact-links" className="scroll-mt-40 rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
               <div className="mb-6 flex items-center gap-3">
                 <span className="rounded-2xl bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
                   <Link2 className="h-5 w-5" />
@@ -485,7 +527,7 @@ export default function ProfileAdminPage() {
               </div>
             </section>
 
-            <section className="rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
+            <section id="media-shelf" className="scroll-mt-40 rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
               <div className="mb-6 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <span className="rounded-2xl bg-violet-100 p-2.5 text-violet-700 dark:bg-violet-950 dark:text-violet-300">
@@ -654,6 +696,7 @@ export default function ProfileAdminPage() {
                 ))}
               </div>
             </section>
+            <LibraryMcpPanel />
           </div>
 
           <aside className="xl:sticky xl:top-24 xl:self-start">
@@ -761,16 +804,20 @@ export default function ProfileAdminPage() {
                 : 'text-stone-500 dark:text-stone-400'
           }`}
         >
-          {message?.text || (uploading !== null ? '图片上传完成后即可保存' : '修改完成后记得保存')}
+          {uploading !== null
+            ? '图片上传完成后即可保存'
+            : isDirty
+              ? '有未保存修改，已自动暂存在本机'
+              : message?.text || '所有修改均已保存'}
         </p>
         <button
           type="button"
           onClick={saveProfile}
-          disabled={saving || uploading !== null}
+          disabled={saving || uploading !== null || !isDirty}
           className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {saving ? '保存中…' : '保存资料'}
+          {saving ? '保存中…' : isDirty ? '保存资料' : '已保存'}
         </button>
       </div>
     </div>
