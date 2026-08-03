@@ -187,7 +187,7 @@ export default function LibraryPage() {
         </section>
 
         <section className="mt-7 grid gap-5 lg:grid-cols-[1.28fr_0.72fr]">
-          <div className="rounded-[2rem] border border-[#244a38]/18 bg-[#f8f5ed] p-7 shadow-[0_22px_60px_-54px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard md:p-9">
+          <div className="rounded-[2rem] border border-[#244a38]/30 bg-[#f8f5ed] p-7 shadow-[0_22px_60px_-46px_rgba(23,33,29,0.72)] dark:border-darkBorder dark:bg-darkCard md:p-9">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b56b19]">
               About me
             </p>
@@ -196,7 +196,7 @@ export default function LibraryPage() {
               {profile.bio}
             </p>
             {profile.interest_tags.length > 0 && (
-              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#244a38]/10 pt-4">
+              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#244a38]/20 pt-4">
                 {profile.interest_tags.map((tag) => (
                   <span
                     key={tag}
@@ -212,7 +212,7 @@ export default function LibraryPage() {
 
           <div className="grid gap-5">
             {profile.status_text && profile.status_public && (
-              <div className="rounded-[2rem] border border-[#244a38]/18 bg-[#e6ebe3] p-7 shadow-[0_18px_50px_-48px_rgba(23,33,29,0.65)] dark:border-[#f7b84b]/15 dark:bg-[#20392f]">
+              <div className="rounded-[2rem] border border-[#244a38]/30 bg-[#e6ebe3] p-7 shadow-[0_18px_50px_-42px_rgba(23,33,29,0.72)] dark:border-[#f7b84b]/25 dark:bg-[#20392f]">
                 <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#1d6347] dark:text-[#f7b84b]">
                   <Sparkles size={14} />
                   此刻
@@ -223,12 +223,12 @@ export default function LibraryPage() {
               </div>
             )}
 
-            <div className="rounded-[2rem] border border-[#7b6747]/18 bg-[#eee8dc]/72 p-7 dark:border-darkBorder dark:bg-darkCard/65">
+            <div className="rounded-[2rem] border border-[#7b6747]/30 bg-[#eee8dc]/72 p-7 shadow-[0_18px_48px_-44px_rgba(74,58,38,0.7)] dark:border-darkBorder dark:bg-darkCard/65">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b56b19]">
                 Say hello
               </p>
               {publicLinks.length > 0 ? (
-                <div className="mt-4 divide-y divide-[#244a38]/10 border-y border-[#244a38]/10">
+                <div className="mt-4 divide-y divide-[#244a38]/20 border-y border-[#244a38]/20">
                   {publicLinks.map((item) => (
                     <a
                       key={item.id}
@@ -237,7 +237,7 @@ export default function LibraryPage() {
                       rel={item.url.startsWith('http') ? 'noreferrer' : undefined}
                       className="group flex max-w-full items-center gap-2 py-3 text-xs font-semibold transition hover:text-[#1d6347]"
                     >
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#b56b19]/18 bg-[#f8f4ea]/70 text-[#a6651d]">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#b56b19]/25 bg-[#f8f4ea]/70 text-[#a6651d]">
                         <item.icon size={14} />
                       </span>
                       <span className="truncate">{item.label}</span>
@@ -337,7 +337,7 @@ function RecommendationCard({ item }: { item: SiteMediaCard }) {
   const byline = [creator, item.year].filter(Boolean).join(' · ')
 
   return (
-    <article className="group overflow-hidden rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] transition hover:-translate-y-1 hover:border-[#1d6347]/28 hover:shadow-[0_24px_65px_-42px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard">
+    <article className="group overflow-hidden rounded-[2rem] border border-[#244a38]/25 bg-[#fffdf8] shadow-[0_14px_42px_-40px_rgba(23,33,29,0.7)] transition hover:-translate-y-1 hover:border-[#1d6347]/40 hover:shadow-[0_24px_65px_-42px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard">
       <div className="relative aspect-[2/3] overflow-hidden bg-gradient-to-br from-[#dce9df] via-[#eee8d9] to-[#f7dfb8] dark:from-[#163a2b] dark:via-[#243c32] dark:to-[#4a3820]">
         {item.image_url ? (
           <img

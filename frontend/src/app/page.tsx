@@ -116,8 +116,8 @@ export default function Home() {
       <SiteNav />
 
       <main className="mx-auto max-w-7xl px-5 pb-20 pt-7 md:px-8 md:pt-8">
-        <section className="grid gap-4 lg:grid-cols-[1.42fr_0.58fr]">
-          <div className="relative overflow-hidden rounded-[2.2rem] bg-[#163a2b] p-7 text-white shadow-[0_35px_100px_-55px_rgba(22,58,43,0.95)] md:p-8 lg:min-h-[26rem]">
+        <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.5fr_0.75fr_0.75fr]">
+          <div className="relative overflow-hidden rounded-[2.2rem] bg-[#163a2b] p-6 text-white shadow-[0_35px_100px_-55px_rgba(22,58,43,0.95)] lg:col-span-2 xl:col-span-1">
             {profile.cover_url ? (
               <img
                 src={profile.cover_url}
@@ -132,7 +132,7 @@ export default function Home() {
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-[#0b2118]/95 via-[#163a2b]/55 to-[#163a2b]/20" />
 
-            <div className="relative flex h-full flex-col lg:min-h-[20rem]">
+            <div className="relative flex h-full flex-col">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#f7b84b]">
                   Welcome to my digital garden
@@ -142,9 +142,9 @@ export default function Home() {
                 </span>
               </div>
 
-              <div className="mt-8 md:mt-7">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
-                  <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-[1.4rem] border border-white/20 bg-white/10 font-display text-3xl font-bold text-[#f7b84b] shadow-2xl">
+              <div className="mt-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[1.2rem] border border-white/20 bg-white/10 font-display text-2xl font-bold text-[#f7b84b] shadow-2xl">
                     {profile.avatar_url ? (
                       <img
                         src={profile.avatar_url}
@@ -157,37 +157,37 @@ export default function Home() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-white/55">你好，我是</p>
-                    <h1 className="mt-1 font-display text-4xl font-bold leading-none md:text-5xl">
+                    <h1 className="mt-1 font-display text-4xl font-bold leading-none xl:text-[2.7rem]">
                       {profile.display_name}
                     </h1>
                   </div>
                 </div>
 
-                <h2 className="mt-5 max-w-3xl font-display text-2xl font-semibold leading-tight text-white/95 md:text-[1.7rem]">
+                <h2 className="mt-4 max-w-3xl font-display text-2xl font-semibold leading-tight text-white/95">
                   {profile.headline}
                 </h2>
-                <div className="relative mt-4 max-w-4xl border-l border-[#f7b84b]/55 pl-5">
+                <div className="relative mt-3 max-w-4xl border-l border-[#f7b84b]/55 pl-4">
                   <span
                     aria-hidden="true"
                     className="pointer-events-none absolute -left-1.5 -top-7 font-display text-6xl leading-none text-[#f7b84b]/22"
                   >
                     “
                   </span>
-                  <p className="relative line-clamp-2 whitespace-pre-line font-serif text-base leading-7 tracking-[0.01em] text-white/78 md:leading-8">
+                  <p className="relative whitespace-pre-line font-serif text-sm leading-6 tracking-[0.01em] text-white/78 md:text-base md:leading-7">
                     {profile.bio}
                   </p>
                 </div>
 
-                <div className="mt-5 border-t border-white/15 pt-4">
+                <div className="mt-4 border-t border-white/15 pt-3">
                   <p className="text-[11px] font-semibold text-white/48">
                     从前厅继续认识这座庭院
                   </p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
                     {destinations.map((item) => (
                       <Link
                         key={item.label}
                         href={item.href}
-                        className="group flex min-w-0 items-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.035] px-3 py-2.5 text-sm transition hover:border-[#f7b84b]/35 hover:bg-white/[0.07]"
+                        className="group flex min-w-0 items-center gap-2 rounded-2xl border border-white/[0.11] bg-white/[0.035] px-3 py-2 text-sm transition hover:border-[#f7b84b]/35 hover:bg-white/[0.07]"
                       >
                         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#f7b84b]/10">
                           <item.icon size={14} className="text-[#f7b84b]" />
@@ -208,8 +208,8 @@ export default function Home() {
             </div>
           </div>
 
-          <aside className="grid gap-4 lg:grid-rows-[1.12fr_0.88fr]">
-            <div className="relative overflow-hidden rounded-[2rem] border border-[#244a38]/20 bg-[#f9f6ee]/90 p-6 shadow-[0_28px_70px_-52px_rgba(23,33,29,0.75)] dark:border-darkBorder dark:bg-darkCard">
+          <aside className="contents">
+            <div className="relative overflow-hidden rounded-[2rem] border border-[#244a38]/30 bg-[#f9f6ee]/90 p-6 shadow-[0_28px_70px_-52px_rgba(23,33,29,0.75)] dark:border-darkBorder dark:bg-darkCard">
               <div className="absolute -right-14 -top-16 h-40 w-40 rounded-full border-[24px] border-[#1d6347]/[0.055]" />
               <div className="relative flex items-center justify-between">
                 <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#9b611f]">
@@ -242,7 +242,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className="rounded-[2rem] border border-[#7b6747]/20 bg-[#ece6d8]/60 p-6 shadow-[0_22px_60px_-52px_rgba(23,33,29,0.7)] dark:border-darkBorder dark:bg-darkCard/70">
+            <div className="rounded-[2rem] border border-[#7b6747]/30 bg-[#ece6d8]/60 p-6 shadow-[0_22px_60px_-48px_rgba(23,33,29,0.72)] dark:border-darkBorder dark:bg-darkCard/70">
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#9b611f]">
                 02 / Find me
               </p>
