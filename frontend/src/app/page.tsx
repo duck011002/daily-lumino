@@ -272,22 +272,6 @@ export default function Home() {
           </div>
         </section>
 
-        {favoritePreview.length > 0 && (
-          <section className="mt-14">
-            <SectionHeading
-              eyebrow="From my shelves"
-              title="最近想与你分享"
-              description="精选收藏会沿着这一层书架展开，左右滑动可以继续浏览。"
-              action={{ label: '进入书房', href: '/library' }}
-            />
-            <div className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-4">
-              {favoritePreview.map((item) => (
-                <FavoritePreviewCard key={item.id} item={item} />
-              ))}
-            </div>
-          </section>
-        )}
-
         <section className="mt-14">
           <SectionHeading
             eyebrow="Selected writing"
@@ -378,6 +362,22 @@ export default function Home() {
             </div>
           )}
         </section>
+
+        {favoritePreview.length > 0 && (
+          <section className="mt-14">
+            <SectionHeading
+              eyebrow="From my shelves"
+              title="最近想与你分享"
+              description="精选收藏会沿着这一层书架展开，左右滑动可以继续浏览。"
+              action={{ label: '进入书房', href: '/library' }}
+            />
+            <div className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-4">
+              {favoritePreview.map((item) => (
+                <FavoritePreviewCard key={item.id} item={item} />
+              ))}
+            </div>
+          </section>
+        )}
       </main>
 
       <footer className="border-t border-[#17211d]/10 py-8 text-center text-xs text-[#17211d]/42 dark:border-darkBorder dark:text-foreground/42">
