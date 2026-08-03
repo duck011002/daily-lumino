@@ -167,12 +167,6 @@ export default function Home() {
                   {profile.headline}
                 </h2>
                 <div className="relative mt-3 max-w-4xl border-l border-[#f7b84b]/55 pl-4">
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute -left-1.5 -top-7 font-display text-6xl leading-none text-[#f7b84b]/22"
-                  >
-                    “
-                  </span>
                   <p className="relative whitespace-pre-line font-serif text-sm leading-6 tracking-[0.01em] text-white/78 md:text-base md:leading-7">
                     {profile.bio}
                   </p>
