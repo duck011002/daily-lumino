@@ -6,54 +6,57 @@ interface LogoProps {
   textSize?: string
   className?: string
   textClassName?: string
+  showTagline?: boolean
 }
 
 export default function Logo({
-  size = 28,
+  size = 36,
   showText = true,
-  textSize = 'text-2xl',
+  textSize = 'text-xl',
   className = '',
   textClassName = '',
+  showTagline = false,
 }: LogoProps) {
   return (
-    <div className={`inline-flex items-center gap-2.5 ${className}`}>
-      {/* SVG Icon */}
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <svg
-        viewBox="0 0 24 24"
-        fill="none"
+        viewBox="0 0 48 48"
+        role="img"
+        aria-label="Lumino"
         xmlns="http://www.w3.org/2000/svg"
         style={{ width: size, height: size }}
-        className="flex-shrink-0"
+        className="shrink-0 drop-shadow-[0_7px_18px_rgba(18,60,45,0.18)]"
       >
-        <defs>
-          <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgb(232, 129, 74)" />
-            <stop offset="100%" stopColor="#FFB38A" />
-          </linearGradient>
-        </defs>
-        {/* Sanctuary Shield / Beacon teardrop curve */}
+        <rect width="48" height="48" rx="14" fill="#123C2D" />
         <path
-          d="M12 22C16.9706 22 21 17.9706 21 13C21 7.5 12 2 12 2C12 2 3 7.5 3 13C3 17.9706 7.02944 22 12 22Z"
-          stroke="url(#logo-grad)"
-          strokeWidth="2.2"
+          d="M15 12.5v18.25C15 35.31 18.69 39 23.25 39H35"
+          fill="none"
+          stroke="#F4B64A"
+          strokeWidth="4"
+          strokeLinecap="round"
           strokeLinejoin="round"
-          className="drop-shadow-[0_2px_8px_rgba(232,129,74,0.2)]"
         />
-        {/* Inner glowing beacon star */}
         <path
-          d="M12 7.5L13.4 10.6L16.5 12L13.4 13.4L12 16.5L10.6 13.4L7.5 12L10.6 10.6L12 7.5Z"
-          fill="url(#logo-grad)"
+          d="M33 9.5c.85 4.55 3.45 7.15 8 8-4.55.85-7.15 3.45-8 8-.85-4.55-3.45-7.15-8-8 4.55-.85 7.15-3.45 8-8Z"
+          fill="#FFF7E6"
         />
+        <circle cx="33" cy="17.5" r="2.25" fill="#F4B64A" />
       </svg>
 
-      {/* Styled Text */}
       {showText && (
-        <span
-          className={`font-display font-bold tracking-wide bg-gradient-to-r from-primary to-[#FF9E66] bg-clip-text text-transparent ${textSize} ${textClassName}`}
-        >
-          Lumino
+        <span className="min-w-0">
+          <strong
+            className={`block font-display font-bold leading-none tracking-[0.015em] text-[#17211d] dark:text-[#f8f6f0] ${textSize} ${textClassName}`}
+          >
+            Lumino
+          </strong>
+          {showTagline && (
+            <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.22em] text-[#17211d]/42 dark:text-foreground/42">
+              Digital Garden
+            </span>
+          )}
         </span>
       )}
-    </div>
+    </span>
   )
 }

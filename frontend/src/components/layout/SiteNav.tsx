@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { DoorOpen, Home, Library, LogOut, Newspaper, UserRound } from 'lucide-react'
+import Logo from '@/components/layout/Logo'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -36,16 +37,8 @@ export default function SiteNav() {
   return (
     <header className="sticky top-0 z-40 border-b border-[#17211d]/10 bg-[#f8f6f0]/90 text-[#17211d] backdrop-blur-xl dark:border-darkBorder dark:bg-darkBg/90 dark:text-foreground">
       <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-x-4 px-5 py-3 md:px-8">
-        <Link href="/" className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#163a2b] font-display text-lg font-bold text-[#f7b84b]">
-            L
-          </span>
-          <span>
-            <strong className="block font-display text-lg leading-none">Lumino</strong>
-            <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-[#17211d]/42 dark:text-foreground/42">
-              Digital Garden
-            </span>
-          </span>
+        <Link href="/" className="rounded-xl focus:outline-none focus:ring-2 focus:ring-[#b56b19]/35">
+          <Logo size={38} textSize="text-lg" showTagline />
         </Link>
 
         <nav className="order-3 mt-2 flex w-full items-center gap-1 rounded-2xl bg-white/55 p-1 dark:bg-darkCard/55 sm:order-none sm:mt-0 sm:w-auto">

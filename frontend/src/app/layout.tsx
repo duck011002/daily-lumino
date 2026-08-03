@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   title: 'Lumino',
   description: '一座收藏技术、阅读与生活的个人数字庭院',
   manifest: '/manifest.json',
+  icons: {
+    icon: [{ url: '/brand/lumino-mark.svg', type: 'image/svg+xml' }],
+    apple: '/icons/icon-192.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -23,7 +27,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport = {
-  themeColor: '#E8814A',
+  themeColor: '#123C2D',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,

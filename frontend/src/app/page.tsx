@@ -166,22 +166,17 @@ export default function Home() {
                 <h2 className="mt-7 max-w-3xl font-display text-2xl font-semibold leading-tight text-white/95 md:text-3xl">
                   {profile.headline}
                 </h2>
-                <p className="mt-4 line-clamp-3 max-w-3xl whitespace-pre-line text-sm leading-7 text-white/68 md:text-base">
-                  {profile.bio}
-                </p>
-
-                {profile.interest_tags.length > 0 && (
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    {profile.interest_tags.slice(0, 6).map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full border border-white/16 bg-white/8 px-3 py-1.5 text-xs font-semibold text-white/78"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="relative mt-6 max-w-4xl border-l border-[#f7b84b]/55 pl-5 md:pl-6">
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -left-1.5 -top-7 font-display text-6xl leading-none text-[#f7b84b]/22"
+                  >
+                    “
+                  </span>
+                  <p className="relative line-clamp-3 whitespace-pre-line font-serif text-base leading-8 tracking-[0.01em] text-white/78 md:text-lg md:leading-9">
+                    {profile.bio}
+                  </p>
+                </div>
 
                 <div className="mt-7 border-t border-white/12 pt-5">
                   <p className="text-[11px] font-semibold text-white/48">
@@ -400,12 +395,14 @@ function SectionHeading({
 }) {
   return (
     <div className="flex flex-col gap-4 border-b border-[#17211d]/10 pb-5 dark:border-darkBorder sm:flex-row sm:items-end sm:justify-between">
-      <div>
+      <div className="min-w-0">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b56b19]">{eyebrow}</p>
-        <h2 className="mt-2 font-display text-2xl font-bold md:text-3xl">{title}</h2>
-        <p className="mt-2 text-sm text-[#17211d]/48 dark:text-foreground/48">
-          {description}
-        </p>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:gap-5">
+          <h2 className="shrink-0 font-display text-2xl font-bold md:text-3xl">{title}</h2>
+          <p className="max-w-xl text-sm leading-6 text-[#17211d]/48 dark:text-foreground/48">
+            {description}
+          </p>
+        </div>
       </div>
       {action && (
         <Link

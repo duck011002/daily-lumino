@@ -33,6 +33,29 @@ export default function Dashboard() {
 
   if (!user) return null
 
+  const accountCardContent = (
+    <>
+      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 text-[#f7b84b]">
+        {user.avatar_url ? (
+          <img
+            src={user.avatar_url}
+            alt={user.display_name || user.username}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <UserRound size={25} />
+        )}
+      </div>
+      <div className="min-w-0 pr-7">
+        <p className="text-xs text-white/45">当前账号</p>
+        <p className="mt-1 truncate text-sm font-bold">
+          {user.display_name || user.username}
+        </p>
+        <p className="mt-1 truncate text-xs text-white/48">{user.email}</p>
+      </div>
+    </>
+  )
+
   const personalTools = [
     {
       id: 'btn-ai-chat',
@@ -76,26 +99,23 @@ export default function Dashboard() {
               </p>
             </div>
 
-            <div className="flex items-center gap-4 rounded-[1.6rem] border border-white/16 bg-[#0b2118]/50 p-4 backdrop-blur-sm">
-              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 text-[#f7b84b]">
-                {user.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt={user.display_name || user.username}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <UserRound size={25} />
-                )}
+            {user.is_root ? (
+              <Link
+                id="btn-admin-panel"
+                href="/admin"
+                aria-label="进入庭院管理后台"
+                className="group relative flex items-center gap-4 rounded-[1.6rem] border border-white/16 bg-[#0b2118]/50 p-4 pr-5 backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-[#f7b84b]/55 hover:bg-[#0b2118]/72 focus:outline-none focus:ring-2 focus:ring-[#f7b84b]/45"
+              >
+                {accountCardContent}
+                <span className="absolute right-4 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full border border-white/12 bg-white/[0.06] text-white/48 transition group-hover:border-[#f7b84b]/35 group-hover:text-[#f7b84b]">
+                  <Settings size={13} />
+                </span>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-4 rounded-[1.6rem] border border-white/16 bg-[#0b2118]/50 p-4 backdrop-blur-sm">
+                {accountCardContent}
               </div>
-              <div className="min-w-0">
-                <p className="text-xs text-white/45">当前账号</p>
-                <p className="mt-1 truncate text-sm font-bold">
-                  {user.display_name || user.username}
-                </p>
-                <p className="mt-1 truncate text-xs text-white/48">{user.email}</p>
-              </div>
-            </div>
+            )}
           </div>
         </section>
 
@@ -172,27 +192,6 @@ export default function Dashboard() {
           </Link>
         </section>
 
-        {user.is_root && (
-          <section className="mt-12 rounded-[2rem] border border-[#17211d]/10 bg-white/45 px-6 py-6 dark:border-darkBorder dark:bg-darkCard/40 md:flex md:items-center md:justify-between md:px-8">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b56b19]">
-                Site management
-              </p>
-              <h2 className="mt-2 font-display text-2xl font-bold">庭院管理</h2>
-              <p className="mt-2 text-sm leading-6 text-[#17211d]/52 dark:text-foreground/52">
-                管理书房资料、博客文章、用户权限与系统配置。
-              </p>
-            </div>
-            <Link
-              id="btn-admin-panel"
-              href="/admin"
-              className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#163a2b] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#24553f] md:mt-0"
-            >
-              <Settings size={15} />
-              进入管理后台
-            </Link>
-          </section>
-        )}
       </main>
     </div>
   )
