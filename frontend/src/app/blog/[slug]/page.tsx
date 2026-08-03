@@ -159,10 +159,10 @@ export default function BlogPostDetail() {
 
       <SiteNav />
 
-      <main className="relative mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-14">
+      <main className="relative mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-7">
         <Link
           href="/blog"
-          className="mx-auto mb-5 flex max-w-4xl items-center gap-2 text-sm font-semibold text-[#1d6347] transition hover:text-[#b56b19] dark:text-[#f7b84b]"
+          className="mx-auto mb-3 flex max-w-4xl items-center gap-2 text-sm font-semibold text-[#1d6347] transition hover:text-[#b56b19] dark:text-[#f7b84b]"
         >
           <ArrowLeft size={16} />
           返回博客

@@ -187,7 +187,7 @@ export default function LibraryPage() {
         </section>
 
         <section className="mt-7 grid gap-5 lg:grid-cols-[1.28fr_0.72fr]">
-          <div className="rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] p-7 dark:border-darkBorder dark:bg-darkCard md:p-9">
+          <div className="rounded-[2rem] border border-[#244a38]/18 bg-[#f8f5ed] p-7 shadow-[0_22px_60px_-54px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard md:p-9">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b56b19]">
               About me
             </p>
@@ -196,12 +196,13 @@ export default function LibraryPage() {
               {profile.bio}
             </p>
             {profile.interest_tags.length > 0 && (
-              <div className="mt-6 flex flex-wrap gap-2">
+              <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#244a38]/10 pt-4">
                 {profile.interest_tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full border border-[#1d6347]/15 bg-[#e7efe8] px-3 py-1.5 text-xs font-semibold text-[#1d6347] dark:border-[#f7b84b]/15 dark:bg-[#163a2b] dark:text-[#f7b84b]"
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-[#1d6347] dark:text-[#f7b84b]"
                   >
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#c98b30]" />
                     {tag}
                   </span>
                 ))}
@@ -211,34 +212,38 @@ export default function LibraryPage() {
 
           <div className="grid gap-5">
             {profile.status_text && profile.status_public && (
-              <div className="rounded-[2rem] border border-[#b56b19]/16 bg-[#fbf1df] p-7 dark:border-[#f7b84b]/15 dark:bg-[#2e2518]">
-                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#b56b19] dark:text-[#f7b84b]">
+              <div className="rounded-[2rem] border border-[#244a38]/18 bg-[#e6ebe3] p-7 shadow-[0_18px_50px_-48px_rgba(23,33,29,0.65)] dark:border-[#f7b84b]/15 dark:bg-[#20392f]">
+                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#1d6347] dark:text-[#f7b84b]">
                   <Sparkles size={14} />
                   此刻
                 </p>
-                <p className="mt-3 text-sm font-semibold leading-7">{profile.status_text}</p>
+                <p className="mt-3 border-l-2 border-[#c98b30] pl-4 font-display text-sm font-semibold leading-7">
+                  {profile.status_text}
+                </p>
               </div>
             )}
 
-            <div className="rounded-[2rem] border border-[#17211d]/10 bg-white/55 p-7 dark:border-darkBorder dark:bg-darkCard/65">
+            <div className="rounded-[2rem] border border-[#7b6747]/18 bg-[#eee8dc]/72 p-7 dark:border-darkBorder dark:bg-darkCard/65">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b56b19]">
                 Say hello
               </p>
               {publicLinks.length > 0 ? (
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 divide-y divide-[#244a38]/10 border-y border-[#244a38]/10">
                   {publicLinks.map((item) => (
                     <a
                       key={item.id}
                       href={item.url}
                       target={item.url.startsWith('http') ? '_blank' : undefined}
                       rel={item.url.startsWith('http') ? 'noreferrer' : undefined}
-                      className="group inline-flex max-w-full items-center gap-2 rounded-full border border-[#17211d]/10 bg-[#fffdf8] px-4 py-2.5 text-xs font-semibold transition hover:border-[#1d6347]/35 hover:text-[#1d6347] dark:border-darkBorder dark:bg-darkBg"
+                      className="group flex max-w-full items-center gap-2 py-3 text-xs font-semibold transition hover:text-[#1d6347]"
                     >
-                      <item.icon size={14} className="shrink-0 text-[#b56b19]" />
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[#b56b19]/18 bg-[#f8f4ea]/70 text-[#a6651d]">
+                        <item.icon size={14} />
+                      </span>
                       <span className="truncate">{item.label}</span>
                       <ArrowUpRight
                         size={12}
-                        className="shrink-0 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                        className="ml-auto shrink-0 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
                       />
                     </a>
                   ))}

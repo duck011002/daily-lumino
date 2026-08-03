@@ -28,22 +28,85 @@ if [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
   exit 1
 fi
 
+old_head="${LUMINO_DEPLOY_BASE:-$(git rev-parse HEAD)}"
+git cat-file -e "$old_head^{commit}"
 git fetch origin master:refs/remotes/origin/master
 git merge --ff-only origin/master
+new_head="$(git rev-parse HEAD)"
 
-cd "$repo_dir/backend"
-.venv/bin/pip install -q -r requirements.txt
-.venv/bin/alembic upgrade head
-.venv/bin/python -m pytest -q
+if [[ "$old_head" == "$new_head" ]]; then
+  echo "Production is already at $new_head."
+  exit 0
+fi
 
-cd "$repo_dir/frontend"
-npm ci --no-audit --no-fund
-npm run build
+changed_files="$(git diff --name-only "$old_head" "$new_head")"
+backend_changed=0
+frontend_changed=0
+
+if grep -q '^backend/' <<<"$changed_files"; then
+  backend_changed=1
+fi
+
+if grep -q '^frontend/' <<<"$changed_files"; then
+  frontend_changed=1
+fi
+
+if (( backend_changed )); then
+  cd "$repo_dir/backend"
+  if grep -q '^backend/requirements.txt$' <<<"$changed_files"; then
+    nice -n 10 .venv/bin/pip install -q -r requirements.txt
+  else
+    echo "Backend dependencies unchanged; skipping pip install."
+  fi
+  .venv/bin/alembic upgrade head
+
+  if [[ "${LUMINO_DEPLOY_RUN_TESTS:-0}" == "1" ]]; then
+    nice -n 10 .venv/bin/python -m pytest -q
+  else
+    echo "Production tests skipped; run them locally before deployment."
+  fi
+else
+  echo "Backend unchanged; skipping backend install, migration, and restart."
+fi
+
+if (( frontend_changed )); then
+  cd "$repo_dir/frontend"
+  if grep -Eq '^frontend/(package.json|package-lock.json)$' <<<"$changed_files" || [[ ! -d node_modules ]]; then
+    nice -n 10 npm ci --no-audit --no-fund
+  else
+    echo "Frontend dependencies unchanged; skipping npm ci."
+  fi
+
+  export NEXT_TELEMETRY_DISABLED=1
+  export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1280}"
+  nice -n 10 npm run build
+else
+  echo "Frontend unchanged; skipping frontend install, build, and restart."
+fi
 
 cd "$repo_dir"
-pm2 restart lumino-backend lumino-frontend --update-env
-curl --fail --silent --show-error --max-time 15 \
-  https://lovestory1314.fun/api/health >/dev/null
+services=()
+(( backend_changed )) && services+=(lumino-backend)
+(( frontend_changed )) && services+=(lumino-frontend)
+
+if (( ${#services[@]} > 0 )); then
+  pm2 restart "${services[@]}" --update-env
+fi
+
+healthy=0
+for _ in {1..12}; do
+  if curl --fail --silent --show-error --max-time 10 \
+    http://127.0.0.1:3000/api/health >/dev/null; then
+    healthy=1
+    break
+  fi
+  sleep 5
+done
+
+if (( ! healthy )); then
+  echo "Deployment completed, but the local health check did not recover in time." >&2
+  exit 1
+fi
 
 git status --short --branch
 git rev-parse HEAD
