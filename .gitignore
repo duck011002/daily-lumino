@@ -20,6 +20,14 @@ build/
 
 # Environment variables
 .env
+backend/.env.pre-*
+
+# Local audit and automation artifacts
+.codex_ssh_audit.py
+.esa-staging/
+.playwright-mcp/
+.qoder/
+tmp/
 
 # OS files
 .DS_Store
