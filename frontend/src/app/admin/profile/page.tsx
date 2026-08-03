@@ -246,7 +246,7 @@ export default function ProfileAdminPage() {
     <div className="min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
       <SiteNav />
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+      <main className="mx-auto max-w-7xl px-4 pb-28 pt-8 sm:px-6 lg:px-8 lg:pb-28 lg:pt-12">
         <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="mb-4">
@@ -279,15 +279,6 @@ export default function ProfileAdminPage() {
               预览前厅
               <ExternalLink className="h-4 w-4" />
             </Link>
-            <button
-              type="button"
-              onClick={saveProfile}
-              disabled={saving || uploading !== null}
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              保存资料
-            </button>
           </div>
         </div>
 
@@ -758,6 +749,30 @@ export default function ProfileAdminPage() {
           </aside>
         </div>
       </main>
+
+      <div className="fixed bottom-4 left-3 right-3 z-50 flex items-center justify-between gap-3 rounded-2xl border border-stone-200/90 bg-white/95 p-3 shadow-2xl backdrop-blur dark:border-stone-700 dark:bg-stone-900/95 sm:left-auto sm:right-6 sm:min-w-[280px]">
+        <p
+          aria-live="polite"
+          className={`line-clamp-2 text-xs ${
+            message?.type === 'error'
+              ? 'text-red-600 dark:text-red-400'
+              : message?.type === 'success'
+                ? 'text-emerald-700 dark:text-emerald-400'
+                : 'text-stone-500 dark:text-stone-400'
+          }`}
+        >
+          {message?.text || (uploading !== null ? '图片上传完成后即可保存' : '修改完成后记得保存')}
+        </p>
+        <button
+          type="button"
+          onClick={saveProfile}
+          disabled={saving || uploading !== null}
+          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {saving ? '保存中…' : '保存资料'}
+        </button>
+      </div>
     </div>
   )
 }
