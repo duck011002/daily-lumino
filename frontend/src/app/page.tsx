@@ -116,8 +116,8 @@ export default function Home() {
       <SiteNav />
 
       <main className="mx-auto max-w-7xl px-5 pb-20 pt-7 md:px-8 md:pt-8">
-        <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.5fr_0.75fr_0.75fr]">
-          <div className="relative overflow-hidden rounded-[2.2rem] bg-[#163a2b] p-6 text-white shadow-[0_35px_100px_-55px_rgba(22,58,43,0.95)] lg:col-span-2 xl:col-span-1">
+        <section className="grid gap-4 lg:grid-cols-[1.42fr_0.58fr]">
+          <div className="relative overflow-hidden rounded-[2.2rem] bg-[#163a2b] p-6 text-white shadow-[0_35px_100px_-55px_rgba(22,58,43,0.95)]">
             {profile.cover_url ? (
               <img
                 src={profile.cover_url}
@@ -208,16 +208,13 @@ export default function Home() {
             </div>
           </div>
 
-          <aside className="contents">
-            <div className="relative overflow-hidden rounded-[2rem] border border-[#244a38]/30 bg-[#f9f6ee]/90 p-6 shadow-[0_28px_70px_-52px_rgba(23,33,29,0.75)] dark:border-darkBorder dark:bg-darkCard">
+          <aside className="grid gap-4">
+            <div className="relative overflow-hidden rounded-[2rem] border border-[#244a38]/30 bg-[#f9f6ee]/90 p-5 shadow-[0_28px_70px_-52px_rgba(23,33,29,0.75)] dark:border-darkBorder dark:bg-darkCard">
               <div className="absolute -right-14 -top-16 h-40 w-40 rounded-full border-[24px] border-[#1d6347]/[0.055]" />
-              <div className="relative flex items-center justify-between">
+              <div className="relative">
                 <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#9b611f]">
                   01 / About this place
                 </p>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#1d6347]/15 bg-[#e5ebe2] px-2.5 py-1 text-[10px] font-bold text-[#1d6347] dark:bg-[#163a2b]/60 dark:text-[#f7b84b]">
-                  <Sparkles size={12} /> 开放
-                </span>
               </div>
               <h2 className="relative mt-3 max-w-[15rem] font-display text-2xl font-bold leading-tight">
                 一座开放的前厅
@@ -225,34 +222,20 @@ export default function Home() {
               <p className="relative mt-2.5 text-sm leading-6 text-[#17211d]/62 dark:text-foreground/58">
                 更完整的个人介绍与收藏在书房，公开文章在博客；登录之后，内院才会为你打开。
               </p>
-              <Link
-                href="/library"
-                className="group relative mt-3.5 inline-flex items-center gap-2 border-b border-[#1d6347]/25 pb-1 text-sm font-bold text-[#1d6347] dark:text-[#f7b84b]"
-              >
-                走进书房
-                <ArrowRight size={15} className="transition group-hover:translate-x-1" />
-              </Link>
               {profile.status_text && profile.status_public && (
-                <div className="relative mt-4 border-l-2 border-[#d49a3c] bg-[#e4e9df]/72 px-4 py-3 dark:bg-[#163a2b]/45">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#1d6347] dark:text-[#f7b84b]">
-                    此刻
-                  </p>
-                  <p className="mt-1 font-display text-sm font-semibold leading-6">{profile.status_text}</p>
-                </div>
+                <p className="relative mt-4 border-l-2 border-[#d49a3c] py-1 pl-4 font-display text-sm font-semibold leading-6">
+                  {profile.status_text}
+                </p>
               )}
             </div>
 
-            <div className="rounded-[2rem] border border-[#7b6747]/30 bg-[#ece6d8]/60 p-6 shadow-[0_22px_60px_-48px_rgba(23,33,29,0.72)] dark:border-darkBorder dark:bg-darkCard/70">
+            <div className="rounded-[2rem] border border-[#7b6747]/30 bg-[#ece6d8]/60 p-5 shadow-[0_22px_60px_-48px_rgba(23,33,29,0.72)] dark:border-darkBorder dark:bg-darkCard/70">
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#9b611f]">
                 02 / Find me
               </p>
-              <h2 className="mt-2.5 font-display text-xl font-bold">在庭院之外相遇</h2>
-              <p className="mt-1 text-xs leading-5 text-[#17211d]/48 dark:text-foreground/48">
-                公开的联系入口，保持简单而克制。
-              </p>
               {publicLinks.length > 0 ? (
                 <div className="mt-3 divide-y divide-[#244a38]/10 border-y border-[#244a38]/10">
-                  {publicLinks.slice(0, 4).map((item) => (
+                  {publicLinks.slice(0, 2).map((item) => (
                     <a
                       key={item.id}
                       href={item.url}
