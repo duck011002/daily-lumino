@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -22,12 +22,62 @@ from app.schemas.blog import (
     BlogCategoryResponse,
     BlogCategoryUpdate,
     BlogPostCreate,
+    BlogPostPageResponse,
     BlogPostResponse,
     BlogPostUpdate,
 )
 
 router = APIRouter(tags=["blog"])
-MAX_FEATURED_POSTS = 3
+FEATURED_DISPLAY_LIMIT = 4
+MAX_FEATURED_POSTS_PER_CATEGORY = 4
+
+
+def pick_featured_posts(
+    posts: List[BlogPost],
+    limit: int = FEATURED_DISPLAY_LIMIT,
+) -> List[BlogPost]:
+    """Prefer the newest post from each category, then fill by recency."""
+    selected: List[BlogPost] = []
+    selected_ids: set[int] = set()
+    seen_categories: set[int | None] = set()
+
+    for post in posts:
+        category_key = post.category_id
+        if category_key in seen_categories:
+            continue
+        selected.append(post)
+        selected_ids.add(post.id)
+        seen_categories.add(category_key)
+        if len(selected) == limit:
+            return selected
+
+    for post in posts:
+        if post.id in selected_ids:
+            continue
+        selected.append(post)
+        if len(selected) == limit:
+            break
+    return selected
+
+
+def ensure_featured_capacity(db: Session, post: BlogPost) -> None:
+    category_filter = (
+        BlogPost.category_id.is_(None)
+        if post.category_id is None
+        else BlogPost.category_id == post.category_id
+    )
+    featured_count = db.scalar(
+        select(func.count(BlogPost.id)).where(
+            BlogPost.is_featured == True,
+            BlogPost.id != post.id,
+            category_filter,
+        )
+    ) or 0
+    if featured_count >= MAX_FEATURED_POSTS_PER_CATEGORY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"每个技术分区（含未分类）最多保留 {MAX_FEATURED_POSTS_PER_CATEGORY} 篇精选文章。",
+        )
 
 
 def get_category_or_404(db: Session, category_id: int | None) -> BlogCategory | None:
@@ -108,8 +158,11 @@ def list_public_posts(category: str | None = Query(None), db: Session = Depends(
 
 
 @router.get("/api/blog/featured", response_model=List[BlogPostResponse])
-def list_featured_posts(db: Session = Depends(get_db)):
-    return db.scalars(
+def list_featured_posts(
+    category: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    statement = (
         select(BlogPost)
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
         .where(
@@ -117,9 +170,76 @@ def list_featured_posts(db: Session = Depends(get_db)):
             BlogPost.is_public == True,
             BlogPost.is_published == True,
         )
-        .order_by(BlogPost.published_at.desc())
-        .limit(MAX_FEATURED_POSTS)
+        .order_by(BlogPost.published_at.desc(), BlogPost.id.desc())
+    )
+    if category:
+        statement = (
+            statement.join(BlogPost.category)
+            .where(BlogCategory.slug == category)
+            .limit(FEATURED_DISPLAY_LIMIT)
+        )
+        return db.scalars(statement).all()
+
+    posts = db.scalars(statement).all()
+    return pick_featured_posts(posts)
+
+
+@router.get("/api/blog/posts-page", response_model=BlogPostPageResponse)
+def list_public_posts_page(
+    category: str | None = Query(None),
+    q: str | None = Query(None, max_length=100),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(9, ge=1, le=24),
+    db: Session = Depends(get_db),
+):
+    filters = [
+        BlogPost.is_public == True,
+        BlogPost.is_published == True,
+    ]
+    search = q.strip() if q else ""
+    if search:
+        pattern = f"%{search}%"
+        filters.append(
+            or_(
+                BlogPost.title.ilike(pattern),
+                BlogPost.excerpt.ilike(pattern),
+                BlogPost.content.ilike(pattern),
+            )
+        )
+    else:
+        featured_ids = [post.id for post in list_featured_posts(category=category, db=db)]
+        if featured_ids:
+            filters.append(BlogPost.id.notin_(featured_ids))
+
+    count_statement = select(func.count(BlogPost.id)).where(*filters)
+    item_statement = (
+        select(BlogPost)
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
+        .where(*filters)
+    )
+    if category:
+        count_statement = count_statement.join(BlogPost.category).where(
+            BlogCategory.slug == category
+        )
+        item_statement = item_statement.join(BlogPost.category).where(
+            BlogCategory.slug == category
+        )
+
+    total = db.scalar(count_statement) or 0
+    pages = max(1, (total + page_size - 1) // page_size)
+    items = db.scalars(
+        item_statement
+        .order_by(BlogPost.published_at.desc(), BlogPost.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     ).all()
+    return BlogPostPageResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=pages,
+    )
 
 
 @router.get("/api/blog/posts/{slug}", response_model=BlogPostResponse)
@@ -372,31 +492,17 @@ def apply_post_update(post: BlogPost, post_in: BlogPostUpdate, db: Session) -> B
         post.is_published = post_in.is_published
 
     if "is_featured" in post_in.model_fields_set:
-        if post_in.is_featured:
-            will_be_public = post_in.is_public if post_in.is_public is not None else post.is_public
-            will_be_published = (
-                post_in.is_published if post_in.is_published is not None else post.is_published
+        if post_in.is_featured and (not post.is_public or not post.is_published):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="只有已公开发布的文章可以设为精选。",
             )
-            if not will_be_public or not will_be_published:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="只有已公开发布的文章可以设为精选。",
-                )
-            featured_count = db.scalar(
-                select(func.count(BlogPost.id)).where(
-                    BlogPost.is_featured == True,
-                    BlogPost.id != post.id,
-                )
-            )
-            if featured_count >= MAX_FEATURED_POSTS:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"首页最多保留 {MAX_FEATURED_POSTS} 篇精选文章。",
-                )
         post.is_featured = bool(post_in.is_featured)
 
     if not post.is_public or not post.is_published:
         post.is_featured = False
+    if post.is_featured:
+        ensure_featured_capacity(db, post)
 
     db.commit()
     db.refresh(post)

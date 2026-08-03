@@ -30,7 +30,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/invite-request']
+const PUBLIC_ROUTES = ['/', '/library', '/login', '/register', '/invite-request', '/courtyard']
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)

@@ -78,3 +78,33 @@ class BlogPostResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class BlogPostListItemResponse(BaseModel):
+    id: int
+    title: str
+    slug: str
+    cover_url: Optional[str] = None
+    excerpt: Optional[str] = None
+    is_public: bool
+    is_published: bool
+    is_featured: bool
+    tags: Optional[List[str]] = None
+    author_id: int
+    view_count: int
+    published_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    author: Optional[UserResponse] = None
+    category: Optional[BlogCategoryResponse] = None
+
+    class Config:
+        from_attributes = True
+
+
+class BlogPostPageResponse(BaseModel):
+    items: List[BlogPostListItemResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int

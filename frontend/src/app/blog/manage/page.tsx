@@ -50,6 +50,9 @@ export default function BlogManagementPage() {
   const [actingId, setActingId] = useState<number | null>(null)
   const [categoryName, setCategoryName] = useState('')
   const [creatingCategory, setCreatingCategory] = useState(false)
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null)
+  const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [categoryActionId, setCategoryActionId] = useState<number | null>(null)
   const [message, setMessage] = useState('')
   const canWrite = Boolean(user?.is_root || user?.can_write_blog)
   const isRoot = Boolean(user?.is_root)
@@ -95,6 +98,55 @@ export default function BlogManagementPage() {
       setMessage(err.response?.data?.detail || '创建技术分区失败。')
     } finally {
       setCreatingCategory(false)
+    }
+  }
+
+  const startEditingCategory = (category: BlogCategory) => {
+    setEditingCategoryId(category.id)
+    setEditingCategoryName(category.name)
+    setMessage('')
+  }
+
+  const updateCategory = async (category: BlogCategory) => {
+    const name = editingCategoryName.trim()
+    if (!name) {
+      setMessage('请输入分区名称。')
+      return
+    }
+    if (name === category.name) {
+      setEditingCategoryId(null)
+      return
+    }
+    setCategoryActionId(category.id)
+    setMessage('')
+    try {
+      const response = await api.patch('/admin/blog/categories/' + category.id, { name })
+      setCategories((current) => current.map((item) => item.id === category.id ? response.data : item))
+      setEditingCategoryId(null)
+      setEditingCategoryName('')
+    } catch (err: any) {
+      setMessage(err.response?.data?.detail || '修改技术分区失败。')
+    } finally {
+      setCategoryActionId(null)
+    }
+  }
+
+  const removeCategory = async (category: BlogCategory) => {
+    if (!window.confirm('确定删除技术分区“' + category.name + '”吗？\n\n分区内的文章不会被删除，它们将自动归入“未分类”。')) return
+    setCategoryActionId(category.id)
+    setMessage('')
+    try {
+      await api.delete('/admin/blog/categories/' + category.id)
+      setCategories((current) => current.filter((item) => item.id !== category.id))
+      if (editingCategoryId === category.id) {
+        setEditingCategoryId(null)
+        setEditingCategoryName('')
+      }
+      await loadPosts()
+    } catch (err: any) {
+      setMessage(err.response?.data?.detail || '删除技术分区失败。')
+    } finally {
+      setCategoryActionId(null)
     }
   }
 
@@ -167,7 +219,22 @@ export default function BlogManagementPage() {
 
         {isRoot && <section className="mt-7 rounded-2xl border border-[#17211d]/10 bg-white p-5 dark:border-darkBorder dark:bg-darkCard">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b56b19]">Blog sections</p><h2 className="mt-1 font-display text-xl font-bold">技术分区</h2><p className="mt-1 text-xs text-[#17211d]/50 dark:text-foreground/50">只填写访客看到的名称，系统会自动生成内部 URL 标识。</p></div><div className="flex w-full gap-2 md:w-auto"><input value={categoryName} onChange={(event) => setCategoryName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') createCategory() }} placeholder="例如：深度学习" className="min-w-0 flex-1 rounded-xl border border-[#17211d]/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-[#163a2b] md:w-48 dark:border-darkBorder" /><button disabled={creatingCategory} onClick={createCategory} className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-[#163a2b] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus size={15} />新增</button></div></div>
-          <div className="mt-4 flex flex-wrap gap-2">{categories.length ? categories.map((category) => <span key={category.id} className="rounded-full bg-[#f1eee5] px-3 py-1.5 text-xs font-semibold text-[#17211d]/70 dark:bg-darkBg dark:text-foreground/70">{category.name}</span>) : <span className="text-xs text-[#17211d]/45 dark:text-foreground/45">尚未创建技术分区。</span>}</div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {categories.length ? categories.map((category) => {
+              const editing = editingCategoryId === category.id
+              const acting = categoryActionId === category.id
+              return <div key={category.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-[#17211d]/10 bg-[#f8f6f0] px-3 py-2 dark:border-darkBorder dark:bg-darkBg">
+                {editing ? <input value={editingCategoryName} onChange={(event) => setEditingCategoryName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') updateCategory(category); if (event.key === 'Escape') setEditingCategoryId(null) }} autoFocus maxLength={100} className="min-w-0 flex-1 rounded-lg border border-[#17211d]/15 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-[#163a2b] dark:border-darkBorder dark:bg-darkCard" /> : <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#17211d]/75 dark:text-foreground/75">{category.name}</span>}
+                {editing ? <>
+                  <button disabled={acting} onClick={() => updateCategory(category)} className="rounded-lg bg-[#163a2b] px-2.5 py-1.5 text-xs font-bold text-white disabled:opacity-50">{acting ? <Loader2 size={13} className="animate-spin" /> : '保存'}</button>
+                  <button disabled={acting} onClick={() => { setEditingCategoryId(null); setEditingCategoryName('') }} className="rounded-lg border border-[#17211d]/15 px-2.5 py-1.5 text-xs font-semibold text-[#17211d]/60 dark:border-darkBorder dark:text-foreground/60">取消</button>
+                </> : <>
+                  <button disabled={categoryActionId !== null} onClick={() => startEditingCategory(category)} className="rounded-lg border border-[#17211d]/15 p-1.5 text-[#17211d]/55 transition hover:border-[#163a2b] hover:text-[#163a2b] disabled:opacity-40 dark:border-darkBorder dark:text-foreground/55" title="修改分区"><PenLine size={14} /></button>
+                  <button disabled={categoryActionId !== null} onClick={() => removeCategory(category)} className="rounded-lg border border-red-200 p-1.5 text-red-500 transition hover:bg-red-500 hover:text-white disabled:opacity-40 dark:border-red-500/30" title="删除分区">{acting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}</button>
+                </>}
+              </div>
+            }) : <span className="text-xs text-[#17211d]/45 dark:text-foreground/45">尚未创建技术分区。</span>}
+          </div>
         </section>}
 
         {message && <p className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10">{message}</p>}

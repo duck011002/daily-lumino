@@ -22,7 +22,14 @@ api.interceptors.response.use(
         } catch (refreshErr) {
           if (typeof window !== 'undefined') {
             const isPublicRoute = (path: string) => {
-              const publicRoutes = ['/', '/login', '/register', '/invite-request']
+              const publicRoutes = [
+                '/',
+                '/library',
+                '/login',
+                '/register',
+                '/invite-request',
+                '/courtyard',
+              ]
               if (publicRoutes.includes(path)) return true
               if (path === '/blog' || path.startsWith('/blog/')) return true
               return false

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.mcp_blog import blog_mcp, blog_mcp_asgi
-from app.routers import admin, albums, auth, blog, chat, discipline, notes, spaces, upload
+from app.routers import admin, albums, auth, blog, chat, discipline, notes, site, spaces, upload
 from app.services.invite_requests import start_invite_request_worker, stop_invite_request_worker
 
 
@@ -31,6 +31,8 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(site.public_router)
+app.include_router(site.admin_router)
 app.include_router(chat.router)
 app.include_router(spaces.router)
 app.include_router(albums.router)

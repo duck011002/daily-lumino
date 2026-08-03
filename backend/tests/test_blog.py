@@ -1,12 +1,15 @@
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.models.invite_code import InviteCode
 from app.models.user import User
-from app.models.blog import BlogPost
+from app.models.blog import BlogCategory, BlogPost
+from app.routers.blog import ensure_featured_capacity, list_featured_posts
 from app.mcp_blog import MCPBlogIdentity, current_mcp_blog_identity, get_blog_post, update_blog_post
 from app.services.auth import hash_password
 
@@ -372,44 +375,121 @@ def test_root_can_manage_categories_and_delegate_blog_writing(client: TestClient
     assert [post["slug"] for post in filtered.json()] == ["writer-skill-post"]
 
 
-def test_root_can_manage_at_most_three_featured_posts(client: TestClient, blog_test_setup):
-    admin_cookies = blog_test_setup["admin"]
-    post_ids = []
-    for index in range(4):
-        response = client.post(
-            "/api/admin/blog/posts",
-            json={
-                "title": f"Featured {index}",
-                "slug": f"featured-{index}",
-                "content": "Technical content",
-                "is_public": True,
-                "is_published": True,
-            },
-            cookies=admin_cookies,
-        )
-        assert response.status_code == 201
-        post_ids.append(response.json()["id"])
-
-    for post_id in post_ids[:3]:
-        response = client.patch(
-            f"/api/blog/me/posts/{post_id}",
-            json={"is_featured": True},
-            cookies=admin_cookies,
-        )
-        assert response.status_code == 200
-        assert response.json()["is_featured"] is True
-
-    overflow = client.patch(
-        f"/api/blog/me/posts/{post_ids[3]}",
-        json={"is_featured": True},
-        cookies=admin_cookies,
+def test_root_can_manage_at_most_four_featured_posts_per_category(db):
+    author = User(
+        username="featured-root",
+        email="featured-root@example.com",
+        password=hash_password("password123"),
+        display_name="Featured Root",
+        is_root=True,
+        is_active=True,
     )
-    assert overflow.status_code == 400
-    assert "最多保留 3 篇" in overflow.json()["detail"]
+    category = BlogCategory(name="Featured Group", slug="featured-group")
+    other_category = BlogCategory(name="Other Group", slug="other-group")
+    db.add_all([author, category, other_category])
+    db.flush()
 
-    featured = client.get("/api/blog/featured")
-    assert featured.status_code == 200
-    assert len(featured.json()) == 3
+    published_at = datetime.now(UTC).replace(tzinfo=None)
+    for index in range(4):
+        db.add(
+            BlogPost(
+                title=f"Featured {index}",
+                slug=f"featured-{index}",
+                content="Technical content",
+                author_id=author.id,
+                category_id=category.id,
+                is_public=True,
+                is_published=True,
+                is_featured=True,
+                published_at=published_at - timedelta(minutes=index),
+            )
+        )
+    db.commit()
+
+    overflow = BlogPost(
+        title="Featured overflow",
+        slug="featured-overflow",
+        content="Technical content",
+        author_id=author.id,
+        category_id=category.id,
+        is_public=True,
+        is_published=True,
+        is_featured=True,
+        published_at=published_at,
+    )
+    with pytest.raises(HTTPException) as exception:
+        ensure_featured_capacity(db, overflow)
+    assert "每个技术分区" in exception.value.detail
+    assert "最多保留 4 篇" in exception.value.detail
+
+    allowed_in_other_category = BlogPost(
+        title="Other category featured",
+        slug="other-category-featured",
+        content="Technical content",
+        author_id=author.id,
+        category_id=other_category.id,
+        is_public=True,
+        is_published=True,
+        is_featured=True,
+        published_at=published_at,
+    )
+    ensure_featured_capacity(db, allowed_in_other_category)
+
+
+def test_global_featured_prefers_categories_then_fills_by_recency(db):
+    author = User(
+        username="selection-root",
+        email="selection-root@example.com",
+        password=hash_password("password123"),
+        display_name="Selection Root",
+        is_root=True,
+        is_active=True,
+    )
+    categories = {
+        name: BlogCategory(name=f"Featured {name}", slug=f"featured-{name.lower()}")
+        for name in ["A", "B", "C", "D"]
+    }
+    db.add(author)
+    db.add_all(categories.values())
+    db.flush()
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    post_specs = [
+        ("Featured D post", "featured-d-post", "D", now - timedelta(minutes=5)),
+        ("Featured C post", "featured-c-post", "C", now - timedelta(minutes=4)),
+        ("Featured B post", "featured-b-post", "B", now - timedelta(minutes=3)),
+        ("Featured A older", "featured-a-older", "A", now - timedelta(minutes=2)),
+        ("Featured A newest", "featured-a-newest", "A", now - timedelta(minutes=1)),
+    ]
+    for title, slug, category_name, published_at in post_specs:
+        db.add(
+            BlogPost(
+                title=title,
+                slug=slug,
+                content="Technical content",
+                author_id=author.id,
+                category_id=categories[category_name].id,
+                is_public=True,
+                is_published=True,
+                is_featured=True,
+                published_at=published_at,
+            )
+        )
+    db.commit()
+
+    global_featured = list_featured_posts(category=None, db=db)
+    assert [post.slug for post in global_featured] == [
+        "featured-a-newest",
+        "featured-b-post",
+        "featured-c-post",
+        "featured-d-post",
+    ]
+
+    category_featured = list_featured_posts(category="featured-a", db=db)
+    assert [post.slug for post in category_featured] == [
+        "featured-a-newest",
+        "featured-a-older",
+    ]
 
 
 from unittest.mock import patch

@@ -1,200 +1,272 @@
 'use client'
 
-import React from 'react'
 import Link from 'next/link'
-import { LogOut, Sparkles, FolderHeart, Newspaper, ShieldAlert, User, Settings, Heart } from 'lucide-react'
-import ThemeToggle from '@/components/layout/ThemeToggle'
-import Button from '@/components/ui/Button'
+import {
+  ArrowRight,
+  FolderHeart,
+  HeartPulse,
+  Images,
+  LockKeyhole,
+  MessageCircleHeart,
+  NotebookPen,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+} from 'lucide-react'
+import SiteNav from '@/components/layout/SiteNav'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function Dashboard() {
-  const { user, loading, logout } = useAuth()
+  const { user, loading } = useAuth()
 
   if (loading) {
     return (
-      <div className="flex-1 min-h-screen bg-surface dark:bg-darkBg flex items-center justify-center text-primary font-medium">
-        正在加载空间信息...
+      <div className="grid min-h-screen place-items-center bg-[#f2f0e9] text-[#1d6347] dark:bg-darkBg dark:text-[#f7b84b]">
+        <div className="text-center">
+          <Sparkles className="mx-auto h-7 w-7 animate-pulse" />
+          <p className="mt-3 text-sm font-semibold">正在为你打开内院…</p>
+        </div>
       </div>
     )
   }
 
-  if (!user) return null // Handled by AuthProvider redirect
+  if (!user) return null
 
-  const cards = [
+  const personalTools = [
     {
       id: 'btn-ai-chat',
-      title: 'AI 智能对话',
-      desc: '与你的专属多模态 AI 伴侣倾心倾诉，提供智能支持。',
+      title: 'AI 私人助手',
+      description: '保存只属于当前账号的对话，在需要梳理想法、倾诉或获得帮助时随时回来。',
       href: '/chat',
-      icon: Sparkles,
-      color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20 hover:border-indigo-500/50',
-      show: true,
-    },
-    {
-      id: 'btn-spaces',
-      title: '我的私密空间',
-      desc: '进入专属的情侣、挚友或家庭加密空间，共同记录生活日常。',
-      href: '/spaces',
-      icon: FolderHeart,
-      color: 'bg-primary/10 text-primary border-primary/20 hover:border-primary/50',
+      icon: MessageCircleHeart,
+      accent: 'bg-[#e8e7f7] text-[#5b57a6] dark:bg-[#29264d] dark:text-[#b9b4ff]',
       show: true,
     },
     {
       id: 'btn-discipline',
-      title: '自律健康记录',
-      desc: '记录您的每日饮食与健身打卡，AI 自动评估热量并生成健康档案。',
+      title: '健康与自律',
+      description: '记录饮食、运动和个人节奏，让长期变化有迹可循。',
       href: '/discipline',
-      icon: Heart,
-      color: 'bg-rose-500/10 text-rose-500 border-rose-500/20 hover:border-rose-500/50',
+      icon: HeartPulse,
+      accent: 'bg-[#fae8e5] text-[#b9554f] dark:bg-[#4a2525] dark:text-[#ffaaa2]',
       show: user.is_root || user.is_discipline_authorized,
     },
-    {
-      id: 'btn-blog',
-      title: '个人公开博客',
-      desc: '书写你的思绪与洞察，并在极简博客中分享与发布。',
-      href: '/blog',
-      icon: Newspaper,
-      color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:border-emerald-500/50',
-      show: true,
-    },
-  ].filter(card => card.show)
+  ].filter((item) => item.show)
 
   return (
-    <div className="flex-1 min-h-screen bg-surface dark:bg-darkBg transition-colors duration-300">
-      {/* Header */}
-      <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Link href="/" passHref>
-              <span className="font-display text-xl font-bold tracking-wide text-primary cursor-pointer">
-                Lumino
-              </span>
-            </Link>
-            <span className="text-xs bg-secondary text-primary px-2.5 py-0.5 rounded-full font-semibold dark:bg-secondary/10">
-              工作台
-            </span>
-          </div>
+    <div className="min-h-screen bg-[#f2f0e9] text-[#17211d] transition-colors dark:bg-darkBg dark:text-foreground">
+      <SiteNav />
 
-          <div className="flex items-center space-x-4">
-            <ThemeToggle />
-            <Button
-              id="btn-logout"
-              variant="outline"
-              size="sm"
-              onClick={logout}
-              className="flex items-center border-red-500/30 text-red-500 hover:bg-red-500/10"
-            >
-              <LogOut className="h-4 w-4 mr-1" />
-              退出
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main dashboard content */}
-      <main className="max-w-7xl mx-auto px-6 py-12 space-y-12">
-        {/* Welcome Section */}
-        <section className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-8 rounded-3xl bg-white/50 dark:bg-darkCard/50 border border-secondary dark:border-darkBorder shadow-sm">
-          <div className="flex items-center space-x-4">
-            <div className="h-16 w-16 rounded-full bg-secondary dark:bg-darkBorder flex items-center justify-center text-primary">
-              {user.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={user.avatar_url}
-                  alt={user.display_name || user.username}
-                  className="h-16 w-16 rounded-full object-cover"
-                />
-              ) : (
-                <User className="h-8 w-8" />
-              )}
-            </div>
+      <main className="mx-auto max-w-7xl px-5 pb-20 pt-8 md:px-8 md:pt-12">
+        <section className="relative overflow-hidden rounded-[2.4rem] bg-[#163a2b] px-7 py-10 text-white shadow-[0_35px_100px_-55px_rgba(22,58,43,0.95)] md:px-11 md:py-12">
+          <div className="absolute -right-24 -top-28 h-80 w-80 rounded-full border-[44px] border-[#f7b84b]/12" />
+          <div className="absolute -bottom-24 left-1/3 h-52 w-96 rounded-full bg-[#f7b84b]/10 blur-3xl" />
+          <div className="relative flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-onSurface dark:text-foreground">
-                你好，{user.display_name || user.username}！
-              </h2>
-              <p className="text-sm text-onSurface/60 dark:text-foreground/60 mt-0.5">
-                欢迎回到 Lumino，今天是你开启私密生活的第 1 天。
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold text-white/62">
+                <LockKeyhole size={13} className="text-[#f7b84b]" />
+                Private courtyard · 私人内院
+              </div>
+              <h1 className="mt-6 font-display text-4xl font-bold md:text-5xl">
+                欢迎回来，{user.display_name || user.username}
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-white/62 md:text-base">
+                这里不是公开展示区。你的对话、记录和共同空间都按账号权限隔离，只为真正需要的人打开。
               </p>
             </div>
-          </div>
 
-          <div className="flex flex-wrap gap-3">
-            <span className="text-xs flex items-center px-3 py-1.5 rounded-full font-medium bg-secondary text-primary dark:bg-secondary/10">
-              邮箱：{user.email}
-            </span>
-            {user.is_root ? (
-              <span className="text-xs flex items-center px-3 py-1.5 rounded-full font-medium bg-red-500/10 text-red-500">
-                <ShieldAlert className="h-3.5 w-3.5 mr-1" />
-                超级管理员
-              </span>
-            ) : null}
-          </div>
-        </section>
-
-        {/* Superadmin Card if user.is_root */}
-        {user.is_root ? (
-          <section className="animate-fade-in">
-            <div className="p-8 rounded-3xl border border-red-500/20 bg-red-500/[0.03] flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-1">
-                <h3 className="text-lg font-bold text-red-500 flex items-center">
-                  <ShieldAlert className="h-5 w-5 mr-2" />
-                  系统超级管理控制台
-                </h3>
-                <p className="text-sm text-onSurface/70 dark:text-foreground/70">
-                  作为管理员，您可以进行用户管理、修改系统 API Key（通义千问 / DeepSeek）与 Lsky 存储配额。
-                </p>
+            <div className="flex items-center gap-4 rounded-[1.6rem] border border-white/16 bg-[#0b2118]/50 p-4 backdrop-blur-sm">
+              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10 text-[#f7b84b]">
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={user.display_name || user.username}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserRound size={25} />
+                )}
               </div>
-              <Link href="/admin" passHref>
-                <Button
-                  id="btn-admin-panel"
-                  className="bg-red-500 hover:bg-red-600 text-white shrink-0"
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  进入后台管理
-                </Button>
-              </Link>
+              <div className="min-w-0">
+                <p className="text-xs text-white/45">当前账号</p>
+                <p className="mt-1 truncate text-sm font-bold">
+                  {user.display_name || user.username}
+                </p>
+                <p className="mt-1 truncate text-xs text-white/48">{user.email}</p>
+              </div>
             </div>
-          </section>
-        ) : null}
-
-        {/* Modules Cards Grid */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {cards.map((card, idx) => (
-            <Link key={idx} href={card.href} passHref>
-              <div
-                id={card.id}
-                className="p-8 rounded-3xl border bg-white dark:bg-darkCard hover:shadow-lg transition-all duration-300 hover:translate-y-[-4px] cursor-pointer flex flex-col h-full border-secondary dark:border-darkBorder"
-              >
-                <div className={`h-12 w-12 rounded-2xl flex items-center justify-center mb-6 ${card.color}`}>
-                  <card.icon className="h-6 w-6" />
-                </div>
-                <h3 className="text-xl font-bold text-onSurface dark:text-foreground mb-3">
-                  {card.title}
-                </h3>
-                <p className="text-onSurface/70 dark:text-foreground/70 text-sm leading-relaxed flex-1">
-                  {card.desc}
-                </p>
-                <div className="text-primary font-semibold text-sm flex items-center mt-6 group">
-                  立即开始
-                  <svg
-                    className="h-4 w-4 ml-1 transition-transform duration-200 group-hover:translate-x-1"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </Link>
-          ))}
+          </div>
         </section>
+
+        <section className="mt-12">
+          <SectionHeading
+            eyebrow="For yourself"
+            title="与你自己相处"
+            description="对话、记录和长期照顾自己的工具"
+          />
+          <div
+            className={`mt-6 grid gap-5 ${
+              personalTools.length > 1 ? 'md:grid-cols-2' : 'md:grid-cols-2'
+            }`}
+          >
+            {personalTools.map((item) => (
+              <ToolCard key={item.id} item={item} />
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-12">
+          <SectionHeading
+            eyebrow="Shared memories"
+            title="与你重要的人一起"
+            description="共同空间会继续承载相册、笔记与真实生活"
+          />
+          <Link
+            id="btn-spaces"
+            href="/spaces"
+            className="group mt-6 grid overflow-hidden rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] transition hover:-translate-y-0.5 hover:border-[#1d6347]/30 hover:shadow-[0_26px_70px_-48px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard lg:grid-cols-[0.75fr_1.25fr]"
+          >
+            <div className="relative min-h-56 overflow-hidden bg-[#163a2b] p-7 text-white md:p-9">
+              <div className="absolute -right-16 -top-16 h-52 w-52 rounded-full border-[30px] border-[#f7b84b]/14" />
+              <div className="relative">
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-[#f7b84b]">
+                  <FolderHeart size={23} />
+                </span>
+                <h3 className="mt-7 font-display text-3xl font-bold">共同空间</h3>
+                <p className="mt-3 max-w-sm text-sm leading-7 text-white/62">
+                  为情侣、家人或挚友建立只对成员开放的生活空间。
+                </p>
+                <span className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-[#f7b84b]">
+                  查看我的空间
+                  <ArrowRight
+                    size={15}
+                    className="transition group-hover:translate-x-1"
+                  />
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-4 p-6 sm:grid-cols-2 md:p-8">
+              <Feature
+                icon={Images}
+                title="时光相册"
+                description="把照片收进所属空间，与成员共同整理生活片段。"
+              />
+              <Feature
+                icon={NotebookPen}
+                title="协同笔记"
+                description="共同记录计划、纪念日，以及值得长期保存的文字。"
+              />
+              <Feature
+                icon={ShieldCheck}
+                title="成员权限"
+                description="只有受邀成员可以访问，对外绝不展示真实内容。"
+              />
+              <Feature
+                icon={Sparkles}
+                title="持续生长"
+                description="以后新增的共同能力，也会统一从空间中进入。"
+              />
+            </div>
+          </Link>
+        </section>
+
+        {user.is_root && (
+          <section className="mt-12 rounded-[2rem] border border-[#17211d]/10 bg-white/45 px-6 py-6 dark:border-darkBorder dark:bg-darkCard/40 md:flex md:items-center md:justify-between md:px-8">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b56b19]">
+                Site management
+              </p>
+              <h2 className="mt-2 font-display text-2xl font-bold">庭院管理</h2>
+              <p className="mt-2 text-sm leading-6 text-[#17211d]/52 dark:text-foreground/52">
+                管理书房资料、博客文章、用户权限与系统配置。
+              </p>
+            </div>
+            <Link
+              id="btn-admin-panel"
+              href="/admin"
+              className="mt-5 inline-flex items-center gap-2 rounded-full bg-[#163a2b] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#24553f] md:mt-0"
+            >
+              <Settings size={15} />
+              进入管理后台
+            </Link>
+          </section>
+        )}
       </main>
+    </div>
+  )
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+}) {
+  return (
+    <div className="flex flex-col gap-3 border-b border-[#17211d]/10 pb-5 dark:border-darkBorder md:flex-row md:items-end md:justify-between">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b56b19]">{eyebrow}</p>
+        <h2 className="mt-2 font-display text-3xl font-bold">{title}</h2>
+      </div>
+      <p className="text-sm text-[#17211d]/48 dark:text-foreground/48">{description}</p>
+    </div>
+  )
+}
+
+function ToolCard({
+  item,
+}: {
+  item: {
+    id: string
+    title: string
+    description: string
+    href: string
+    icon: typeof Sparkles
+    accent: string
+  }
+}) {
+  return (
+    <Link
+      id={item.id}
+      href={item.href}
+      className="group flex min-h-56 flex-col rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] p-7 transition hover:-translate-y-0.5 hover:border-[#1d6347]/30 hover:shadow-[0_24px_65px_-44px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard md:p-8"
+    >
+      <span className={`grid h-12 w-12 place-items-center rounded-2xl ${item.accent}`}>
+        <item.icon size={22} />
+      </span>
+      <h3 className="mt-6 font-display text-2xl font-bold">{item.title}</h3>
+      <p className="mt-3 max-w-xl text-sm leading-7 text-[#17211d]/58 dark:text-foreground/58">
+        {item.description}
+      </p>
+      <span className="mt-auto inline-flex items-center gap-2 pt-5 text-sm font-bold text-[#1d6347] dark:text-[#f7b84b]">
+        打开
+        <ArrowRight size={15} className="transition group-hover:translate-x-1" />
+      </span>
+    </Link>
+  )
+}
+
+function Feature({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof Sparkles
+  title: string
+  description: string
+}) {
+  return (
+    <div className="rounded-2xl border border-[#17211d]/8 bg-[#f7f4ec] p-5 dark:border-darkBorder dark:bg-darkBg/60">
+      <Icon size={18} className="text-[#b56b19]" />
+      <h4 className="mt-3 font-bold">{title}</h4>
+      <p className="mt-2 text-xs leading-6 text-[#17211d]/52 dark:text-foreground/52">
+        {description}
+      </p>
     </div>
   )
 }

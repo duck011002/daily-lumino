@@ -10,7 +10,7 @@ const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfa
 
 export const metadata: Metadata = {
   title: 'Lumino',
-  description: '您的私密生活空间',
+  description: '一座收藏技术、阅读与生活的个人数字庭院',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

@@ -1,0 +1,897 @@
+'use client'
+
+import { ChangeEvent, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  BookOpen,
+  ExternalLink,
+  Film,
+  Github,
+  ImagePlus,
+  Link2,
+  Loader2,
+  Mail,
+  Music2,
+  Plus,
+  Save,
+  Sparkles,
+  Trash2,
+  UserRound,
+} from 'lucide-react'
+import api, { getErrorMessage } from '@/lib/api'
+import { useAuth } from '@/hooks/useAuth'
+import SiteNav from '@/components/layout/SiteNav'
+import {
+  defaultSiteProfile,
+  MediaCategory,
+  SiteMediaCard,
+  SiteProfile,
+  SiteProfileLink,
+} from '@/lib/siteProfile'
+
+const inputClass =
+  'w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-800 outline-none transition placeholder:text-stone-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-emerald-500 dark:focus:ring-emerald-950'
+
+const mediaLabels: Record<MediaCategory, string> = {
+  book: '书籍',
+  movie: '影视',
+  music: '音乐',
+  status: '生活状态',
+  other: '其他收藏',
+}
+
+const mediaIcons: Record<MediaCategory, typeof BookOpen> = {
+  book: BookOpen,
+  movie: Film,
+  music: Music2,
+  status: Sparkles,
+  other: Link2,
+}
+
+const createId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+export default function ProfileAdminPage() {
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
+  const [profile, setProfile] = useState<SiteProfile>(defaultSiteProfile)
+  const [tagsText, setTagsText] = useState(defaultSiteProfile.interest_tags.join('、'))
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
+    null
+  )
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user?.is_root) {
+      router.replace('/dashboard')
+      return
+    }
+
+    const loadProfile = async () => {
+      try {
+        const response = await api.get<SiteProfile>('/admin/site-profile')
+        setProfile(response.data)
+        setTagsText(response.data.interest_tags.join('、'))
+      } catch (error) {
+        setMessage({ type: 'error', text: getErrorMessage(error, '读取书房资料失败。') })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    void loadProfile()
+  }, [authLoading, router, user])
+
+  const publicMedia = useMemo(
+    () =>
+      [...profile.media_cards]
+        .filter((item) => item.is_public)
+        .sort((a, b) => a.sort_order - b.sort_order),
+    [profile.media_cards]
+  )
+
+  const updateProfile = <K extends keyof SiteProfile>(key: K, value: SiteProfile[K]) => {
+    setProfile((current) => ({ ...current, [key]: value }))
+  }
+
+  const updateLink = (id: string, patch: Partial<SiteProfileLink>) => {
+    updateProfile(
+      'links',
+      profile.links.map((item) => (item.id === id ? { ...item, ...patch } : item))
+    )
+  }
+
+  const updateMedia = (id: string, patch: Partial<SiteMediaCard>) => {
+    updateProfile(
+      'media_cards',
+      profile.media_cards.map((item) => (item.id === id ? { ...item, ...patch } : item))
+    )
+  }
+
+  const moveItem = (collection: 'links' | 'media_cards', index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (collection === 'links') {
+      const items = [...profile.links]
+      if (target < 0 || target >= items.length) return
+      ;[items[index], items[target]] = [items[target], items[index]]
+      updateProfile(
+        'links',
+        items.map((item, itemIndex) => ({ ...item, sort_order: itemIndex }))
+      )
+      return
+    }
+
+    const items = [...profile.media_cards]
+    if (target < 0 || target >= items.length) return
+    ;[items[index], items[target]] = [items[target], items[index]]
+    updateProfile(
+      'media_cards',
+      items.map((item, itemIndex) => ({ ...item, sort_order: itemIndex }))
+    )
+  }
+
+  const uploadImage = async (
+    event: ChangeEvent<HTMLInputElement>,
+    target: string,
+    onUploaded: (url: string) => void
+  ) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('file', file)
+    setUploading(target)
+    setMessage(null)
+    try {
+      const response = await api.post<{ url: string }>('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      onUploaded(response.data.url)
+    } catch (error) {
+      setMessage({ type: 'error', text: getErrorMessage(error, '图片上传失败。') })
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  const addLink = () => {
+    updateProfile('links', [
+      ...profile.links,
+      {
+        id: createId(),
+        label: '',
+        url: '',
+        is_public: true,
+        sort_order: profile.links.length,
+      },
+    ])
+  }
+
+  const addMedia = () => {
+    updateProfile('media_cards', [
+      ...profile.media_cards,
+      {
+        id: createId(),
+        category: 'book',
+        title: '',
+        subtitle: null,
+        creator: null,
+        year: null,
+        badge: null,
+        note: null,
+        image_url: null,
+        url: null,
+        is_public: true,
+        sort_order: profile.media_cards.length,
+      },
+    ])
+  }
+
+  const saveProfile = async () => {
+    setSaving(true)
+    setMessage(null)
+    try {
+      const payload: SiteProfile = {
+        ...profile,
+        interest_tags: tagsText
+          .split(/[、,，\n]/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+        links: profile.links
+          .filter((item) => item.label.trim() && item.url.trim())
+          .map((item, index) => ({ ...item, sort_order: index })),
+        media_cards: profile.media_cards
+          .filter((item) => item.title.trim())
+          .map((item, index) => ({
+            ...item,
+            sort_order: index,
+          })),
+      }
+      const response = await api.put<SiteProfile>('/admin/site-profile', payload)
+      setProfile(response.data)
+      setTagsText(response.data.interest_tags.join('、'))
+      setMessage({ type: 'success', text: '书房资料已保存，前厅与书房会立即使用新内容。' })
+    } catch (error) {
+      setMessage({ type: 'error', text: getErrorMessage(error, '保存书房资料失败。') })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+        <SiteNav />
+        <div className="flex min-h-[70vh] items-center justify-center text-stone-500">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          正在整理书房资料…
+        </div>
+      </div>
+    )
+  }
+
+  if (!user?.is_root) return null
+
+  return (
+    <div className="min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
+      <SiteNav />
+
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+        <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div>
+            <Link
+              href="/admin"
+              className="mb-4 inline-flex items-center gap-2 text-sm text-stone-500 transition hover:text-emerald-700 dark:hover:text-emerald-400"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              返回管理后台
+            </Link>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-400">
+              Personal study
+            </p>
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              书房与个人资料
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-stone-600 dark:text-stone-400">
+              管理前厅使用的个人名片，以及书房中的完整介绍、联系方式和收藏。关闭公开开关的内容只保留在后台。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/library"
+              target="_blank"
+              className="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium transition hover:border-emerald-500 hover:text-emerald-700 dark:border-stone-700 dark:bg-stone-900 dark:hover:text-emerald-400"
+            >
+              预览书房
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/"
+              target="_blank"
+              className="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium transition hover:border-emerald-500 hover:text-emerald-700 dark:border-stone-700 dark:bg-stone-900 dark:hover:text-emerald-400"
+            >
+              预览前厅
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+            <button
+              type="button"
+              onClick={saveProfile}
+              disabled={saving || uploading !== null}
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              保存资料
+            </button>
+          </div>
+        </div>
+
+        {message && (
+          <div
+            className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
+              message.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300'
+                : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300'
+            }`}
+          >
+            {message.text}
+          </div>
+        )}
+
+        <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-7">
+            <section className="rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
+              <div className="mb-6 flex items-center gap-3">
+                <span className="rounded-2xl bg-emerald-100 p-2.5 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                  <UserRound className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="text-lg font-semibold">个人名片</h2>
+                  <p className="text-sm text-stone-500">
+                    姓名、简介与前厅 / 书房视觉素材
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium">显示名称</span>
+                  <input
+                    className={inputClass}
+                    value={profile.display_name}
+                    onChange={(event) => updateProfile('display_name', event.target.value)}
+                    placeholder="例如：Lumino"
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium">一句话介绍</span>
+                  <input
+                    className={inputClass}
+                    value={profile.headline}
+                    onChange={(event) => updateProfile('headline', event.target.value)}
+                    placeholder="开发者，也在认真收藏生活"
+                  />
+                </label>
+                <label className="space-y-2 sm:col-span-2">
+                  <span className="text-sm font-medium">完整简介</span>
+                  <textarea
+                    className={`${inputClass} min-h-32 resize-y leading-7`}
+                    value={profile.bio}
+                    onChange={(event) => updateProfile('bio', event.target.value)}
+                    placeholder="介绍你是谁，以及这座数字庭院记录什么。"
+                  />
+                </label>
+                <label className="space-y-2 sm:col-span-2">
+                  <span className="text-sm font-medium">兴趣标签</span>
+                  <input
+                    className={inputClass}
+                    value={tagsText}
+                    onChange={(event) => setTagsText(event.target.value)}
+                    placeholder="开发者、INFJ、摄影、阅读"
+                  />
+                  <span className="block text-xs text-stone-400">使用顿号或逗号分隔</span>
+                </label>
+
+                <ImageField
+                  label="头像"
+                  value={profile.avatar_url}
+                  uploading={uploading === 'avatar'}
+                  onChange={(value) => updateProfile('avatar_url', value || null)}
+                  onUpload={(event) =>
+                    uploadImage(event, 'avatar', (url) => updateProfile('avatar_url', url))
+                  }
+                />
+                <ImageField
+                  label="前厅 / 书房背景图（可选）"
+                  value={profile.cover_url}
+                  uploading={uploading === 'cover'}
+                  onChange={(value) => updateProfile('cover_url', value || null)}
+                  onUpload={(event) =>
+                    uploadImage(event, 'cover', (url) => updateProfile('cover_url', url))
+                  }
+                />
+              </div>
+            </section>
+
+            <section className="rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
+              <div className="mb-6 flex items-center gap-3">
+                <span className="rounded-2xl bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                  <Link2 className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="text-lg font-semibold">公开联系与状态</h2>
+                  <p className="text-sm text-stone-500">GitHub、邮箱和其他外部入口</p>
+                </div>
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <Github className="h-4 w-4" />
+                    GitHub 链接
+                  </span>
+                  <input
+                    className={inputClass}
+                    value={profile.github_url || ''}
+                    onChange={(event) => updateProfile('github_url', event.target.value || null)}
+                    placeholder="https://github.com/..."
+                  />
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <Mail className="h-4 w-4" />
+                    公开邮箱
+                  </label>
+                  <input
+                    className={inputClass}
+                    type="email"
+                    value={profile.email || ''}
+                    onChange={(event) => updateProfile('email', event.target.value || null)}
+                    placeholder="hello@example.com"
+                  />
+                  <Toggle
+                    checked={profile.show_email}
+                    onChange={(checked) => updateProfile('show_email', checked)}
+                    label="公开展示邮箱"
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <label className="text-sm font-medium">此刻状态（可选）</label>
+                  <input
+                    className={inputClass}
+                    value={profile.status_text || ''}
+                    onChange={(event) => updateProfile('status_text', event.target.value || null)}
+                    placeholder="例如：正在把 Lumino 变成一座数字庭院"
+                  />
+                  <Toggle
+                    checked={profile.status_public}
+                    onChange={(checked) => updateProfile('status_public', checked)}
+                    label="公开展示此刻状态"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-7 border-t border-stone-100 pt-6 dark:border-stone-800">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium">其他链接</h3>
+                    <p className="mt-1 text-xs text-stone-500">可添加个人主页、社交账号或其他公开入口</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addLink}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-2 text-xs font-medium transition hover:border-emerald-500 hover:text-emerald-700 dark:border-stone-700 dark:hover:text-emerald-400"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    添加链接
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {profile.links.length === 0 && (
+                    <p className="rounded-2xl bg-stone-50 px-4 py-5 text-center text-sm text-stone-400 dark:bg-stone-950">
+                      还没有其他链接
+                    </p>
+                  )}
+                  {profile.links.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="grid gap-3 rounded-2xl border border-stone-200 p-4 dark:border-stone-800 sm:grid-cols-[140px_minmax(0,1fr)_auto]"
+                    >
+                      <input
+                        className={inputClass}
+                        value={item.label}
+                        onChange={(event) => updateLink(item.id, { label: event.target.value })}
+                        placeholder="名称"
+                      />
+                      <input
+                        className={inputClass}
+                        value={item.url}
+                        onChange={(event) => updateLink(item.id, { url: event.target.value })}
+                        placeholder="https://..."
+                      />
+                      <ItemActions
+                        isPublic={item.is_public}
+                        onPublicChange={(checked) => updateLink(item.id, { is_public: checked })}
+                        onUp={() => moveItem('links', index, -1)}
+                        onDown={() => moveItem('links', index, 1)}
+                        onDelete={() =>
+                          updateProfile(
+                            'links',
+                            profile.links.filter((link) => link.id !== item.id)
+                          )
+                        }
+                        disableUp={index === 0}
+                        disableDown={index === profile.links.length - 1}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
+              <div className="mb-6 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="rounded-2xl bg-violet-100 p-2.5 text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+                    <BookOpen className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h2 className="text-lg font-semibold">我的收藏架</h2>
+                    <p className="text-sm text-stone-500">
+                      分享喜欢的影视、书籍与音乐，不需要创建站内详情页
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={addMedia}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-300 px-3 py-2 text-xs font-medium transition hover:border-emerald-500 hover:text-emerald-700 dark:border-stone-700 dark:hover:text-emerald-400"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  添加卡片
+                </button>
+              </div>
+              <p className="mb-5 rounded-2xl bg-violet-50 px-4 py-3 text-xs leading-6 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                书房会展示全部公开卡片，前厅只抽取少量内容作为入口；没有外部链接的卡片只作静态分享。
+              </p>
+
+              <div className="space-y-4">
+                {profile.media_cards.length === 0 && (
+                  <p className="rounded-2xl bg-stone-50 px-4 py-8 text-center text-sm text-stone-400 dark:bg-stone-950">
+                    收藏架还是空的，可以先添加一部喜欢的电影、一本书或一张专辑。
+                  </p>
+                )}
+                {profile.media_cards.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className="rounded-3xl border border-stone-200 p-4 dark:border-stone-800 sm:p-5"
+                  >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="space-y-2">
+                        <span className="text-xs font-medium text-stone-500">类型</span>
+                        <select
+                          className={inputClass}
+                          value={item.category}
+                          onChange={(event) =>
+                            updateMedia(item.id, {
+                              category: event.target.value as MediaCategory,
+                            })
+                          }
+                        >
+                          {Object.entries(mediaLabels).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs font-medium text-stone-500">标题</span>
+                        <input
+                          className={inputClass}
+                          value={item.title}
+                          onChange={(event) => updateMedia(item.id, { title: event.target.value })}
+                          placeholder="作品名称"
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs font-medium text-stone-500">
+                          作者 / 导演 / 歌手（可选）
+                        </span>
+                        <input
+                          className={inputClass}
+                          value={item.creator || item.subtitle || ''}
+                          onChange={(event) =>
+                            updateMedia(item.id, {
+                              creator: event.target.value || null,
+                              subtitle: null,
+                            })
+                          }
+                          placeholder="例如：宫崎骏、村上春树、陈奕迅"
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs font-medium text-stone-500">年份（可选）</span>
+                        <input
+                          className={inputClass}
+                          value={item.year || ''}
+                          onChange={(event) =>
+                            updateMedia(item.id, { year: event.target.value || null })
+                          }
+                          placeholder="例如：2024"
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs font-medium text-stone-500">
+                          展示标签（可选）
+                        </span>
+                        <input
+                          className={inputClass}
+                          value={item.badge || ''}
+                          onChange={(event) =>
+                            updateMedia(item.id, { badge: event.target.value || null })
+                          }
+                          placeholder="例如：最喜欢、反复重读、循环播放"
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className="text-xs font-medium text-stone-500">
+                          作品外部链接（可选）
+                        </span>
+                        <input
+                          className={inputClass}
+                          value={item.url || ''}
+                          onChange={(event) =>
+                            updateMedia(item.id, { url: event.target.value || null })
+                          }
+                          placeholder="豆瓣、IMDb、Spotify 或其他链接"
+                        />
+                      </label>
+                      <label className="space-y-2 sm:col-span-2">
+                        <span className="text-xs font-medium text-stone-500">
+                          一句话推荐理由（可选）
+                        </span>
+                        <textarea
+                          className={`${inputClass} min-h-24 resize-y`}
+                          value={item.note || ''}
+                          onChange={(event) =>
+                            updateMedia(item.id, { note: event.target.value || null })
+                          }
+                          placeholder="为什么喜欢它，或者它在什么时候打动过你。"
+                        />
+                      </label>
+                      <div className="sm:col-span-2">
+                        <ImageField
+                          label="封面图（可选）"
+                          value={item.image_url}
+                          uploading={uploading === `media-${item.id}`}
+                          onChange={(value) =>
+                            updateMedia(item.id, { image_url: value || null })
+                          }
+                          onUpload={(event) =>
+                            uploadImage(event, `media-${item.id}`, (url) =>
+                              updateMedia(item.id, { image_url: url })
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <ItemActions
+                        isPublic={item.is_public}
+                        onPublicChange={(checked) =>
+                          updateMedia(item.id, { is_public: checked })
+                        }
+                        onUp={() => moveItem('media_cards', index, -1)}
+                        onDown={() => moveItem('media_cards', index, 1)}
+                        onDelete={() =>
+                          updateProfile(
+                            'media_cards',
+                            profile.media_cards.filter((media) => media.id !== item.id)
+                          )
+                        }
+                        disableUp={index === 0}
+                        disableDown={index === profile.media_cards.length - 1}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <aside className="xl:sticky xl:top-24 xl:self-start">
+            <div className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-sm dark:border-stone-800 dark:bg-stone-900">
+              <div
+                className="relative h-36 bg-gradient-to-br from-emerald-900 via-emerald-800 to-amber-700"
+                style={
+                  profile.cover_url
+                    ? {
+                        backgroundImage: `linear-gradient(120deg, rgba(6,78,59,.55), rgba(120,53,15,.35)), url("${profile.cover_url}")`,
+                        backgroundPosition: 'center',
+                        backgroundSize: 'cover',
+                      }
+                    : undefined
+                }
+              />
+              <div className="px-6 pb-7">
+                <div className="-mt-11 mb-4 flex h-22 w-22 items-center justify-center overflow-hidden rounded-3xl border-4 border-white bg-emerald-100 text-2xl font-semibold text-emerald-800 shadow-md dark:border-stone-900 dark:bg-emerald-950 dark:text-emerald-300">
+                  {profile.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={profile.avatar_url}
+                      alt={profile.display_name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    profile.display_name.slice(0, 1) || 'L'
+                  )}
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400">
+                  书房预览
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold">{profile.display_name || '未命名'}</h2>
+                <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">
+                  {profile.headline || '还没有一句话介绍'}
+                </p>
+                <p className="mt-4 line-clamp-4 text-sm leading-7 text-stone-500 dark:text-stone-400">
+                  {profile.bio || '还没有填写个人简介。'}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {tagsText
+                    .split(/[、,，\n]/)
+                    .map((tag) => tag.trim())
+                    .filter(Boolean)
+                    .slice(0, 5)
+                    .map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-stone-100 px-3 py-1 text-xs text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                </div>
+                {(profile.github_url || (profile.email && profile.show_email)) && (
+                  <div className="mt-5 flex gap-2 border-t border-stone-100 pt-5 dark:border-stone-800">
+                    {profile.github_url && (
+                      <span className="rounded-full border border-stone-200 p-2 dark:border-stone-700">
+                        <Github className="h-4 w-4" />
+                      </span>
+                    )}
+                    {profile.email && profile.show_email && (
+                      <span className="rounded-full border border-stone-200 p-2 dark:border-stone-700">
+                        <Mail className="h-4 w-4" />
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {publicMedia.length > 0 && (
+              <div className="mt-5 rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900">
+                <h3 className="text-sm font-semibold">公开卡片顺序</h3>
+                <div className="mt-4 space-y-3">
+                  {publicMedia.map((item) => {
+                    const Icon = mediaIcons[item.category]
+                    return (
+                      <div key={item.id} className="flex items-center gap-3">
+                        <span className="rounded-xl bg-stone-100 p-2 dark:bg-stone-800">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs text-stone-400">{mediaLabels[item.category]}</p>
+                          <p className="truncate text-sm font-medium">{item.title || '未填写标题'}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  label: string
+}) {
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-stone-500">
+      <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      {label}
+    </label>
+  )
+}
+
+function ImageField({
+  label,
+  value,
+  uploading,
+  onChange,
+  onUpload,
+}: {
+  label: string
+  value: string | null
+  uploading: boolean
+  onChange: (value: string) => void
+  onUpload: (event: ChangeEvent<HTMLInputElement>) => void
+}) {
+  return (
+    <div className="space-y-2">
+      <span className="text-sm font-medium">{label}</span>
+      <div className="flex gap-2">
+        <input
+          className={inputClass}
+          value={value || ''}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="图片链接，或使用右侧按钮上传"
+        />
+        <label className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-stone-300 bg-stone-50 px-3 transition hover:border-emerald-500 hover:text-emerald-700 dark:border-stone-700 dark:bg-stone-800 dark:hover:text-emerald-400">
+          {uploading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <ImagePlus className="h-5 w-5" />
+          )}
+          <span className="sr-only">上传图片</span>
+          <input type="file" accept="image/*" className="sr-only" onChange={onUpload} />
+        </label>
+      </div>
+    </div>
+  )
+}
+
+function ItemActions({
+  isPublic,
+  onPublicChange,
+  onUp,
+  onDown,
+  onDelete,
+  disableUp,
+  disableDown,
+}: {
+  isPublic: boolean
+  onPublicChange: (checked: boolean) => void
+  onUp: () => void
+  onDown: () => void
+  onDelete: () => void
+  disableUp: boolean
+  disableDown: boolean
+}) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <label className="mr-2 inline-flex cursor-pointer items-center gap-1.5 text-xs text-stone-500">
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-stone-300 text-emerald-700 focus:ring-emerald-500"
+          checked={isPublic}
+          onChange={(event) => onPublicChange(event.target.checked)}
+        />
+        公开
+      </label>
+      <ActionButton label="上移" onClick={onUp} disabled={disableUp}>
+        <ArrowUp className="h-4 w-4" />
+      </ActionButton>
+      <ActionButton label="下移" onClick={onDown} disabled={disableDown}>
+        <ArrowDown className="h-4 w-4" />
+      </ActionButton>
+      <ActionButton label="删除" onClick={onDelete} danger>
+        <Trash2 className="h-4 w-4" />
+      </ActionButton>
+    </div>
+  )
+}
+
+function ActionButton({
+  label,
+  onClick,
+  disabled = false,
+  danger = false,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-xl p-2 transition disabled:cursor-not-allowed disabled:opacity-30 ${
+        danger
+          ? 'text-stone-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950'
+          : 'text-stone-400 hover:bg-stone-100 hover:text-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-200'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
