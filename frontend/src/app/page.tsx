@@ -87,7 +87,7 @@ export default function Home() {
   const secondaryPosts = featuredPosts.slice(1, 4)
   const explicitlyFeatured = profile.media_cards.filter((item) => item.is_featured)
   const favoritePreview = explicitlyFeatured.length > 0
-    ? explicitlyFeatured.slice(0, 4)
+    ? explicitlyFeatured
     : (['book', 'movie', 'music'] as const)
         .map((category) => profile.media_cards.find((item) => item.category === category))
         .filter(Boolean) as SiteMediaCard[]
@@ -277,10 +277,10 @@ export default function Home() {
             <SectionHeading
               eyebrow="From my shelves"
               title="最近想与你分享"
-              description="这里只放几件，完整收藏都在书房。"
+              description="精选收藏会沿着这一层书架展开，左右滑动可以继续浏览。"
               action={{ label: '进入书房', href: '/library' }}
             />
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-4">
               {favoritePreview.map((item) => (
                 <FavoritePreviewCard key={item.id} item={item} />
               ))}
@@ -426,7 +426,7 @@ function FavoritePreviewCard({ item }: { item: SiteMediaCard }) {
   const byline = [creator, item.year].filter(Boolean).join(' · ')
 
   return (
-    <article className="group flex min-h-44 gap-4 overflow-hidden rounded-[1.7rem] border border-[#17211d]/10 bg-[#fffdf8] p-4 transition hover:-translate-y-0.5 hover:border-[#1d6347]/30 hover:shadow-lg dark:border-darkBorder dark:bg-darkCard">
+    <article className="group flex min-h-44 w-[82vw] max-w-[18rem] shrink-0 snap-start gap-4 overflow-hidden rounded-[1.7rem] border border-[#17211d]/10 bg-[#fffdf8] p-4 transition hover:-translate-y-0.5 hover:border-[#1d6347]/30 hover:shadow-lg dark:border-darkBorder dark:bg-darkCard sm:w-[17rem] lg:w-[calc((100%-3rem)/4)] lg:max-w-none">
       <div className="h-36 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-[#e7efe8] to-[#f7edd9] dark:from-[#163a2b] dark:to-[#2e2518]">
         {item.image_url ? (
           <img

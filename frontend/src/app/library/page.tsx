@@ -291,8 +291,8 @@ export default function LibraryPage() {
           </div>
 
           {loading ? (
-            <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {[0, 1, 2].map((item) => (
+            <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {[0, 1, 2, 3].map((item) => (
                 <div
                   key={item}
                   className="h-[28rem] animate-pulse rounded-[2rem] bg-white/55 dark:bg-darkCard/45"
@@ -300,7 +300,7 @@ export default function LibraryPage() {
               ))}
             </div>
           ) : visibleMedia.length > 0 ? (
-            <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {visibleMedia.map((item) => (
                 <RecommendationCard key={item.id} item={item} />
               ))}
@@ -333,7 +333,7 @@ function RecommendationCard({ item }: { item: SiteMediaCard }) {
 
   return (
     <article className="group overflow-hidden rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] transition hover:-translate-y-1 hover:border-[#1d6347]/28 hover:shadow-[0_24px_65px_-42px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard">
-      <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-[#dce9df] via-[#eee8d9] to-[#f7dfb8] dark:from-[#163a2b] dark:via-[#243c32] dark:to-[#4a3820]">
+      <div className="relative aspect-[2/3] overflow-hidden bg-gradient-to-br from-[#dce9df] via-[#eee8d9] to-[#f7dfb8] dark:from-[#163a2b] dark:via-[#243c32] dark:to-[#4a3820]">
         {item.image_url ? (
           <img
             src={item.image_url}

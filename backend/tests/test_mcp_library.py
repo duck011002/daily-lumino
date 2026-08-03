@@ -51,10 +51,10 @@ def test_library_mcp_updates_profile_and_public_card_directly(db, monkeypatch):
         upsert_library_media_card(title="精选二", category="movie", is_featured=True)
         upsert_library_media_card(title="精选三", category="music", is_featured=True)
         upsert_library_media_card(title="精选四", category="other", is_featured=True)
-        with pytest.raises(ValueError, match="four featured"):
-            upsert_library_media_card(title="精选五", category="other", is_featured=True)
+        upsert_library_media_card(title="精选五", category="other", is_featured=True)
         profile = get_library_profile()
         assert profile["media_cards"][0]["title"] == "测试书籍"
+        assert sum(1 for item in profile["media_cards"] if item["is_featured"]) == 5
         stored = load_site_profile(db)
         assert stored.headline == "新的书房介绍"
     finally:
