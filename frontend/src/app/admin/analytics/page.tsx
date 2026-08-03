@@ -273,13 +273,14 @@ export default function VisitAnalyticsPage() {
               </div>
             </section>
 
-            <section className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+            <section className="mt-5 grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
               <RankingCard title="热门页面" type="path" items={data.breakdowns.path || []} icon={TrendingUp} />
               <RankingCard title="国家与地区" type="country" items={data.breakdowns.country || []} icon={Globe2} />
               <RankingCard title="省份分布" type="subdivision" items={data.breakdowns.subdivision || []} icon={MapPin} />
               <RankingCard title="城市分布" type="city" items={data.breakdowns.city || []} icon={MapPin} />
               <RankingCard title="访问来源" type="referrer" items={data.breakdowns.referrer || []} icon={Globe2} />
-              <RankingCard title="设备与网络" type="device" items={data.breakdowns.device || []} icon={Laptop2} />
+              <RankingCard title="设备类型" type="device" items={data.breakdowns.device || []} icon={Laptop2} />
+              <RankingCard title="运营商" type="isp" items={data.breakdowns.isp || []} icon={Activity} />
             </section>
 
             <section className="mt-5 overflow-hidden rounded-3xl border border-stone-200/90 bg-white/80 dark:border-stone-700 dark:bg-stone-900/80">
