@@ -13,6 +13,19 @@ credentials in this document.
 - Processes: `lumino-backend` and `lumino-frontend`, supervised by PM2
 - Public health check: `https://lovestory1314.fun/api/health`
 
+## Required deployment entry point
+
+All production deployments must run from a clean `master` branch through:
+
+```bash
+cd /opt/lumino
+./scripts/deploy-production.sh
+```
+
+The script refuses detached heads, non-master branches, tracked changes,
+untracked source files, and non-fast-forward updates. Do not copy application
+source to production with SCP, SFTP, rsync, or direct editor changes.
+
 ## Standard Release
 
 1. Verify the local branch is clean, tests pass, and the intended commit is
