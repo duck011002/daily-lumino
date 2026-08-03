@@ -25,7 +25,7 @@
 ```python
 class InviteRequest(Base):
     __tablename__ = "invite_requests"
-    
+
     id: Mapped[int] = mapped_column(BIGINT_PK, primary_key=True, autoincrement=True)
     email: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(32), index=True, nullable=False, default="pending_verify")
@@ -33,11 +33,11 @@ class InviteRequest(Base):
     message: Mapped[str | None] = mapped_column(String(500), nullable=True)
     request_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    
+
     verify_token_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     admin_action_token_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     invite_code_id: Mapped[int | None] = mapped_column(BIGINT_FK, ForeignKey("invite_codes.id"), nullable=True)
-    
+
     verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     admin_notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)

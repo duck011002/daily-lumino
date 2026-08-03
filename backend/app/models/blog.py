@@ -1,11 +1,29 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import BIGINT_FK, BIGINT_PK, Base
+
+
+class BlogCategory(Base):
+    __tablename__ = "blog_categories"
+
+    id: Mapped[int] = mapped_column(BIGINT_PK, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    posts = relationship("BlogPost", back_populates="category")
 
 
 class BlogPost(Base):
@@ -19,9 +37,13 @@ class BlogPost(Base):
     excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     tags: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     author_id: Mapped[int] = mapped_column(
         BIGINT_FK, ForeignKey("users.id"), nullable=False, index=True
+    )
+    category_id: Mapped[int | None] = mapped_column(
+        BIGINT_FK, ForeignKey("blog_categories.id"), nullable=True, index=True
     )
     view_count: Mapped[int] = mapped_column(default=0, nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -33,5 +55,9 @@ class BlogPost(Base):
     )
 
     author = relationship("User", foreign_keys=[author_id])
+    category = relationship("BlogCategory", back_populates="posts")
 
-    __table_args__ = (Index("idx_blog_public_published", "is_public", "is_published"),)
+    __table_args__ = (
+        Index("idx_blog_public_published", "is_public", "is_published"),
+        Index("idx_blog_category_published", "category_id", "is_public", "is_published"),
+    )

@@ -1,5 +1,6 @@
-import secrets
 import json
+import hashlib
+import secrets
 from datetime import UTC, datetime, timedelta
 from openai import OpenAI
 
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import require_root
 from app.models.invite_code import InviteCode
+from app.models.mcp_blog_token import MCPBlogToken
 from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.models.user import User
@@ -24,6 +26,10 @@ from app.schemas.admin import (
     AITestConnectionRequest,
     AIGetModelsRequest,
     UserAdminResponse,
+    MCPBlogTokenCreate,
+    MCPBlogTokenCreateResponse,
+    MCPBlogTokenResponse,
+    MCPBlogTokenUpdate,
 )
 from app.schemas.user import UserResponse
 from app.utils.crypto import decrypt_value, encrypt_value
@@ -43,6 +49,36 @@ def mask_secret(value: str) -> str:
     if len(value) <= 8:
         return "****"
     return f"{value[:4]}****{value[-4:]}"
+
+
+def hash_mcp_blog_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def serialize_mcp_blog_token(token: MCPBlogToken) -> dict:
+    author_name = token.author.display_name or token.author.username
+    return {
+        "id": token.id,
+        "label": token.label,
+        "author_id": token.author_id,
+        "author_name": author_name,
+        "allow_auto_publish": token.allow_auto_publish,
+        "is_active": token.is_active,
+        "created_at": token.created_at,
+        "last_used_at": token.last_used_at,
+    }
+
+
+def get_mcp_blog_author_or_400(db: Session, author_id: int) -> User:
+    author = db.get(User, author_id)
+    if not author or not author.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="所选博客作者不可用。")
+    if not author.is_root and not author.can_write_blog:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="所选用户没有博客写作权限。",
+        )
+    return author
 
 
 from app.models.chat import ChatMessage, ChatSession
@@ -106,6 +142,9 @@ def update_user_status(user_id: int, status_in: UserStatusUpdate, db: Session = 
                 status_code=status.HTTP_400_BAD_REQUEST, detail="不能禁用超级管理员的自律记录功能权限。"
             )
         user.is_discipline_authorized = status_in.is_discipline_authorized
+
+    if status_in.can_write_blog is not None:
+        user.can_write_blog = status_in.can_write_blog
 
     db.commit()
     db.refresh(user)
@@ -254,6 +293,58 @@ def create_invite_code(
 def list_invite_codes(db: Session = Depends(get_db)):
     codes = db.scalars(select(InviteCode).order_by(InviteCode.id.desc())).all()
     return codes
+
+
+@router.get("/mcp-blog/tokens", response_model=list[MCPBlogTokenResponse])
+def list_mcp_blog_tokens(db: Session = Depends(get_db)):
+    tokens = db.scalars(select(MCPBlogToken).order_by(MCPBlogToken.id.desc())).all()
+    return [serialize_mcp_blog_token(token) for token in tokens]
+
+
+@router.post(
+    "/mcp-blog/tokens",
+    response_model=MCPBlogTokenCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_mcp_blog_token(
+    token_in: MCPBlogTokenCreate,
+    current_user: User = Depends(require_root),
+    db: Session = Depends(get_db),
+):
+    get_mcp_blog_author_or_400(db, token_in.author_id)
+    raw_token = f"lmb_mcp_{secrets.token_urlsafe(32)}"
+    token = MCPBlogToken(
+        label=token_in.label.strip(),
+        token_hash=hash_mcp_blog_token(raw_token),
+        author_id=token_in.author_id,
+        created_by=current_user.id,
+        allow_auto_publish=token_in.allow_auto_publish,
+    )
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+    return {**serialize_mcp_blog_token(token), "token": raw_token}
+
+
+@router.patch("/mcp-blog/tokens/{token_id}", response_model=MCPBlogTokenResponse)
+def update_mcp_blog_token(
+    token_id: int,
+    token_in: MCPBlogTokenUpdate,
+    db: Session = Depends(get_db),
+):
+    token = db.get(MCPBlogToken, token_id)
+    if not token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MCP 凭据不存在。")
+    if token_in.author_id is not None:
+        get_mcp_blog_author_or_400(db, token_in.author_id)
+        token.author_id = token_in.author_id
+    if token_in.allow_auto_publish is not None:
+        token.allow_auto_publish = token_in.allow_auto_publish
+    if token_in.is_active is not None:
+        token.is_active = token_in.is_active
+    db.commit()
+    db.refresh(token)
+    return serialize_mcp_blog_token(token)
 
 
 @router.get("/storage-quota", response_model=StorageQuotaResponse)

@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ShieldAlert, Settings, Users, Key, Database, BookOpen, Plus, Loader2,
-  Trash2, Edit, ArrowLeft, Save, Globe, Eye, CheckCircle, AlertCircle,
-  Copy, Check, UserMinus, UserCheck, ShieldCheck, ToggleLeft, ToggleRight, Share2
+  Trash2, Edit, Save, Globe, Eye, CheckCircle, AlertCircle,
+  Copy, Check, UserMinus, UserCheck, ShieldCheck, ToggleLeft, ToggleRight, Share2, Bot
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/hooks/useAuth'
@@ -14,6 +15,7 @@ import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import { copyText } from '@/lib/utils'
+import BackLink from '@/components/ui/BackLink'
 
 // Dynamic import of markdown editor to prevent hydration errors during SSR
 const MDEditor = dynamic(
@@ -34,6 +36,7 @@ interface UserResponse {
   is_active: boolean
   can_create_spaces: boolean
   is_discipline_authorized: boolean
+  can_write_blog: boolean
   created_at: string
   token_usage?: number
   space_count?: number
@@ -54,6 +57,15 @@ interface BlogPost {
   published_at: string | null
   created_at: string
   author: UserResponse | null
+  category: BlogCategory | null
+}
+
+interface BlogCategory {
+  id: number
+  name: string
+  slug: string
+  description: string | null
+  sort_order: number
 }
 
 interface SystemConfig {
@@ -81,6 +93,17 @@ interface InviteCode {
   created_at: string
 }
 
+interface MCPBlogToken {
+  id: number
+  label: string
+  author_id: number
+  author_name: string
+  allow_auto_publish: boolean
+  is_active: boolean
+  created_at: string
+  last_used_at: string | null
+}
+
 interface AIProvider {
   id: string
   name: string
@@ -92,16 +115,18 @@ interface AIProvider {
   last_checked?: string
 }
 
-type TabType = 'blog' | 'users' | 'configs' | 'quota'
+type TabType = 'blog' | 'users' | 'mcp' | 'configs' | 'quota'
 
 export default function AdminConsole() {
+  const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const { isDark } = useTheme()
 
-  const [activeTab, setActiveTab] = useState<TabType>('blog')
+  const [activeTab, setActiveTab] = useState<TabType>('users')
   
   // States for Blog Tab
   const [posts, setPosts] = useState<BlogPost[]>([])
+  const [categories, setCategories] = useState<BlogCategory[]>([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [editingPostId, setEditingPostId] = useState<number | null>(null)
@@ -115,6 +140,9 @@ export default function AdminConsole() {
   const [formTags, setFormTags] = useState('')
   const [formIsPublic, setFormIsPublic] = useState(true)
   const [formIsPublished, setFormIsPublished] = useState(true)
+  const [formCategoryId, setFormCategoryId] = useState('')
+  const [categoryName, setCategoryName] = useState('')
+  const [categorySlug, setCategorySlug] = useState('')
 
   // States for Users Tab
   const [users, setUsers] = useState<UserResponse[]>([])
@@ -134,6 +162,14 @@ export default function AdminConsole() {
   const [loadingInvites, setLoadingInvites] = useState(true)
   const [inviteExpireHours, setInviteExpireHours] = useState<number>(24)
   const [creatingInvite, setCreatingInvite] = useState(false)
+
+  const [mcpTokens, setMcpTokens] = useState<MCPBlogToken[]>([])
+  const [loadingMcpTokens, setLoadingMcpTokens] = useState(true)
+  const [mcpLabel, setMcpLabel] = useState('Codex Desktop')
+  const [mcpAuthorId, setMcpAuthorId] = useState('')
+  const [mcpAutoPublish, setMcpAutoPublish] = useState(false)
+  const [creatingMcpToken, setCreatingMcpToken] = useState(false)
+  const [newMcpToken, setNewMcpToken] = useState<string | null>(null)
   
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [copiedShareSlug, setCopiedShareSlug] = useState<string | null>(null)
@@ -229,6 +265,34 @@ export default function AdminConsole() {
     }
   }
 
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get('/admin/blog/categories')
+      setCategories(res.data)
+    } catch (err) {
+      console.error('获取博客分区失败', err)
+    }
+  }
+
+  const handleCreateCategory = async () => {
+    if (!categoryName.trim() || !categorySlug.trim()) {
+      showToast('warning', '请填写分区名称和标识。')
+      return
+    }
+    try {
+      await api.post('/admin/blog/categories', {
+        name: categoryName.trim(),
+        slug: categorySlug.trim(),
+      })
+      setCategoryName('')
+      setCategorySlug('')
+      fetchCategories()
+      showToast('success', '技术分区已创建。')
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '创建分区失败。')
+    }
+  }
+
   const fetchUsers = async () => {
     setLoadingUsers(true)
     try {
@@ -295,13 +359,36 @@ export default function AdminConsole() {
     }
   }
 
+  const fetchMcpTokens = async () => {
+    setLoadingMcpTokens(true)
+    try {
+      const [tokensRes, usersRes] = await Promise.all([
+        api.get('/admin/mcp-blog/tokens'),
+        api.get('/admin/users'),
+      ])
+      setMcpTokens(tokensRes.data)
+      setUsers(usersRes.data)
+      if (!mcpAuthorId) {
+        const defaultAuthor = usersRes.data.find((item: UserResponse) => item.is_root) || usersRes.data.find((item: UserResponse) => item.can_write_blog)
+        if (defaultAuthor) setMcpAuthorId(String(defaultAuthor.id))
+      }
+    } catch (err) {
+      console.error('获取 MCP 凭据失败', err)
+    } finally {
+      setLoadingMcpTokens(false)
+    }
+  }
+
   // Dynamic tab switcher hook
   useEffect(() => {
     if (user?.is_root) {
       if (activeTab === 'blog') {
         fetchPosts()
+        fetchCategories()
       } else if (activeTab === 'users') {
         fetchUsers()
+      } else if (activeTab === 'mcp') {
+        fetchMcpTokens()
       } else if (activeTab === 'configs') {
         fetchConfigs()
       } else if (activeTab === 'quota') {
@@ -369,6 +456,18 @@ export default function AdminConsole() {
       setUsers((prev) =>
         prev.map((u) => (u.id === targetUser.id ? { ...u, is_discipline_authorized: newPermission } : u))
       )
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '权限更新失败。')
+    }
+  }
+
+  const handleToggleUserBlogPermission = async (targetUser: UserResponse) => {
+    if (targetUser.id === user?.id || targetUser.is_root) return
+    try {
+      const newPermission = !targetUser.can_write_blog
+      await api.patch(`/admin/users/${targetUser.id}`, { can_write_blog: newPermission })
+      showToast('success', `已${newPermission ? '开通' : '取消'}用户 ${targetUser.username} 的博客写作权限`)
+      setUsers((prev) => prev.map((item) => item.id === targetUser.id ? { ...item, can_write_blog: newPermission } : item))
     } catch (err: any) {
       showToast('error', err.response?.data?.detail || '权限更新失败。')
     }
@@ -611,6 +710,45 @@ export default function AdminConsole() {
     }
   }
 
+  const handleCreateMcpToken = async () => {
+    if (!mcpLabel.trim() || !mcpAuthorId) {
+      showToast('warning', '请填写凭据名称并选择博客作者。')
+      return
+    }
+    setCreatingMcpToken(true)
+    try {
+      const res = await api.post('/admin/mcp-blog/tokens', {
+        label: mcpLabel.trim(),
+        author_id: Number(mcpAuthorId),
+        allow_auto_publish: mcpAutoPublish,
+      })
+      setMcpTokens((prev) => [res.data, ...prev])
+      setNewMcpToken(res.data.token)
+      showToast('success', 'MCP 凭据已创建，请立即复制令牌。')
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '创建 MCP 凭据失败。')
+    } finally {
+      setCreatingMcpToken(false)
+    }
+  }
+
+  const handleUpdateMcpToken = async (token: MCPBlogToken, changes: Partial<MCPBlogToken>) => {
+    try {
+      const res = await api.patch(`/admin/mcp-blog/tokens/${token.id}`, changes)
+      setMcpTokens((prev) => prev.map((item) => item.id === token.id ? res.data : item))
+      showToast('success', `MCP 凭据已${res.data.is_active ? '更新' : '停用'}。`)
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '更新 MCP 凭据失败。')
+    }
+  }
+
+  const handleCopyMcpCommand = async () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://lovestory1314.fun'
+    const command = `codex mcp add lumino-blog --url ${origin}/api/mcp/blog/ --bearer-token-env-var LUMINO_BLOG_MCP_TOKEN`
+    const success = await copyText(command)
+    showToast(success ? 'success' : 'error', success ? 'Codex 连接命令已复制。' : '复制失败，请手动复制。')
+  }
+
   // Blog Tab Actions
   const handleOpenCreate = () => {
     setEditingPostId(null)
@@ -622,6 +760,7 @@ export default function AdminConsole() {
     setFormTags('')
     setFormIsPublic(true)
     setFormIsPublished(false)
+    setFormCategoryId('')
     setIsEditing(true)
   }
 
@@ -635,6 +774,7 @@ export default function AdminConsole() {
     setFormTags(post.tags ? post.tags.join(', ') : '')
     setFormIsPublic(post.is_public)
     setFormIsPublished(post.is_published)
+    setFormCategoryId(post.category ? String(post.category.id) : '')
     setIsEditing(true)
   }
 
@@ -657,6 +797,7 @@ export default function AdminConsole() {
       cover_url: formCoverUrl.trim() || null,
       excerpt: formExcerpt.trim() || null,
       tags: tagsArray.length > 0 ? tagsArray : null,
+      category_id: formCategoryId ? Number(formCategoryId) : null,
       is_public: formIsPublic,
       is_published: formIsPublished,
     }
@@ -708,9 +849,7 @@ export default function AdminConsole() {
           <p className="text-sm text-onSurface/70 dark:text-foreground/70">
             抱歉，您没有访问系统超级管理后台的权限。该页面仅对超级管理员（Root）开放。
           </p>
-          <Link href="/dashboard" passHref>
-            <Button>返回工作台</Button>
-          </Link>
+          <BackLink href="/dashboard" label="返回工作台" />
         </div>
       </div>
     )
@@ -727,10 +866,7 @@ export default function AdminConsole() {
       <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <Link href="/dashboard" className="text-primary hover:text-primary/80 transition-colors flex items-center gap-1 text-sm font-medium">
-              <ArrowLeft size={16} />
-              <span>工作台</span>
-            </Link>
+            <BackLink href="/dashboard" label="返回工作台" />
             <span className="text-onSurface/20 dark:text-foreground/20">|</span>
             <span className="font-display font-bold text-lg text-primary tracking-wide flex items-center gap-1.5">
               <Settings size={18} /> Lumino 系统超管后台
@@ -770,18 +906,19 @@ export default function AdminConsole() {
           {/* Navigation Sidebar */}
           <div className="w-full lg:w-64 flex-shrink-0 flex flex-row lg:flex-col lg:sticky lg:top-24 lg:h-fit overflow-x-auto lg:overflow-x-visible pb-3 lg:pb-0 gap-2 lg:gap-1.5 border-b border-secondary/40 lg:border-b-0 dark:border-darkBorder/40 scrollbar-none">
             <button
-              onClick={() => {
-                setActiveTab('blog')
-                setIsEditing(false)
-              }}
-              className={`flex-shrink-0 lg:w-full flex items-center space-x-2 lg:space-x-3 px-4 py-2.5 lg:py-3 rounded-xl transition-colors text-sm lg:text-base whitespace-nowrap ${
-                activeTab === 'blog'
-                  ? 'bg-primary/10 text-primary font-medium'
-                  : 'text-onSurface/70 dark:text-foreground/70 hover:bg-secondary/50 dark:hover:bg-darkBorder/50'
-              }`}
+              onClick={() => router.push('/admin/profile')}
+              className="flex-shrink-0 lg:w-full flex items-center space-x-2 lg:space-x-3 px-4 py-2.5 lg:py-3 rounded-xl text-sm lg:text-base whitespace-nowrap text-onSurface/70 transition-colors hover:bg-secondary/50 dark:text-foreground/70 dark:hover:bg-darkBorder/50"
+            >
+              <Globe size={18} />
+              <span>书房内容</span>
+            </button>
+
+            <button
+              onClick={() => router.push('/blog/manage')}
+              className="flex-shrink-0 lg:w-full flex items-center space-x-2 lg:space-x-3 px-4 py-2.5 lg:py-3 rounded-xl text-sm lg:text-base whitespace-nowrap text-onSurface/70 transition-colors hover:bg-secondary/50 dark:text-foreground/70 dark:hover:bg-darkBorder/50"
             >
               <BookOpen size={18} />
-              <span>公开博客管理</span>
+              <span>文章管理</span>
             </button>
 
             <button
@@ -797,6 +934,21 @@ export default function AdminConsole() {
             >
               <Users size={18} />
               <span>用户账号管理</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('mcp')
+                setIsEditing(false)
+              }}
+              className={`flex-shrink-0 lg:w-full flex items-center space-x-2 lg:space-x-3 px-4 py-2.5 lg:py-3 rounded-xl transition-colors text-sm lg:text-base whitespace-nowrap ${
+                activeTab === 'mcp'
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-onSurface/70 dark:text-foreground/70 hover:bg-secondary/50 dark:hover:bg-darkBorder/50'
+              }`}
+            >
+              <Bot size={18} />
+              <span>AI 发布 MCP</span>
             </button>
 
             <button
@@ -853,6 +1005,21 @@ export default function AdminConsole() {
                         <p className="text-xs text-onSurface/50 dark:text-foreground/50 font-medium">累计阅读量</p>
                         <h4 className="text-3xl font-display font-bold text-indigo-500 mt-2">{totalViews} 次</h4>
                       </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-secondary bg-white p-5 shadow-sm dark:border-darkBorder dark:bg-darkCard">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-primary">技术博客分区</p>
+                          <p className="mt-1 text-xs text-onSurface/55 dark:text-foreground/55">新增后会直接显示在访客博客页的筛选栏中。</p>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-[150px_180px_auto]">
+                          <input value={categoryName} onChange={(e) => setCategoryName(e.target.value)} placeholder="如 Agent / Skill" className="rounded-lg border border-secondary bg-white px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg" />
+                          <input value={categorySlug} onChange={(e) => setCategorySlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="agent-skill" className="rounded-lg border border-secondary bg-white px-3 py-2 text-xs font-mono outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg" />
+                          <Button onClick={handleCreateCategory} size="sm"><Plus size={14} className="mr-1" />新增分区</Button>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">{categories.length ? categories.map((category) => <span key={category.id} className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-onSurface/70 dark:bg-darkBorder dark:text-foreground/70">{category.name}<span className="ml-1.5 font-mono font-normal opacity-60">{category.slug}</span></span>) : <span className="text-xs text-onSurface/45 dark:text-foreground/45">尚未创建分区。</span>}</div>
                     </div>
 
                     {/* Table Title and Actions */}
@@ -1023,6 +1190,13 @@ export default function AdminConsole() {
                             maxLength={500}
                           />
                         </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 mb-1">技术分区</label>
+                          <select value={formCategoryId} onChange={(e) => setFormCategoryId(e.target.value)} className="w-full rounded-xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard px-4 py-2.5 text-sm text-onSurface dark:text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
+                            <option value="">未分类</option>
+                            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                          </select>
+                        </div>
                       </div>
 
                       <div className="space-y-4">
@@ -1139,6 +1313,7 @@ export default function AdminConsole() {
                           <th className="px-5 py-3 font-semibold text-center">账号状态</th>
                           <th className="px-5 py-3 font-semibold text-center">创建空间权限</th>
                           <th className="px-5 py-3 font-semibold text-center">自律记录授权</th>
+                          <th className="px-5 py-3 font-semibold text-center">博客写作权限</th>
                           <th className="px-5 py-3 font-semibold text-center">快捷控制</th>
                         </tr>
                       </thead>
@@ -1234,6 +1409,22 @@ export default function AdminConsole() {
                                 />
                               </button>
                             </td>
+                            <td className="px-5 py-4 text-center">
+                              <button
+                                onClick={() => handleToggleUserBlogPermission(targetUser)}
+                                disabled={targetUser.id === user?.id || targetUser.is_root}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-primary/40 ${
+                                  targetUser.id === user?.id || targetUser.is_root
+                                    ? 'cursor-not-allowed bg-secondary opacity-40 dark:bg-darkBorder'
+                                    : targetUser.can_write_blog
+                                    ? 'bg-primary'
+                                    : 'bg-onSurface/20 dark:bg-darkBorder'
+                                }`}
+                                title={targetUser.can_write_blog ? '取消博客写作权限' : '开通博客写作权限'}
+                              >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${targetUser.can_write_blog ? 'translate-x-6' : 'translate-x-1'}`} />
+                              </button>
+                            </td>
                             <td className="px-5 py-4">
                               <div className="flex items-center justify-center">
                                 <button
@@ -1267,6 +1458,47 @@ export default function AdminConsole() {
                       </tbody>
                     </table>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* ======================================= */}
+            {/* ============== TAB: MCP ============== */}
+            {/* ======================================= */}
+            {activeTab === 'mcp' && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="rounded-2xl border border-secondary bg-white p-6 shadow-sm dark:border-darkBorder dark:bg-darkCard">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2"><Bot size={20} className="text-primary" /><h2 className="text-xl font-bold text-onSurface dark:text-foreground">AI 技术博客发布 MCP</h2></div>
+                      <p className="mt-2 max-w-2xl text-xs leading-6 text-onSurface/60 dark:text-foreground/60">为 Codex、Claude 或其他 AI 客户端创建独立凭据。凭据绑定具体博客作者，可随时停用；原始令牌仅在创建后显示一次。</p>
+                    </div>
+                    <button onClick={handleCopyMcpCommand} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-secondary px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/5 dark:border-darkBorder"><Copy size={14} />复制 Codex 连接命令</button>
+                  </div>
+                </div>
+
+                {newMcpToken && (
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-500/40 dark:bg-amber-500/10">
+                    <p className="text-sm font-bold text-amber-800 dark:text-amber-300">新 MCP 令牌，只显示这一次</p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row"><code className="flex-1 break-all rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-xs text-onSurface dark:border-amber-500/30 dark:bg-darkBg dark:text-foreground">{newMcpToken}</code><Button size="sm" onClick={() => copyToClipboard(newMcpToken)}><Copy size={14} className="mr-1" />复制令牌</Button></div>
+                    <p className="mt-3 text-xs leading-5 text-amber-800/80 dark:text-amber-300/80">令牌放入本机环境变量 <code>LUMINO_BLOG_MCP_TOKEN</code>，再执行上方复制的连接命令。关闭本提示后无法查看原值，只能创建新令牌替换。</p>
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-secondary bg-white p-6 shadow-sm dark:border-darkBorder dark:bg-darkCard">
+                  <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end">
+                    <div><label className="mb-1 block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">凭据名称</label><input value={mcpLabel} onChange={(e) => setMcpLabel(e.target.value)} maxLength={100} placeholder="例如 Codex Desktop" className="w-full rounded-lg border border-secondary bg-surface px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg" /></div>
+                    <div><label className="mb-1 block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">发布作者</label><select value={mcpAuthorId} onChange={(e) => setMcpAuthorId(e.target.value)} className="w-full rounded-lg border border-secondary bg-surface px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg"><option value="">请选择可写博客的用户</option>{users.filter((item) => item.is_active && (item.is_root || item.can_write_blog)).map((item) => <option key={item.id} value={item.id}>{item.display_name || item.username}{item.is_root ? '（超管）' : ''}</option>)}</select></div>
+                    <label className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-secondary px-3 py-2 text-xs font-semibold text-onSurface/70 dark:border-darkBorder dark:text-foreground/70"><input type="checkbox" checked={mcpAutoPublish} onChange={(e) => setMcpAutoPublish(e.target.checked)} className="rounded text-primary focus:ring-primary" />允许自动公开</label>
+                    <Button size="sm" onClick={handleCreateMcpToken} isLoading={creatingMcpToken}><Plus size={14} className="mr-1" />创建凭据</Button>
+                  </div>
+                  <p className="mt-3 text-xs text-onSurface/50 dark:text-foreground/50">建议关闭“允许自动公开”。关闭后，AI 只能创建草稿，需要你在博客后台审核发布。</p>
+                </div>
+
+                {loadingMcpTokens ? <div className="py-16 text-center"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /></div> : mcpTokens.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-secondary py-16 text-center dark:border-darkBorder"><Bot className="mx-auto h-10 w-10 text-onSurface/25 dark:text-foreground/25" /><p className="mt-3 text-sm text-onSurface/55 dark:text-foreground/55">尚未创建 MCP 凭据。</p></div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-secondary bg-white shadow-sm dark:border-darkBorder dark:bg-darkCard"><table className="w-full min-w-[720px] text-left text-sm"><thead className="border-b border-secondary bg-secondary/40 text-onSurface/70 dark:border-darkBorder dark:bg-darkBg dark:text-foreground/70"><tr><th className="px-5 py-3">名称</th><th className="px-5 py-3">博客作者</th><th className="px-5 py-3">最近使用</th><th className="px-5 py-3 text-center">自动发布</th><th className="px-5 py-3 text-center">状态</th></tr></thead><tbody className="divide-y divide-secondary dark:divide-darkBorder">{mcpTokens.map((token) => <tr key={token.id}><td className="px-5 py-4 font-semibold text-onSurface dark:text-foreground">{token.label}</td><td className="px-5 py-4 text-xs text-onSurface/70 dark:text-foreground/70">{token.author_name}<span className="ml-1 font-mono opacity-50">#{token.author_id}</span></td><td className="px-5 py-4 text-xs text-onSurface/60 dark:text-foreground/60">{token.last_used_at ? new Date(token.last_used_at).toLocaleString() : '尚未使用'}</td><td className="px-5 py-4 text-center"><button onClick={() => handleUpdateMcpToken(token, { allow_auto_publish: !token.allow_auto_publish })} className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${token.allow_auto_publish ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' : 'bg-secondary text-onSurface/60 dark:bg-darkBorder dark:text-foreground/60'}`}>{token.allow_auto_publish ? '已允许' : '仅草稿'}</button></td><td className="px-5 py-4 text-center"><button onClick={() => handleUpdateMcpToken(token, { is_active: !token.is_active })} className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${token.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300'}`}>{token.is_active ? '启用，点击停用' : '已停用，点击启用'}</button></td></tr>)}</tbody></table></div>
                 )}
               </div>
             )}

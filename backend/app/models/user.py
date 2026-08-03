@@ -17,6 +17,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True, nullable=False)
     can_create_spaces: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_discipline_authorized: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    can_write_blog: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

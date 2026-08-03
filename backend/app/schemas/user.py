@@ -12,7 +12,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8, max_length=255)
-    invite_code: str | None = None
+    invite_code: str = Field(..., min_length=1, max_length=64)
 
 
 class UserUpdate(BaseModel):
@@ -27,6 +27,7 @@ class UserResponse(UserBase):
     is_active: bool
     can_create_spaces: bool
     is_discipline_authorized: bool
+    can_write_blog: bool
     created_at: datetime
     updated_at: datetime
 

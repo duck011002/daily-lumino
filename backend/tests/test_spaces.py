@@ -3,13 +3,14 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def space_user(client: TestClient, db):
+def space_user(client: TestClient, db, invite_code_factory):
     """Register and login a user for space tests."""
     user_data = {
         "username": "spaceowner",
         "email": "spaceowner@example.com",
         "password": "password123",
         "display_name": "Space Owner",
+        "invite_code": invite_code_factory(),
     }
     client.post("/api/auth/register", json=user_data)
     login_res = client.post(
@@ -20,13 +21,14 @@ def space_user(client: TestClient, db):
 
 
 @pytest.fixture
-def second_user(client: TestClient, db):
+def second_user(client: TestClient, db, invite_code_factory):
     """Register and login a second user."""
     user_data = {
         "username": "spacemember",
         "email": "spacemember@example.com",
         "password": "password456",
         "display_name": "Space Member",
+        "invite_code": invite_code_factory(),
     }
     client.post("/api/auth/register", json=user_data)
     login_res = client.post(
@@ -184,7 +186,7 @@ def test_join_already_member(client: TestClient, space_user, second_user):
     assert "已经是" in res.json()["detail"]
 
 
-def test_invite_max_uses_exhausted(client: TestClient, space_user, second_user):
+def test_invite_max_uses_exhausted(client: TestClient, space_user, second_user, invite_code_factory):
     create_res = client.post(
         "/api/spaces",
         json={"name": "限制测试", "type": "family"},
@@ -207,6 +209,7 @@ def test_invite_max_uses_exhausted(client: TestClient, space_user, second_user):
         "username": "thirduser",
         "email": "third@example.com",
         "password": "password789",
+        "invite_code": invite_code_factory(),
     }
     client.post("/api/auth/register", json=third_data)
     third_login = client.post(

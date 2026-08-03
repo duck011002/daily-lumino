@@ -28,6 +28,20 @@ def test_public_image_url_keeps_an_absolute_https_url_unchanged():
     assert public_image_url(url, "https://img.example.com/media") == url
 
 
+def test_public_image_url_rewrites_private_https_url():
+    assert public_image_url(
+        "https://127.0.0.1:40027/thumbnails/photo.png",
+        "https://img.example.com",
+    ) == "https://img.example.com/thumbnails/photo.png"
+
+
+def test_public_image_url_resolves_relative_lsky_path():
+    assert public_image_url(
+        "/thumbnails/photo.png",
+        "https://img.example.com/media",
+    ) == "https://img.example.com/media/thumbnails/photo.png"
+
+
 def test_public_image_url_requires_https_without_public_domain():
     with pytest.raises(HTTPException, match="非 HTTPS"):
         public_image_url("http://10.0.0.5:40027/i/photo.png")
@@ -36,6 +50,11 @@ def test_public_image_url_requires_https_without_public_domain():
 def test_public_image_url_rejects_non_https_public_domain():
     with pytest.raises(HTTPException, match="HTTPS"):
         public_image_url("http://lsky.example/i/photo.png", "http://img.example.com")
+
+
+def test_public_image_url_rejects_private_public_domain():
+    with pytest.raises(HTTPException, match="HTTPS"):
+        public_image_url("http://lsky.example/i/photo.png", "https://127.0.0.1")
 
 
 def test_lsky_upload_url_accepts_a_complete_upload_endpoint():

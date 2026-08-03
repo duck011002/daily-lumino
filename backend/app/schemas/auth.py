@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
@@ -9,3 +9,14 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class InviteRequestCreate(BaseModel):
+    email: EmailStr
+    display_name: str | None = Field(None, max_length=100)
+    message: str | None = Field(None, max_length=2000)
+
+
+class InviteRequestCreateResponse(BaseModel):
+    message: str
+    request_id: int

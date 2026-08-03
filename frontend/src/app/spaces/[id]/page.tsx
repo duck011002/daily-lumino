@@ -4,13 +4,14 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Settings, Users, Key, Database, Trash2, ShieldAlert,
+  Settings, Users, Key, Database, Trash2, ShieldAlert,
   Loader2, Copy, Check, Image as ImageIcon, FileText, Plus, X
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import BackLink from '@/components/ui/BackLink'
 import { copyText } from '@/lib/utils'
 
 interface SpaceMember {
@@ -205,9 +206,7 @@ export default function SpaceDetailPage() {
       <div className="min-h-screen bg-surface dark:bg-darkBg flex flex-col items-center justify-center space-y-4">
         <ShieldAlert className="h-12 w-12 text-red-500" />
         <h2 className="text-xl font-bold text-onSurface dark:text-foreground">{error || '空间不存在'}</h2>
-        <Link href="/spaces">
-          <Button variant="outline">返回空间列表</Button>
-        </Link>
+        <BackLink href="/spaces" label="返回空间列表" />
       </div>
     )
   }
@@ -220,9 +219,7 @@ export default function SpaceDetailPage() {
       <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <Link href="/spaces" className="text-primary hover:text-primary/80 transition-colors">
-              <ArrowLeft size={20} />
-            </Link>
+            <BackLink href="/spaces" label="返回空间列表" />
             <h1 className="text-lg font-bold text-onSurface dark:text-foreground">{space.name}</h1>
           </div>
           <div className="flex items-center space-x-3">

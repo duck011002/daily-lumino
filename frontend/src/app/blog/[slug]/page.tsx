@@ -7,15 +7,17 @@ import {
   ArrowLeft,
   BookOpen,
   Calendar,
+  Check,
   Clock3,
   Eye,
   Loader2,
+  Share2,
   Tag,
   User,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import api from '@/lib/api'
-import ThemeToggle from '@/components/layout/ThemeToggle'
+import SiteNav from '@/components/layout/SiteNav'
 import { useTheme } from '@/hooks/useTheme'
 
 const MDPreview = dynamic(
@@ -57,6 +59,7 @@ export default function BlogPostDetail() {
   const [post, setPost] = useState<BlogPost | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'error'>('idle')
 
   useEffect(() => {
     if (!slug) return
@@ -68,6 +71,48 @@ export default function BlogPostDetail() {
       })
       .finally(() => setLoading(false))
   }, [slug])
+
+  const copyShareUrl = async (url: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url)
+    } else {
+      const textarea = document.createElement('textarea')
+      textarea.value = url
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      const copied = document.execCommand('copy')
+      textarea.remove()
+      if (!copied) throw new Error('Copy failed')
+    }
+    setShareStatus('copied')
+    window.setTimeout(() => setShareStatus('idle'), 2200)
+  }
+
+  const handleShare = async () => {
+    if (!post) return
+    const url = window.location.href
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: post.title,
+          text: post.excerpt || '来 Lumino 阅读这篇技术文章。',
+          url,
+        })
+        return
+      }
+      await copyShareUrl(url)
+    } catch (shareError: any) {
+      if (shareError?.name === 'AbortError') return
+      try {
+        await copyShareUrl(url)
+      } catch {
+        setShareStatus('error')
+        window.setTimeout(() => setShareStatus('idle'), 2200)
+      }
+    }
+  }
 
   if (loading) {
     return (
@@ -112,20 +157,16 @@ export default function BlogPostDetail() {
       <div className="pointer-events-none fixed -left-32 top-28 h-96 w-96 rounded-full bg-[#d5e4d8] blur-3xl dark:bg-[#163a2b]/40" />
       <div className="pointer-events-none fixed -right-40 bottom-0 h-[30rem] w-[30rem] rounded-full bg-[#f7b84b]/15 blur-3xl" />
 
-      <header className="sticky top-0 z-30 border-b border-[#17211d]/10 bg-[#eef1eb]/85 backdrop-blur dark:border-darkBorder dark:bg-darkBg/85">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 md:px-8">
-          <Link
-            href="/blog"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-[#1d6347] transition hover:text-[#b56b19] dark:text-[#f7b84b]"
-          >
-            <ArrowLeft size={16} />
-            所有文章
-          </Link>
-          <ThemeToggle />
-        </div>
-      </header>
+      <SiteNav />
 
       <main className="relative mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-14">
+        <Link
+          href="/blog"
+          className="mx-auto mb-5 flex max-w-4xl items-center gap-2 text-sm font-semibold text-[#1d6347] transition hover:text-[#b56b19] dark:text-[#f7b84b]"
+        >
+          <ArrowLeft size={16} />
+          返回博客
+        </Link>
         <article className="mx-auto max-w-4xl overflow-hidden rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] shadow-[0_32px_90px_-48px_rgba(23,33,29,0.6)] dark:border-darkBorder dark:bg-darkCard">
           {post.cover_url && (
             <div className="relative h-56 overflow-hidden md:h-80">
@@ -170,6 +211,15 @@ export default function BlogPostDetail() {
                 <Clock3 size={14} />
                 技术随笔
               </span>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-[#1d6347]/20 bg-white/70 px-3 py-2 font-semibold text-[#1d6347] transition hover:-translate-y-0.5 hover:border-[#1d6347]/45 hover:bg-[#e7efe8] focus:outline-none focus:ring-2 focus:ring-[#1d6347]/25 dark:border-[#f7b84b]/25 dark:bg-darkBg/50 dark:text-[#f7b84b] dark:hover:bg-[#163a2b]"
+                aria-live="polite"
+              >
+                {shareStatus === 'copied' ? <Check size={14} /> : <Share2 size={14} />}
+                {shareStatus === 'copied' ? '链接已复制' : shareStatus === 'error' ? '复制失败' : '分享文章'}
+              </button>
             </div>
 
             {post.excerpt && (

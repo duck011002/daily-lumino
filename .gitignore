@@ -26,4 +26,5 @@ build/
 Thumbs.db
 askpass.bat
 frontend/tsconfig.tsbuildinfo
-frontend/tsconfig.tsbuildinfo
+frontend/public/sw.js
+frontend/public/workbox-*.js

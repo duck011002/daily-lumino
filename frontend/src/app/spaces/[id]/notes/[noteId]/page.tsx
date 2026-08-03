@@ -3,13 +3,14 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, Save, Lock, AlertCircle, CheckCircle } from 'lucide-react'
+import { Loader2, Save, Lock, AlertCircle, CheckCircle } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/hooks/useTheme'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import BackLink from '@/components/ui/BackLink'
 
 // Dynamic import of markdown editor to prevent hydration errors during SSR
 const MDEditor = dynamic(
@@ -235,13 +236,7 @@ export default function NoteEditorPage() {
       <header className="w-full border-b border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 backdrop-blur-md sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3 flex-1 mr-4">
-            <Link
-              href={`/spaces/${spaceId}/notes`}
-              className="text-primary hover:text-primary/80 transition-colors flex-shrink-0"
-              onClick={releaseLock}
-            >
-              <ArrowLeft size={20} />
-            </Link>
+            <BackLink href={`/spaces/${spaceId}/notes`} label="返回记录" onClick={releaseLock} className="flex-shrink-0" />
             
             {/* Title Input */}
             <input

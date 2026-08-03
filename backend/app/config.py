@@ -22,6 +22,23 @@ class Settings(BaseSettings):
     ROOT_EMAIL: str = ""
     ROOT_PASSWORD: str = ""
 
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_USE_TLS: bool = True
+
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
+    INVITE_REQUEST_ADMIN_EMAIL: str = ""
+    INVITE_REQUEST_VERIFY_EXPIRE_MINUTES: int = 30
+    INVITE_REQUEST_ADMIN_ACTION_EXPIRE_HOURS: int = 24
+    INVITE_REQUEST_CODE_EXPIRE_HOURS: int = 48
+    INVITE_REQUEST_ADMIN_INTERVAL_SECONDS: int = 60
+    INVITE_REQUEST_WORKER_ENABLED: bool = True
+
+    MCP_BLOG_MAX_IMAGE_BYTES: int = 8 * 1024 * 1024
+
     LSKY_API_URL: str = ""
     LSKY_API_TOKEN: str = ""
     LSKY_PUBLIC_URL: str = ""

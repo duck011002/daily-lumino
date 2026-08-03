@@ -1,26 +1,64 @@
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from app.models.invite_code import InviteCode
 from app.models.user import User
-from app.models.blog import BlogPost
+from app.models.blog import BlogCategory, BlogPost
+from app.routers.blog import ensure_featured_capacity, list_featured_posts
+from app.mcp_blog import MCPBlogIdentity, current_mcp_blog_identity, get_blog_post, update_blog_post
+from app.services.auth import hash_password
 
 
 @pytest.fixture
 def blog_test_setup(client: TestClient, db):
-    # Register and login User (non-root)
-    client.post(
-        "/api/auth/register",
-        json={"username": "normaluser", "email": "normal@example.com", "password": "password123"},
+    seed_root = User(
+        username="seedroot",
+        email="seedroot@example.com",
+        password=hash_password("password123"),
+        display_name="Seed Root",
+        is_root=True,
+        is_active=True,
     )
+    db.add(seed_root)
+    db.flush()
+    db.add_all(
+        [
+            InviteCode(code="NORMAL-INVITE", created_by=seed_root.id),
+            InviteCode(code="ADMIN-INVITE", created_by=seed_root.id),
+        ]
+    )
+    db.commit()
+
+    # Register and login User (non-root)
+    normal_register = client.post(
+        "/api/auth/register",
+        json={
+            "username": "normaluser",
+            "email": "normal@example.com",
+            "password": "password123",
+            "invite_code": "NORMAL-INVITE",
+        },
+    )
+    assert normal_register.status_code == 201
     res_normal = client.post("/api/auth/login", json={"username_or_email": "normaluser", "password": "password123"})
     normal_cookies = res_normal.cookies
 
     # Register Admin user
-    client.post(
+    admin_register = client.post(
         "/api/auth/register",
-        json={"username": "adminuser", "email": "admin@example.com", "password": "password123"},
+        json={
+            "username": "adminuser",
+            "email": "admin@example.com",
+            "password": "password123",
+            "invite_code": "ADMIN-INVITE",
+        },
     )
+    assert admin_register.status_code == 201
     
     # Manually upgrade adminuser to root in the database
     admin_db = db.scalar(select(User).where(User.username == "adminuser"))
@@ -35,6 +73,72 @@ def blog_test_setup(client: TestClient, db):
         "normal": normal_cookies,
         "admin": admin_cookies
     }
+
+
+def test_mcp_can_revise_only_its_own_blog_post(db, monkeypatch):
+    import app.mcp_blog
+    from app.models.blog import BlogCategory
+
+    author = User(
+        username="mcpwriter",
+        email="mcpwriter@example.com",
+        password=hash_password("password123"),
+        display_name="MCP Writer",
+        can_write_blog=True,
+        is_active=True,
+    )
+    other_author = User(
+        username="otherwriter",
+        email="otherwriter@example.com",
+        password=hash_password("password123"),
+        display_name="Other Writer",
+        can_write_blog=True,
+        is_active=True,
+    )
+    category = BlogCategory(name="Agent", slug="agent")
+    db.add_all([author, other_author, category])
+    db.flush()
+    post = BlogPost(
+        title="Original title",
+        slug="original-title",
+        content="Original content",
+        author_id=author.id,
+    )
+    other_post = BlogPost(
+        title="Other title",
+        slug="other-title",
+        content="Other content",
+        author_id=other_author.id,
+    )
+    db.add_all([post, other_post])
+    db.commit()
+
+    @contextmanager
+    def test_session():
+        yield db
+
+    monkeypatch.setattr(app.mcp_blog, "SessionLocal", test_session)
+    context_token = current_mcp_blog_identity.set(
+        MCPBlogIdentity(author_id=author.id, allow_auto_publish=False)
+    )
+    try:
+        updated = update_blog_post(
+            post_id=post.id,
+            title="Revised title",
+            content="Revised content",
+            category_slug="agent",
+            tags=["FastMCP"],
+        )
+        assert updated["status"] == "draft"
+        fetched = get_blog_post(post.id)
+        assert fetched["title"] == "Revised title"
+        assert fetched["content"] == "Revised content"
+        assert fetched["category_slug"] == "agent"
+        assert fetched["tags"] == ["FastMCP"]
+        with pytest.raises(ValueError, match="not found"):
+            update_blog_post(post_id=other_post.id, title="Should not change")
+    finally:
+        current_mcp_blog_identity.reset(context_token)
 
 
 def test_admin_blog_crud(client: TestClient, blog_test_setup, db):
@@ -96,6 +200,15 @@ def test_admin_blog_crud(client: TestClient, blog_test_setup, db):
     assert patch_res.json()["slug"] == "updated-blog"
     assert patch_res.json()["is_published"] is True
     assert patch_res.json()["published_at"] is not None
+
+    clear_optional_res = client.patch(
+        f"/api/admin/blog/posts/{post_id}",
+        json={"cover_url": None, "excerpt": None},
+        cookies=admin_cookies,
+    )
+    assert clear_optional_res.status_code == 200
+    assert clear_optional_res.json()["cover_url"] is None
+    assert clear_optional_res.json()["excerpt"] is None
 
     # Create another post to test duplicate slug during update
     client.post(
@@ -193,6 +306,190 @@ def test_blog_access_control(client: TestClient, blog_test_setup):
         "/api/admin/blog/posts/999",
         cookies=normal_cookies
     ).status_code == 403
+
+
+def test_root_can_manage_categories_and_delegate_blog_writing(client: TestClient, blog_test_setup):
+    admin_cookies = blog_test_setup["admin"]
+    normal_cookies = blog_test_setup["normal"]
+
+    category_res = client.post(
+        "/api/admin/blog/categories",
+        json={
+            "name": "Agent / Skill",
+            "description": "AI agent engineering notes",
+            "sort_order": 10,
+        },
+        cookies=admin_cookies,
+    )
+    assert category_res.status_code == 201
+    category_id = category_res.json()["id"]
+    assert client.get("/api/blog/categories").json()[0]["slug"] == "agent-skill"
+
+    normal_user = client.get("/api/auth/me", cookies=normal_cookies).json()
+    permission_res = client.patch(
+        f"/api/admin/users/{normal_user['id']}",
+        json={"can_write_blog": True},
+        cookies=admin_cookies,
+    )
+    assert permission_res.status_code == 200
+    assert permission_res.json()["can_write_blog"] is True
+
+    writer_post = client.post(
+        "/api/blog/me/posts",
+        json={
+            "title": "How I build skills",
+            "slug": "writer-skill-post",
+            "content": "Technical notes",
+            "category_id": category_id,
+            "is_public": True,
+            "is_published": True,
+        },
+        cookies=normal_cookies,
+    )
+    assert writer_post.status_code == 201
+    assert writer_post.json()["category"]["slug"] == "agent-skill"
+
+    root_post = client.post(
+        "/api/admin/blog/posts",
+        json={"title": "Root article", "slug": "root-article", "content": "Root notes"},
+        cookies=admin_cookies,
+    )
+    assert root_post.status_code == 201
+    root_visible_posts = client.get("/api/blog/me/posts", cookies=admin_cookies)
+    assert root_visible_posts.status_code == 200
+    assert {post["slug"] for post in root_visible_posts.json()} >= {
+        "writer-skill-post",
+        "root-article",
+    }
+    assert (
+        client.patch(
+            f"/api/blog/me/posts/{root_post.json()['id']}",
+            json={"title": "Attempted overwrite"},
+            cookies=normal_cookies,
+        ).status_code
+        == 403
+    )
+
+    filtered = client.get("/api/blog/posts?category=agent-skill")
+    assert filtered.status_code == 200
+    assert [post["slug"] for post in filtered.json()] == ["writer-skill-post"]
+
+
+def test_root_can_manage_at_most_four_featured_posts_per_category(db):
+    author = User(
+        username="featured-root",
+        email="featured-root@example.com",
+        password=hash_password("password123"),
+        display_name="Featured Root",
+        is_root=True,
+        is_active=True,
+    )
+    category = BlogCategory(name="Featured Group", slug="featured-group")
+    other_category = BlogCategory(name="Other Group", slug="other-group")
+    db.add_all([author, category, other_category])
+    db.flush()
+
+    published_at = datetime.now(UTC).replace(tzinfo=None)
+    for index in range(4):
+        db.add(
+            BlogPost(
+                title=f"Featured {index}",
+                slug=f"featured-{index}",
+                content="Technical content",
+                author_id=author.id,
+                category_id=category.id,
+                is_public=True,
+                is_published=True,
+                is_featured=True,
+                published_at=published_at - timedelta(minutes=index),
+            )
+        )
+    db.commit()
+
+    overflow = BlogPost(
+        title="Featured overflow",
+        slug="featured-overflow",
+        content="Technical content",
+        author_id=author.id,
+        category_id=category.id,
+        is_public=True,
+        is_published=True,
+        is_featured=True,
+        published_at=published_at,
+    )
+    with pytest.raises(HTTPException) as exception:
+        ensure_featured_capacity(db, overflow)
+    assert "每个技术分区" in exception.value.detail
+    assert "最多保留 4 篇" in exception.value.detail
+
+    allowed_in_other_category = BlogPost(
+        title="Other category featured",
+        slug="other-category-featured",
+        content="Technical content",
+        author_id=author.id,
+        category_id=other_category.id,
+        is_public=True,
+        is_published=True,
+        is_featured=True,
+        published_at=published_at,
+    )
+    ensure_featured_capacity(db, allowed_in_other_category)
+
+
+def test_global_featured_prefers_categories_then_fills_by_recency(db):
+    author = User(
+        username="selection-root",
+        email="selection-root@example.com",
+        password=hash_password("password123"),
+        display_name="Selection Root",
+        is_root=True,
+        is_active=True,
+    )
+    categories = {
+        name: BlogCategory(name=f"Featured {name}", slug=f"featured-{name.lower()}")
+        for name in ["A", "B", "C", "D"]
+    }
+    db.add(author)
+    db.add_all(categories.values())
+    db.flush()
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    post_specs = [
+        ("Featured D post", "featured-d-post", "D", now - timedelta(minutes=5)),
+        ("Featured C post", "featured-c-post", "C", now - timedelta(minutes=4)),
+        ("Featured B post", "featured-b-post", "B", now - timedelta(minutes=3)),
+        ("Featured A older", "featured-a-older", "A", now - timedelta(minutes=2)),
+        ("Featured A newest", "featured-a-newest", "A", now - timedelta(minutes=1)),
+    ]
+    for title, slug, category_name, published_at in post_specs:
+        db.add(
+            BlogPost(
+                title=title,
+                slug=slug,
+                content="Technical content",
+                author_id=author.id,
+                category_id=categories[category_name].id,
+                is_public=True,
+                is_published=True,
+                is_featured=True,
+                published_at=published_at,
+            )
+        )
+    db.commit()
+
+    global_featured = list_featured_posts(category=None, db=db)
+    assert [post.slug for post in global_featured] == [
+        "featured-a-newest",
+        "featured-b-post",
+        "featured-c-post",
+        "featured-d-post",
+    ]
+
+    category_featured = list_featured_posts(category="featured-a", db=db)
+    assert [post.slug for post in category_featured] == [
+        "featured-a-newest",
+        "featured-a-older",
+    ]
 
 
 from unittest.mock import patch

@@ -1,4 +1,5 @@
 from decimal import Decimal
+import ipaddress
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -12,6 +13,25 @@ from app.models.system_config import SystemConfig
 from app.utils.crypto import decrypt_value
 
 
+def _is_private_host(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.is_loopback or address.is_private
+
+
+def lsky_public_base_url(db: Session) -> str:
+    public_url_config = db.scalar(
+        select(SystemConfig).where(SystemConfig.config_key == "lsky_public_url")
+    )
+    if public_url_config and public_url_config.config_val:
+        return public_url_config.config_val
+    return settings.LSKY_PUBLIC_URL or settings.FRONTEND_BASE_URL
+
+
 def public_image_url(raw_url: str, public_base_url: str | None = None) -> str:
     """Return an HTTPS URL that browsers and remote clients can fetch.
 
@@ -20,17 +40,19 @@ def public_image_url(raw_url: str, public_base_url: str | None = None) -> str:
     returned path and query string. An already absolute HTTPS URL is returned
     unchanged: it must never be concatenated with the configured public base.
     """
-    source = urlsplit(raw_url)
-    if not source.scheme or not source.netloc:
+    source = urlsplit(raw_url.strip())
+    is_relative_path = not source.scheme and not source.netloc and source.path.startswith("/")
+    if (not source.scheme or not source.netloc) and not is_relative_path:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="图床返回了无效的图片地址。",
         )
 
-    if source.scheme == "https":
+    source_is_private = bool(source.hostname and _is_private_host(source.hostname))
+    if source.scheme == "https" and not source_is_private:
         return raw_url
 
-    if source.scheme != "http":
+    if source.scheme not in {"", "http", "https"}:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="图床返回了不受支持的图片地址协议。",
@@ -38,7 +60,12 @@ def public_image_url(raw_url: str, public_base_url: str | None = None) -> str:
 
     if public_base_url:
         public_base = urlsplit(public_base_url.rstrip("/"))
-        if public_base.scheme != "https" or not public_base.netloc:
+        if (
+            public_base.scheme != "https"
+            or not public_base.netloc
+            or not public_base.hostname
+            or _is_private_host(public_base.hostname)
+        ):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="图床公网地址必须是完整的 HTTPS 域名地址。",
@@ -86,10 +113,6 @@ async def upload_file_to_lsky(
     quota_config = db.scalar(
         select(SystemConfig).where(SystemConfig.config_key == "storage_quota_mb")
     )
-    public_url_config = db.scalar(
-        select(SystemConfig).where(SystemConfig.config_key == "lsky_public_url")
-    )
-
     lsky_url = url_config.config_val if url_config else None
     lsky_token = (
         decrypt_value(token_config.config_val)
@@ -151,11 +174,7 @@ async def upload_file_to_lsky(
 
             return public_image_url(
                 data["data"]["links"]["url"],
-                (
-                    public_url_config.config_val
-                    if public_url_config and public_url_config.config_val
-                    else settings.LSKY_PUBLIC_URL
-                ),
+                lsky_public_base_url(db),
             )
         except httpx.HTTPError as e:
             raise HTTPException(

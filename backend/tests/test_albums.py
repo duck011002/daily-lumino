@@ -3,15 +3,46 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.models.storage_quota import StorageQuota
+from app.services.upload import lsky_upload_url, public_image_url
+
+
+@pytest.mark.parametrize(
+    ("base_url", "expected_url"),
+    [
+        ("http://image-bed:40027", "http://image-bed:40027/api/v1/upload"),
+        ("http://image-bed:40027/", "http://image-bed:40027/api/v1/upload"),
+        ("http://image-bed:40027/api", "http://image-bed:40027/api/v1/upload"),
+        ("http://image-bed:40027/api/", "http://image-bed:40027/api/v1/upload"),
+    ],
+)
+def test_lsky_upload_url_variants(base_url, expected_url):
+    assert lsky_upload_url(base_url) == expected_url
+
+
+@pytest.mark.parametrize(
+    ("file_url", "expected_url"),
+    [
+        (
+            "http://114.55.55.110:40027/i/2026/07/28/image.png",
+            "https://lovestory1314.fun/i/2026/07/28/image.png",
+        ),
+        (
+            "https://images.example.com/i/image.png",
+            "https://images.example.com/i/image.png",
+        ),
+    ],
+)
+def test_public_image_url_variants(file_url, expected_url):
+    assert public_image_url(file_url, "https://lovestory1314.fun") == expected_url
 
 
 @pytest.fixture
-def space_users(client: TestClient, db):
+def space_users(client: TestClient, db, invite_code_factory):
     """Register and login two users, one creates a space, the other is not in the space."""
     # User 1
     client.post(
         "/api/auth/register",
-        json={"username": "albumuser1", "email": "a1@example.com", "password": "password123"},
+        json={"username": "albumuser1", "email": "a1@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     res1 = client.post("/api/auth/login", json={"username_or_email": "albumuser1", "password": "password123"})
     user1_cookies = res1.cookies
@@ -19,7 +50,7 @@ def space_users(client: TestClient, db):
     # User 2
     client.post(
         "/api/auth/register",
-        json={"username": "albumuser2", "email": "a2@example.com", "password": "password123"},
+        json={"username": "albumuser2", "email": "a2@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     res2 = client.post("/api/auth/login", json={"username_or_email": "albumuser2", "password": "password123"})
     user2_cookies = res2.cookies
@@ -152,6 +183,7 @@ def test_upload_and_delete_photo(client: TestClient, space_users, monkeypatch, d
     assert upload_res.status_code == 201
     photo_data = upload_res.json()
     assert photo_data["url"] == "https://img.example.com/image.jpg"
+    assert photo_data["thumb_url"] == "https://img.example.com/thumb.jpg"
     photo_id = photo_data["id"]
 
     # Check quota usage increased

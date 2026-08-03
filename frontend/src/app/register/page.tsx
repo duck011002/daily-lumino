@@ -1,14 +1,15 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '@/hooks/useAuth'
-import Button from '@/components/ui/Button'
+import { useSearchParams } from 'next/navigation'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import Logo from '@/components/layout/Logo'
+import Button from '@/components/ui/Button'
+import { useAuth } from '@/hooks/useAuth'
 
-export default function Register() {
+function RegisterForm() {
+  const searchParams = useSearchParams()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,13 +19,30 @@ export default function Register() {
   const [errorMsg, setErrorMsg] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const { register } = useAuth()
-  const router = useRouter()
+
+  const presetEmail = searchParams.get('email') || ''
+  const presetInviteCode = searchParams.get('invite_code') || ''
+
+  useEffect(() => {
+    if (presetEmail) {
+      setEmail(presetEmail)
+    }
+    if (presetInviteCode) {
+      setInviteCode(presetInviteCode)
+    }
+  }, [presetEmail, presetInviteCode])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg('')
 
-    if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim() || !inviteCode.trim()) {
+    if (
+      !username.trim() ||
+      !email.trim() ||
+      !password.trim() ||
+      !confirmPassword.trim() ||
+      !inviteCode.trim()
+    ) {
       setErrorMsg('请填写所有必填字段。')
       return
     }
@@ -49,19 +67,18 @@ export default function Register() {
       await register({
         username: username.trim(),
         email: email.trim(),
-        password: password,
+        password,
         display_name: displayName.trim() || null,
-        invite_code: inviteCode.trim() || null,
+        invite_code: inviteCode.trim(),
       })
     } catch (err: any) {
-      setErrorMsg(err.message || '注册失败，请检查填写项并重试。')
+      setErrorMsg(err.message || '注册失败，请检查填写内容后重试。')
       setIsLoading(false)
     }
   }
 
   return (
     <div className="flex-1 min-h-screen bg-surface dark:bg-darkBg flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden transition-colors duration-300">
-      {/* Background blobs */}
       <div className="absolute top-[10%] left-[20%] w-[35%] h-[35%] bg-primary/10 rounded-full blur-[80px] pointer-events-none" />
       <div className="absolute bottom-[10%] right-[20%] w-[35%] h-[35%] bg-primary/5 rounded-full blur-[80px] pointer-events-none" />
 
@@ -79,7 +96,7 @@ export default function Register() {
               开启私密生活
             </h2>
             <p className="text-xs text-onSurface/60 dark:text-foreground/60 mt-1">
-              创建您的专属加密避风港账户
+              创建您的专属加密避风港账号
             </p>
           </div>
 
@@ -120,8 +137,9 @@ export default function Register() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="请输入您的电子邮箱"
-                className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+                placeholder="请输入您的邮箱地址"
+                readOnly={Boolean(presetEmail)}
+                className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200 read-only:opacity-80"
                 required
               />
             </div>
@@ -131,7 +149,7 @@ export default function Register() {
                 htmlFor="input-displayname"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                显示昵称 (可选)
+                显示名称（可选）
               </label>
               <input
                 id="input-displayname"
@@ -195,25 +213,26 @@ export default function Register() {
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                 required
               />
+              <p className="mt-2 text-xs text-onSurface/60 dark:text-foreground/60">
+                没有邀请码？
+                <Link href="/invite-request" className="text-primary hover:underline ml-1">
+                  去申请 ~
+                </Link>
+              </p>
             </div>
 
-            <Button
-              id="btn-register-submit"
-              type="submit"
-              isLoading={isLoading}
-              className="w-full py-3"
-            >
-              注 册
+            <Button id="btn-register-submit" type="submit" isLoading={isLoading} className="w-full py-3">
+              注册
             </Button>
           </form>
 
           <div className="text-center mt-6">
             <p className="text-sm text-onSurface/60 dark:text-foreground/60">
-              已有账户？{' '}
+              已有账户？
               <Link href="/login" passHref>
                 <span
                   id="link-to-login"
-                  className="text-primary hover:underline font-semibold cursor-pointer"
+                  className="text-primary hover:underline font-semibold cursor-pointer ml-1"
                 >
                   前往登录
                 </span>
@@ -223,5 +242,13 @@ export default function Register() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function Register() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   )
 }

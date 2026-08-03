@@ -11,7 +11,9 @@ api.interceptors.response.use(
   async (err) => {
     const originalRequest = err.config
     if (err.response?.status === 401 && !originalRequest?._retry) {
-      const isLoginOrRegister = originalRequest?.url?.includes('/auth/login') || originalRequest?.url?.includes('/auth/register')
+      const isLoginOrRegister =
+        originalRequest?.url?.includes('/auth/login') ||
+        originalRequest?.url?.includes('/auth/register')
       if (!isLoginOrRegister) {
         originalRequest._retry = true
         try {
@@ -20,7 +22,14 @@ api.interceptors.response.use(
         } catch (refreshErr) {
           if (typeof window !== 'undefined') {
             const isPublicRoute = (path: string) => {
-              const publicRoutes = ['/', '/login', '/register']
+              const publicRoutes = [
+                '/',
+                '/library',
+                '/login',
+                '/register',
+                '/invite-request',
+                '/courtyard',
+              ]
               if (publicRoutes.includes(path)) return true
               if (path === '/blog' || path.startsWith('/blog/')) return true
               return false
@@ -38,39 +47,52 @@ api.interceptors.response.use(
 )
 
 export function getErrorMessage(err: any, defaultMsg: string = '操作失败，请重试。'): string {
-  if (err.response?.data?.detail) {
-    const detail = err.response.data.detail
+  const detail = err.response?.data?.detail
+  if (detail) {
     if (Array.isArray(detail)) {
       return detail
-        .map((e: any) => {
-          const field = e.loc ? e.loc[e.loc.length - 1] : ''
+        .map((item: any) => {
+          const field = item.loc ? item.loc[item.loc.length - 1] : ''
           const fieldMap: Record<string, string> = {
             username: '用户名',
             email: '邮箱地址',
             password: '密码',
-            display_name: '显示昵称',
+            display_name: '显示名称',
             invite_code: '邀请码',
           }
           const translatedField = fieldMap[field] || field
-          let msg = e.msg || '格式错误'
-          if (msg.includes('at least 3 characters') || msg.includes('should have at least 3 characters')) {
+          let msg = item.msg || '格式错误'
+
+          if (
+            msg.includes('at least 3 characters') ||
+            msg.includes('should have at least 3 characters')
+          ) {
             msg = '长度不能少于 3 个字符'
-          } else if (msg.includes('at least 8 characters') || msg.includes('should have at least 8 characters')) {
+          } else if (
+            msg.includes('at least 8 characters') ||
+            msg.includes('should have at least 8 characters')
+          ) {
             msg = '长度不能少于 8 个字符'
           } else if (msg === 'field required') {
             msg = '必填字段'
           } else if (msg.includes('value is not a valid email address')) {
             msg = '请输入有效的邮箱地址'
           }
+
           return translatedField ? `${translatedField}: ${msg}` : msg
         })
         .join('; ')
     }
+
     if (typeof detail === 'string') {
       return detail
     }
+
     if (typeof detail === 'object' && detail !== null) {
-      return JSON.stringify(detail)
+      if (typeof detail.message === 'string') {
+        return detail.message
+      }
+      return defaultMsg
     }
   }
 

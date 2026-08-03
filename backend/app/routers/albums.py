@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.album import Album, Photo
@@ -15,7 +14,7 @@ from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.models.user import User
 from app.schemas.album import AlbumCreate, AlbumResponse, AlbumUpdate, PhotoResponse
-from app.services.upload import lsky_upload_url, public_image_url
+from app.services.upload import lsky_public_base_url, lsky_upload_url, public_image_url
 from app.utils.crypto import decrypt_value
 
 router = APIRouter(prefix="/api/spaces/{space_id}/albums", tags=["albums"])
@@ -48,6 +47,23 @@ def build_album_response(album: Album) -> AlbumResponse:
         created_by=album.created_by,
         created_at=album.created_at,
         photo_count=len(album.photos),
+    )
+
+
+def build_photo_response(photo: Photo, public_base_url: str) -> PhotoResponse:
+    return PhotoResponse(
+        id=photo.id,
+        album_id=photo.album_id,
+        space_id=photo.space_id,
+        uploader_id=photo.uploader_id,
+        url=public_image_url(photo.url, public_base_url),
+        thumb_url=(
+            public_image_url(photo.thumb_url, public_base_url) if photo.thumb_url else None
+        ),
+        caption=photo.caption,
+        taken_at=photo.taken_at,
+        file_size_kb=photo.file_size_kb,
+        created_at=photo.created_at,
     )
 
 
@@ -169,10 +185,6 @@ async def upload_photo(
     url_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "lsky_api_url"))
     token_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "lsky_api_token"))
     quota_config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "storage_quota_mb"))
-    public_url_config = db.scalar(
-        select(SystemConfig).where(SystemConfig.config_key == "lsky_public_url")
-    )
-
     lsky_url = url_config.config_val if url_config else None
     lsky_token = decrypt_value(token_config.config_val) if token_config and token_config.config_val else None
 
@@ -228,26 +240,19 @@ async def upload_photo(
             
             # Save photo to DB
             links = data["data"]["links"]
+            public_base_url = lsky_public_base_url(db)
             photo = Photo(
                 album_id=album_id,
                 space_id=space_id,
                 uploader_id=current_user.id,
                 url=public_image_url(
                     links["url"],
-                    (
-                        public_url_config.config_val
-                        if public_url_config and public_url_config.config_val
-                        else settings.LSKY_PUBLIC_URL
-                    ),
+                    public_base_url,
                 ),
                 thumb_url=(
                     public_image_url(
                         links["thumbnail_url"],
-                        (
-                            public_url_config.config_val
-                            if public_url_config and public_url_config.config_val
-                            else settings.LSKY_PUBLIC_URL
-                        ),
+                        public_base_url,
                     )
                     if links.get("thumbnail_url")
                     else None
@@ -265,7 +270,7 @@ async def upload_photo(
             db.commit()
             db.refresh(photo)
 
-            return photo
+            return build_photo_response(photo, public_base_url)
         except httpx.HTTPError as e:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -288,7 +293,8 @@ def list_photos(
         .where(Photo.album_id == album_id)
         .order_by(Photo.created_at.desc())
     ).all()
-    return photos
+    public_base_url = lsky_public_base_url(db)
+    return [build_photo_response(photo, public_base_url) for photo in photos]
 
 
 @router.delete("/{album_id}/photos/{photo_id}")

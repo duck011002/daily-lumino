@@ -1,7 +1,7 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import api, { getErrorMessage } from '@/lib/api'
 
 export interface User {
@@ -14,6 +14,7 @@ export interface User {
   is_active: boolean
   can_create_spaces: boolean
   is_discipline_authorized: boolean
+  can_write_blog: boolean
   created_at: string
   updated_at: string
 }
@@ -29,7 +30,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const PUBLIC_ROUTES = ['/', '/login', '/register']
+const PUBLIC_ROUTES = ['/', '/library', '/login', '/register', '/invite-request', '/courtyard']
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -41,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await api.get('/auth/me')
       setUser(response.data)
-    } catch (err) {
+    } catch {
       setUser(null)
     } finally {
       setLoading(false)
@@ -52,10 +53,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkUser()
   }, [])
 
-  // Guard routing
   useEffect(() => {
     if (!loading) {
-      const isPublic = PUBLIC_ROUTES.includes(pathname) || pathname === '/blog' || pathname?.startsWith('/blog/')
+      const isPublic =
+        PUBLIC_ROUTES.includes(pathname) ||
+        pathname === '/blog' ||
+        pathname?.startsWith('/blog/')
       if (!user && !isPublic) {
         router.push('/login')
       }
@@ -69,7 +72,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username_or_email: usernameOrEmail,
         password,
       })
-      // Fetch user info after successful login
       const meResponse = await api.get('/auth/me')
       setUser(meResponse.data)
       setLoading(false)
@@ -77,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       setUser(null)
       setLoading(false)
-      throw new Error(getErrorMessage(err, '登录失败，请检查用户名或密码。'))
+      throw new Error(getErrorMessage(err, '登录失败，请检查用户名、邮箱或密码。'))
     }
   }
 
@@ -85,8 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     try {
       await api.post('/auth/logout')
-    } catch (err) {
-      // Ignore API logout error
+    } catch {
+      // Ignore API logout errors and clear local auth state.
     } finally {
       setUser(null)
       setLoading(false)
@@ -98,11 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     try {
       await api.post('/auth/register', data)
-      // Auto login after successful registration
       await login(data.username, data.password)
     } catch (err: any) {
       setLoading(false)
-      throw new Error(getErrorMessage(err, '注册失败，请检查输入项。'))
+      throw new Error(getErrorMessage(err, '注册失败，请检查输入内容。'))
     }
   }
 

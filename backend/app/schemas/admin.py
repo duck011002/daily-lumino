@@ -7,6 +7,7 @@ class UserStatusUpdate(BaseModel):
     is_active: bool | None = None
     can_create_spaces: bool | None = None
     is_discipline_authorized: bool | None = None
+    can_write_blog: bool | None = None
 
 
 
@@ -54,6 +55,33 @@ class InviteCodeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MCPBlogTokenCreate(BaseModel):
+    label: str = Field(..., min_length=1, max_length=100)
+    author_id: int
+    allow_auto_publish: bool = False
+
+
+class MCPBlogTokenUpdate(BaseModel):
+    author_id: int | None = None
+    allow_auto_publish: bool | None = None
+    is_active: bool | None = None
+
+
+class MCPBlogTokenResponse(BaseModel):
+    id: int
+    label: str
+    author_id: int
+    author_name: str
+    allow_auto_publish: bool
+    is_active: bool
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+class MCPBlogTokenCreateResponse(MCPBlogTokenResponse):
+    token: str
 
 
 class AITestConnectionRequest(BaseModel):

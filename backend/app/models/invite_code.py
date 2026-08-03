@@ -11,6 +11,7 @@ class InviteCode(Base):
 
     id: Mapped[int] = mapped_column(BIGINT_PK, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
+    target_email: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     created_by: Mapped[int] = mapped_column(
         BIGINT_FK, ForeignKey("users.id"), nullable=False, index=True
     )

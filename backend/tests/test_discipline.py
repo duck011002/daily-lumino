@@ -8,11 +8,11 @@ from app.models.discipline import UserHealthProfile, DailyDisciplineLog
 
 
 @pytest.fixture
-def discipline_test_setup(client: TestClient, db):
+def discipline_test_setup(client: TestClient, db, invite_code_factory):
     # Register and login User A (no permission)
     client.post(
         "/api/auth/register",
-        json={"username": "unauthorizeduser", "email": "unauthorized@example.com", "password": "password123"},
+        json={"username": "unauthorizeduser", "email": "unauthorized@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     res_unauthorized = client.post("/api/auth/login", json={"username_or_email": "unauthorizeduser", "password": "password123"})
     unauthorized_cookies = res_unauthorized.cookies
@@ -20,7 +20,7 @@ def discipline_test_setup(client: TestClient, db):
     # Register and login User B (we will authorize this user)
     client.post(
         "/api/auth/register",
-        json={"username": "authorizeduser", "email": "authorized@example.com", "password": "password123"},
+        json={"username": "authorizeduser", "email": "authorized@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     res_authorized = client.post("/api/auth/login", json={"username_or_email": "authorizeduser", "password": "password123"})
     authorized_cookies = res_authorized.cookies
@@ -29,7 +29,7 @@ def discipline_test_setup(client: TestClient, db):
     # Register Admin user
     client.post(
         "/api/auth/register",
-        json={"username": "adminuser", "email": "admin@example.com", "password": "password123"},
+        json={"username": "adminuser", "email": "admin@example.com", "password": "password123", "invite_code": invite_code_factory()},
     )
     admin_db = db.scalar(select(User).where(User.username == "adminuser"))
     admin_db.is_root = True
