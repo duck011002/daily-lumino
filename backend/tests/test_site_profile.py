@@ -56,6 +56,7 @@ def test_site_profile_persists_utf8_and_filters_private_items(db):
                 year="2026",
                 badge="反复重读",
                 is_public=True,
+                is_featured=True,
             ),
             SiteMediaCard(
                 id="private-movie",
@@ -90,3 +91,4 @@ def test_site_profile_persists_utf8_and_filters_private_items(db):
     assert public_profile.media_cards[0].creator == "公开作者"
     assert public_profile.media_cards[0].year == "2026"
     assert public_profile.media_cards[0].badge == "反复重读"
+    assert public_profile.media_cards[0].is_featured is True

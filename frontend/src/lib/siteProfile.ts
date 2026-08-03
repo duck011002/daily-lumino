@@ -20,6 +20,7 @@ export interface SiteMediaCard {
   image_url: string | null
   url: string | null
   is_public: boolean
+  is_featured: boolean
   sort_order: number
 }
 

@@ -49,6 +49,7 @@ class SiteMediaCard(BaseModel):
     image_url: str | None = Field(None, max_length=500)
     url: str | None = Field(None, max_length=500)
     is_public: bool = True
+    is_featured: bool = False
     sort_order: int = 0
 
     @field_validator("image_url")

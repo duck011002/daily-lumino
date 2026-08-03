@@ -168,6 +168,7 @@ def upsert_library_media_card(
     image_url: str | None = None,
     url: str | None = None,
     is_public: bool | None = None,
+    is_featured: bool | None = None,
     clear_fields: list[str] | None = None,
 ) -> dict[str, Any]:
     identity = _identity()
@@ -176,6 +177,9 @@ def upsert_library_media_card(
         cards = list(profile.media_cards)
         target_id = card_id or str(uuid.uuid4())
         old = next((x for x in cards if x.id == target_id), None)
+        if is_featured is True and not (old and old.is_featured):
+            if sum(1 for card in cards if card.is_featured) >= 3:
+                raise ValueError("The home page already has three featured collection cards.")
         optional = {"creator": creator, "year": year, "badge": badge, "note": note, "image_url": image_url, "url": url}
         clearable = set(optional)
         for field in clear_fields or []:
@@ -184,10 +188,15 @@ def upsert_library_media_card(
             optional[field] = None
         if old:
             optional = {key: (getattr(old, key) if value is None and key not in (clear_fields or []) else value) for key, value in optional.items()}
+        public_value = is_public if is_public is not None else (old.is_public if old else True)
+        featured_value = is_featured if is_featured is not None else (old.is_featured if old else False)
+        if featured_value and not public_value:
+            raise ValueError("A hidden collection card cannot be featured on the home page.")
         item = SiteMediaCard(
             id=target_id, title=title, category=category or (old.category if old else "other"),
             **optional,
-            is_public=is_public if is_public is not None else (old.is_public if old else True),
+            is_public=public_value,
+            is_featured=featured_value,
             sort_order=old.sort_order if old else len(cards),
         )
         index = next((i for i, value in enumerate(cards) if value.id == target_id), None)

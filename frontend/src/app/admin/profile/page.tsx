@@ -17,6 +17,8 @@ import {
   Music2,
   Plus,
   Save,
+  Search,
+  Star,
   Sparkles,
   Trash2,
   UserRound,
@@ -59,6 +61,7 @@ const createId = () =>
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 const LOCAL_DRAFT_KEY = 'lumino-library-profile-draft-v1'
+type MediaFilter = 'all' | MediaCategory | 'featured' | 'hidden'
 
 export default function ProfileAdminPage() {
   const router = useRouter()
@@ -72,6 +75,8 @@ export default function ProfileAdminPage() {
     null
   )
   const [savedSnapshot, setSavedSnapshot] = useState('')
+  const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all')
+  const [mediaSearch, setMediaSearch] = useState('')
   const currentSnapshot = useMemo(() => JSON.stringify({ profile, tagsText }), [profile, tagsText])
   const isDirty = Boolean(savedSnapshot && savedSnapshot !== currentSnapshot)
 
@@ -131,6 +136,26 @@ export default function ProfileAdminPage() {
         .sort((a, b) => a.sort_order - b.sort_order),
     [profile.media_cards]
   )
+  const filteredMedia = useMemo(() => {
+    const keyword = mediaSearch.trim().toLocaleLowerCase()
+    return profile.media_cards.filter((item) => {
+      const matchesFilter = mediaFilter === 'all'
+        || (mediaFilter === 'featured' && item.is_featured)
+        || (mediaFilter === 'hidden' && !item.is_public)
+        || item.category === mediaFilter
+      const matchesSearch = !keyword || [item.title, item.creator, item.year, item.badge]
+        .filter(Boolean)
+        .some((value) => value!.toLocaleLowerCase().includes(keyword))
+      return matchesFilter && matchesSearch
+    })
+  }, [mediaFilter, mediaSearch, profile.media_cards])
+  const homePreviewMedia = useMemo(() => {
+    const featured = publicMedia.filter((item) => item.is_featured)
+    if (featured.length > 0) return featured.slice(0, 3)
+    return (['book', 'movie', 'music'] as MediaCategory[])
+      .map((category) => publicMedia.find((item) => item.category === category))
+      .filter((item): item is SiteMediaCard => Boolean(item))
+  }, [publicMedia])
 
   const updateProfile = <K extends keyof SiteProfile>(key: K, value: SiteProfile[K]) => {
     setProfile((current) => ({ ...current, [key]: value }))
@@ -148,6 +173,14 @@ export default function ProfileAdminPage() {
       'media_cards',
       profile.media_cards.map((item) => (item.id === id ? { ...item, ...patch } : item))
     )
+  }
+
+  const updateFeatured = (id: string, checked: boolean) => {
+    if (checked && profile.media_cards.filter((item) => item.is_featured).length >= 3) {
+      setMessage({ type: 'error', text: '前厅最多精选 3 张收藏卡片，请先取消一张已有精选。' })
+      return
+    }
+    updateMedia(id, { is_featured: checked })
   }
 
   const moveItem = (collection: 'links' | 'media_cards', index: number, direction: -1 | 1) => {
@@ -225,6 +258,7 @@ export default function ProfileAdminPage() {
         image_url: null,
         url: null,
         is_public: true,
+        is_featured: false,
         sort_order: profile.media_cards.length,
       },
     ])
@@ -338,17 +372,20 @@ export default function ProfileAdminPage() {
 
         <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-7">
-            <section id="profile-card" className="scroll-mt-40 rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900 sm:p-7">
-              <div className="mb-6 flex items-center gap-3">
-                <span className="rounded-2xl bg-emerald-100 p-2.5 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                  <UserRound className="h-5 w-5" />
-                </span>
-                <div>
-                  <h2 className="text-lg font-semibold">个人名片</h2>
-                  <p className="text-sm text-stone-500">
-                    姓名、简介与前厅 / 书房视觉素材
-                  </p>
+            <section id="profile-card" className="relative scroll-mt-40 overflow-hidden rounded-[2rem] border border-emerald-200 bg-gradient-to-br from-white via-white to-emerald-50/70 p-5 shadow-[0_22px_60px_-45px_rgba(5,150,105,0.55)] dark:border-emerald-950 dark:from-stone-900 dark:via-stone-900 dark:to-emerald-950/30 sm:p-7">
+              <div className="-mx-5 -mt-5 mb-7 flex items-center justify-between gap-4 border-b border-emerald-100 bg-emerald-50/70 px-5 py-5 dark:border-emerald-950 dark:bg-emerald-950/30 sm:-mx-7 sm:-mt-7 sm:px-7 sm:py-6">
+                <div className="flex items-center gap-3">
+                  <span className="rounded-2xl bg-emerald-700 p-2.5 text-white shadow-lg shadow-emerald-700/20 dark:bg-emerald-600">
+                    <UserRound className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h2 className="text-lg font-semibold">个人名片</h2>
+                    <p className="text-sm text-stone-500">
+                      姓名、简介与前厅 / 书房视觉素材
+                    </p>
+                  </div>
                 </div>
+                <span className="hidden rounded-full border border-emerald-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-stone-900 dark:text-emerald-300 sm:inline-flex">公开身份</span>
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
@@ -534,7 +571,10 @@ export default function ProfileAdminPage() {
                     <BookOpen className="h-5 w-5" />
                   </span>
                   <div>
-                    <h2 className="text-lg font-semibold">我的收藏架</h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-semibold">我的收藏架</h2>
+                      <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-700 dark:bg-violet-950 dark:text-violet-300">{profile.media_cards.length}/24</span>
+                    </div>
                     <p className="text-sm text-stone-500">
                       分享喜欢的影视、书籍与音乐，不需要创建站内详情页
                     </p>
@@ -550,20 +590,47 @@ export default function ProfileAdminPage() {
                 </button>
               </div>
               <p className="mb-5 rounded-2xl bg-violet-50 px-4 py-3 text-xs leading-6 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
-                书房会展示全部公开卡片，前厅只抽取少量内容作为入口；没有外部链接的卡片只作静态分享。
+                书房展示全部公开卡片；标记为“前厅精选”的卡片会按当前顺序展示在前厅，最多三张。
               </p>
 
-              <div className="space-y-4">
-                {profile.media_cards.length === 0 && (
-                  <p className="rounded-2xl bg-stone-50 px-4 py-8 text-center text-sm text-stone-400 dark:bg-stone-950">
-                    收藏架还是空的，可以先添加一部喜欢的电影、一本书或一张专辑。
+              <div className="mb-5 space-y-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                  <input value={mediaSearch} onChange={(event) => setMediaSearch(event.target.value)} placeholder="搜索标题、创作者、年份或标签" className="w-full rounded-2xl border border-stone-200 bg-stone-50 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-violet-400 focus:bg-white dark:border-stone-800 dark:bg-stone-950" />
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {([
+                    ['all', '全部'], ['featured', '前厅精选'], ['book', '书籍'], ['movie', '影视'], ['music', '音乐'], ['status', '生活状态'], ['other', '其他'], ['hidden', '已隐藏'],
+                  ] as Array<[MediaFilter, string]>).map(([value, label]) => (
+                    <button key={value} type="button" onClick={() => setMediaFilter(value)} className={`shrink-0 rounded-full px-3 py-2 text-xs font-semibold transition ${mediaFilter === value ? 'bg-violet-700 text-white shadow-sm' : 'bg-stone-100 text-stone-600 hover:bg-violet-100 hover:text-violet-700 dark:bg-stone-800 dark:text-stone-300'}`}>{label}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                {filteredMedia.length === 0 && (
+                  <p className="rounded-2xl bg-stone-50 px-4 py-8 text-center text-sm text-stone-400 dark:bg-stone-950 md:col-span-2">
+                    {profile.media_cards.length === 0 ? '收藏架还是空的，可以先添加一部喜欢的电影、一本书或一张专辑。' : '没有符合当前筛选条件的收藏。'}
                   </p>
                 )}
-                {profile.media_cards.map((item, index) => (
-                  <div
+                {filteredMedia.map((item) => (
+                  <details
                     key={item.id}
-                    className="rounded-3xl border border-stone-200 p-4 dark:border-stone-800 sm:p-5"
+                    className="group overflow-hidden rounded-3xl border border-stone-200 bg-stone-50/60 transition open:shadow-lg dark:border-stone-800 dark:bg-stone-950/50 md:open:col-span-2 2xl:open:col-span-3"
                   >
+                    <summary className="flex cursor-pointer list-none items-center gap-3 p-4 marker:hidden">
+                      <div className="h-16 w-12 shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-violet-100 to-amber-100 dark:from-violet-950 dark:to-stone-800">
+                        {item.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={item.image_url} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="grid h-full place-items-center text-violet-500"><Sparkles className="h-5 w-5" /></div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate font-semibold">{item.title || '未填写标题'}</p>{item.is_featured && <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />}</div><p className="mt-1 truncate text-xs text-stone-500">{mediaLabels[item.category]}{item.creator ? ` · ${item.creator}` : ''}{item.year ? ` · ${item.year}` : ''}</p><div className="mt-2 flex gap-1.5"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.is_public ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-stone-200 text-stone-500 dark:bg-stone-800'}`}>{item.is_public ? '公开' : '隐藏'}</span>{item.is_featured && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300">前厅精选</span>}</div></div>
+                      <span className="text-xs font-semibold text-violet-600">编辑</span>
+                    </summary>
+                    <div className="border-t border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900 sm:p-5">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <label className="space-y-2">
                         <span className="text-xs font-medium text-stone-500">类型</span>
@@ -674,32 +741,37 @@ export default function ProfileAdminPage() {
                         />
                       </div>
                     </div>
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-5 flex flex-col gap-3 border-t border-stone-100 pt-4 dark:border-stone-800 sm:flex-row sm:items-center sm:justify-between">
+                      <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                        <input type="checkbox" checked={item.is_featured} onChange={(event) => updateFeatured(item.id, event.target.checked)} className="h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-400" />
+                        <Star className="h-4 w-4" />展示到前厅精选
+                      </label>
                       <ItemActions
                         isPublic={item.is_public}
                         onPublicChange={(checked) =>
-                          updateMedia(item.id, { is_public: checked })
+                          updateMedia(item.id, { is_public: checked, ...(!checked ? { is_featured: false } : {}) })
                         }
-                        onUp={() => moveItem('media_cards', index, -1)}
-                        onDown={() => moveItem('media_cards', index, 1)}
+                        onUp={() => moveItem('media_cards', profile.media_cards.findIndex((media) => media.id === item.id), -1)}
+                        onDown={() => moveItem('media_cards', profile.media_cards.findIndex((media) => media.id === item.id), 1)}
                         onDelete={() =>
                           updateProfile(
                             'media_cards',
                             profile.media_cards.filter((media) => media.id !== item.id)
                           )
                         }
-                        disableUp={index === 0}
-                        disableDown={index === profile.media_cards.length - 1}
+                        disableUp={profile.media_cards.findIndex((media) => media.id === item.id) === 0}
+                        disableDown={profile.media_cards.findIndex((media) => media.id === item.id) === profile.media_cards.length - 1}
                       />
                     </div>
                   </div>
+                  </details>
                 ))}
               </div>
             </section>
             <LibraryMcpPanel />
           </div>
 
-          <aside className="xl:sticky xl:top-24 xl:self-start">
+          <aside className="xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:self-start xl:overflow-y-auto xl:pr-2">
             <div className="overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-sm dark:border-stone-800 dark:bg-stone-900">
               <div
                 className="relative h-36 bg-gradient-to-br from-emerald-900 via-emerald-800 to-amber-700"
@@ -768,11 +840,12 @@ export default function ProfileAdminPage() {
               </div>
             </div>
 
-            {publicMedia.length > 0 && (
+            {homePreviewMedia.length > 0 && (
               <div className="mt-5 rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900">
-                <h3 className="text-sm font-semibold">公开卡片顺序</h3>
+                <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">前厅精选预览</h3><span className="text-xs font-semibold text-amber-600">{homePreviewMedia.length}/3</span></div>
+                <p className="mt-2 text-xs leading-5 text-stone-400">有精选标记时优先展示精选；未设置时按书籍、影视、音乐自动补位。</p>
                 <div className="mt-4 space-y-3">
-                  {publicMedia.map((item) => {
+                  {homePreviewMedia.map((item) => {
                     const Icon = mediaIcons[item.category]
                     return (
                       <div key={item.id} className="flex items-center gap-3">

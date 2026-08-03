@@ -85,9 +85,12 @@ export default function Home() {
 
   const heroPost = featuredPosts[0]
   const secondaryPosts = featuredPosts.slice(1, 4)
-  const favoritePreview = (['book', 'movie', 'music'] as const)
-    .map((category) => profile.media_cards.find((item) => item.category === category))
-    .filter(Boolean) as SiteMediaCard[]
+  const explicitlyFeatured = profile.media_cards.filter((item) => item.is_featured)
+  const favoritePreview = explicitlyFeatured.length > 0
+    ? explicitlyFeatured.slice(0, 3)
+    : (['book', 'movie', 'music'] as const)
+        .map((category) => profile.media_cards.find((item) => item.category === category))
+        .filter(Boolean) as SiteMediaCard[]
   const publicLinks = [
     profile.github_url
       ? { id: 'github', label: 'GitHub', url: profile.github_url, icon: Github }

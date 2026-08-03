@@ -42,11 +42,20 @@ def test_library_mcp_updates_profile_and_public_card_directly(db, monkeypatch):
             category="book",
             creator="作者",
             is_public=True,
+            is_featured=True,
         )
         assert card["is_public"] is True
+        assert card["is_featured"] is True
+        with pytest.raises(ValueError, match="hidden collection card"):
+            upsert_library_media_card(title="隐藏精选", is_public=False, is_featured=True)
+        upsert_library_media_card(title="精选二", category="movie", is_featured=True)
+        upsert_library_media_card(title="精选三", category="music", is_featured=True)
+        with pytest.raises(ValueError, match="three featured"):
+            upsert_library_media_card(title="精选四", category="other", is_featured=True)
         profile = get_library_profile()
         assert profile["media_cards"][0]["title"] == "测试书籍"
         stored = load_site_profile(db)
         assert stored.headline == "新的书房介绍"
     finally:
         current_mcp_library_identity.reset(context_token)
+import pytest
