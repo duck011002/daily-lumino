@@ -178,8 +178,8 @@ def upsert_library_media_card(
         target_id = card_id or str(uuid.uuid4())
         old = next((x for x in cards if x.id == target_id), None)
         if is_featured is True and not (old and old.is_featured):
-            if sum(1 for card in cards if card.is_featured) >= 3:
-                raise ValueError("The home page already has three featured collection cards.")
+            if sum(1 for card in cards if card.is_featured) >= 4:
+                raise ValueError("The home page already has four featured collection cards.")
         optional = {"creator": creator, "year": year, "badge": badge, "note": note, "image_url": image_url, "url": url}
         clearable = set(optional)
         for field in clear_fields or []:

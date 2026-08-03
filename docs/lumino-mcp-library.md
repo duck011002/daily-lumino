@@ -8,7 +8,7 @@ https://<lumino-domain>/api/mcp/library/
 
 超级管理员在“书房与个人资料 → AI 助手”中创建专用凭据。令牌只显示一次，可以随时停用；不要使用登录 Cookie、管理员密码或博客 MCP 令牌替代。
 
-MCP 的修改会直接保存并立即生效。公开范围仍由资料中的 `show_email`、`status_public`，以及链接和收藏卡片的 `is_public` 控制。创建链接和收藏卡片时默认公开，若希望隐藏，应明确传入 `is_public=false`。公开收藏可通过 `is_featured=true` 加入前厅精选，最多三张；隐藏卡片不能同时设为精选。
+MCP 的修改会直接保存并立即生效。公开范围仍由资料中的 `show_email`、`status_public`，以及链接和收藏卡片的 `is_public` 控制。创建链接和收藏卡片时默认公开，若希望隐藏，应明确传入 `is_public=false`。公开收藏可通过 `is_featured=true` 加入前厅精选，最多四张；隐藏卡片不能同时设为精选。
 
 当前工具包括：
 

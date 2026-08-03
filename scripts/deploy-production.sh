@@ -2,6 +2,14 @@
 set -euo pipefail
 
 repo_dir="/opt/lumino"
+lock_file="/tmp/lumino-production-deploy.lock"
+
+exec 9>"$lock_file"
+if ! flock -n 9; then
+  echo "Refusing deployment: another production deployment is already running." >&2
+  exit 75
+fi
+
 cd "$repo_dir"
 
 current_branch="$(git symbolic-ref --quiet --short HEAD || true)"

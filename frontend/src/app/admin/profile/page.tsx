@@ -151,7 +151,7 @@ export default function ProfileAdminPage() {
   }, [mediaFilter, mediaSearch, profile.media_cards])
   const homePreviewMedia = useMemo(() => {
     const featured = publicMedia.filter((item) => item.is_featured)
-    if (featured.length > 0) return featured.slice(0, 3)
+    if (featured.length > 0) return featured.slice(0, 4)
     return (['book', 'movie', 'music'] as MediaCategory[])
       .map((category) => publicMedia.find((item) => item.category === category))
       .filter((item): item is SiteMediaCard => Boolean(item))
@@ -176,8 +176,8 @@ export default function ProfileAdminPage() {
   }
 
   const updateFeatured = (id: string, checked: boolean) => {
-    if (checked && profile.media_cards.filter((item) => item.is_featured).length >= 3) {
-      setMessage({ type: 'error', text: '前厅最多精选 3 张收藏卡片，请先取消一张已有精选。' })
+    if (checked && profile.media_cards.filter((item) => item.is_featured).length >= 4) {
+      setMessage({ type: 'error', text: '前厅最多精选 4 张收藏卡片，请先取消一张已有精选。' })
       return
     }
     updateMedia(id, { is_featured: checked })
@@ -590,7 +590,7 @@ export default function ProfileAdminPage() {
                 </button>
               </div>
               <p className="mb-5 rounded-2xl bg-violet-50 px-4 py-3 text-xs leading-6 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
-                书房展示全部公开卡片；标记为“前厅精选”的卡片会按当前顺序展示在前厅，最多三张。
+                书房展示全部公开卡片；标记为“前厅精选”的卡片会按当前顺序展示在前厅，最多四张。
               </p>
 
               <div className="mb-5 space-y-3">
@@ -842,7 +842,7 @@ export default function ProfileAdminPage() {
 
             {homePreviewMedia.length > 0 && (
               <div className="mt-5 rounded-[2rem] border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900">
-                <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">前厅精选预览</h3><span className="text-xs font-semibold text-amber-600">{homePreviewMedia.length}/3</span></div>
+                <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">前厅精选预览</h3><span className="text-xs font-semibold text-amber-600">{homePreviewMedia.length}/4</span></div>
                 <p className="mt-2 text-xs leading-5 text-stone-400">有精选标记时优先展示精选；未设置时按书籍、影视、音乐自动补位。</p>
                 <div className="mt-4 space-y-3">
                   {homePreviewMedia.map((item) => {

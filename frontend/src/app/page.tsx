@@ -87,7 +87,7 @@ export default function Home() {
   const secondaryPosts = featuredPosts.slice(1, 4)
   const explicitlyFeatured = profile.media_cards.filter((item) => item.is_featured)
   const favoritePreview = explicitlyFeatured.length > 0
-    ? explicitlyFeatured.slice(0, 3)
+    ? explicitlyFeatured.slice(0, 4)
     : (['book', 'movie', 'music'] as const)
         .map((category) => profile.media_cards.find((item) => item.category === category))
         .filter(Boolean) as SiteMediaCard[]
