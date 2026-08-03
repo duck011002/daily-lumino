@@ -18,6 +18,8 @@ os.environ["ROOT_EMAIL"] = "root@example.com"
 os.environ["INVITE_REQUEST_ADMIN_EMAIL"] = "root@example.com"
 os.environ["FRONTEND_BASE_URL"] = "http://testserver"
 os.environ["INVITE_REQUEST_WORKER_ENABLED"] = "false"
+os.environ["APP_ENV"] = "testing"
+os.environ["COOKIE_SECURE"] = "false"
 
 from app.database import Base, get_db
 from app.main import app
