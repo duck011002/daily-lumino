@@ -193,6 +193,7 @@ export default {
       destinations: [
         { key: 'library', label: '书房', caption: '公开收藏与阅读', icon: '书', tone: 'tone-green' },
         { key: 'blog', label: '博客', caption: '文章与技术实践', icon: '文', tone: 'tone-gold' },
+        { key: 'todos', label: '待办', caption: '事项与灵感清单', icon: '✓', tone: 'tone-green' },
         { key: 'ai', label: 'AI 创作', caption: '聊天与多模态发布', icon: '✦', tone: 'tone-warm' },
       ],
       bottomNav: [
@@ -264,6 +265,10 @@ export default {
       }
       if (item.key === 'blog') {
         this.openBlog()
+        return
+      }
+      if (item.key === 'todos') {
+        uni.navigateTo({ url: '/pages/todos/index' })
         return
       }
       if (item.key === 'ai') {

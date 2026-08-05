@@ -17,6 +17,7 @@ from app.routers import (
     notes,
     site,
     spaces,
+    todos,
     upload,
     visit_analytics,
 )
@@ -56,6 +57,7 @@ app.include_router(site.public_router)
 app.include_router(site.admin_router)
 app.include_router(chat.router)
 app.include_router(spaces.router)
+app.include_router(todos.router)
 app.include_router(albums.router)
 app.include_router(notes.router)
 app.include_router(blog.router)

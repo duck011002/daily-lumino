@@ -98,11 +98,17 @@ function PublicBlogList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const [dailyDigest, setDailyDigest] = useState<any>(null)
+
   useEffect(() => {
     api
       .get('/blog/categories')
       .then((response) => setCategories(response.data))
       .catch(() => setCategories([]))
+    api
+      .get('/site/daily-digest')
+      .then((res) => setDailyDigest(res.data))
+      .catch(() => null)
   }, [])
 
   useEffect(() => {

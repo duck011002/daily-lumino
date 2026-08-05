@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.space import Space, SpaceInvite, SpaceMember, SpaceMemberRole, SpaceType
+from app.models.space import Space, SpaceAnniversary, SpaceInvite, SpaceMember, SpaceMemberRole, SpaceType
 from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.models.user import User
 from app.schemas.space import (
+    SpaceAnniversaryCreate,
+    SpaceAnniversaryResponse,
     SpaceCreate,
     SpaceDetailResponse,
     SpaceInviteCreate,
@@ -421,3 +423,78 @@ def get_quota(
     current_user: User = Depends(get_current_user),
 ):
     return get_storage_quota_info(db)
+
+
+# ========== Space Anniversaries & Activity Feed ==========
+
+@router.get("/{space_id}/anniversaries", response_model=List[SpaceAnniversaryResponse])
+def get_space_anniversaries(
+    space_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_membership(db, space_id, current_user.id)
+    stmt = select(SpaceAnniversary).where(SpaceAnniversary.space_id == space_id).order_by(SpaceAnniversary.target_date.asc())
+    return db.scalars(stmt).all()
+
+
+@router.post("/{space_id}/anniversaries", response_model=SpaceAnniversaryResponse, status_code=status.HTTP_201_CREATED)
+def create_space_anniversary(
+    space_id: int,
+    payload: SpaceAnniversaryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_membership(db, space_id, current_user.id)
+    anniv = SpaceAnniversary(
+        space_id=space_id,
+        title=payload.title,
+        target_date=payload.target_date,
+        icon=payload.icon or "❤️",
+        color=payload.color or "amber",
+        is_pinned=payload.is_pinned,
+        created_by=current_user.id,
+    )
+    db.add(anniv)
+    db.commit()
+    db.refresh(anniv)
+    return anniv
+
+
+@router.get("/{space_id}/activities")
+def get_space_activities(
+    space_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_membership(db, space_id, current_user.id)
+    # 汇总空间的成员动态、纪念日更新等
+    space = get_space_or_404(db, space_id)
+    activities = []
+    
+    # 成员加入动态
+    for m in space.members:
+        activities.append({
+            "id": f"member_{m.id}",
+            "type": "member_joined",
+            "title": f"{m.user.display_name or m.user.username} 加入了空间",
+            "created_at": m.joined_at,
+            "user_name": m.user.display_name or m.user.username,
+            "avatar_url": m.user.avatar_url,
+        })
+    
+    # 纪念日动态
+    annivs = db.scalars(select(SpaceAnniversary).where(SpaceAnniversary.space_id == space_id)).all()
+    for a in annivs:
+        activities.append({
+            "id": f"anniv_{a.id}",
+            "type": "anniversary",
+            "title": f"创建了纪念日: {a.title}",
+            "created_at": a.created_at,
+            "user_name": a.creator.display_name or a.creator.username if a.creator else "成员",
+            "avatar_url": a.creator.avatar_url if a.creator else None,
+        })
+        
+    activities.sort(key=lambda x: x["created_at"], reverse=True)
+    return activities
+

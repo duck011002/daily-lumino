@@ -272,3 +272,40 @@ export function updateMyBlogPost(postId, data) {
 export function deleteMyBlogPost(postId) {
   return request('/blog/me/posts/' + postId, 'DELETE')
 }
+
+export function getTodos(status) {
+  return request('/todos' + (status ? '?status_filter=' + status : ''))
+}
+
+export function createTodo(data) {
+  return request('/todos', 'POST', data)
+}
+
+export function updateTodo(todoId, data) {
+  return request('/todos/' + todoId, 'PATCH', data)
+}
+
+export function deleteTodo(todoId) {
+  return request('/todos/' + todoId, 'DELETE')
+}
+
+export function getSpaceAnniversaries(spaceId) {
+  return request('/spaces/' + spaceId + '/anniversaries')
+}
+
+export function createSpaceAnniversary(spaceId, data) {
+  return request('/spaces/' + spaceId + '/anniversaries', 'POST', data)
+}
+
+export function getSpaceActivities(spaceId) {
+  return request('/spaces/' + spaceId + '/activities')
+}
+
+export function getDailyDigest() {
+  return request('/site/daily-digest')
+}
+
+export function ingestUrl(url) {
+  return request('/ai/ingest-url', 'POST', { url })
+}
+

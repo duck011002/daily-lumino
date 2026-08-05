@@ -237,3 +237,78 @@ def create_ai_draft(
         status="published" if note.is_published else "draft",
         created_at=note.created_at,
     )
+
+
+@router.post("/ingest-url")
+async def ingest_url(
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    url = (payload.get("url") or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL 不能为空。")
+        
+    import urllib.request
+    from bs4 import BeautifulSoup
+    from app.models.todo import Todo
+    
+    fallback_level = "full"
+    extracted_title = ""
+    extracted_text = ""
+    error_msg = None
+    
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+        )
+        with urllib.request.urlopen(req, timeout=8) as response:
+            html = response.read().decode("utf-8", errors="ignore")
+            soup = BeautifulSoup(html, "html.parser")
+            
+            # 尝试获取标题
+            title_tag = soup.find("title") or soup.find("meta", property="og:title")
+            if title_tag:
+                extracted_title = title_tag.get_text() if title_tag.name == "title" else title_tag.get("content", "")
+                
+            # 尝试提取段落文本
+            paragraphs = [p.get_text().strip() for p in soup.find_all("p") if p.get_text().strip()]
+            if len(paragraphs) >= 2:
+                extracted_text = "\n\n".join(paragraphs[:10])
+            else:
+                fallback_level = "meta"
+                meta_desc = soup.find("meta", property="og:description") or soup.find("meta", attrs={"name": "description"})
+                if meta_desc:
+                    extracted_text = meta_desc.get("content", "")
+    except Exception as exc:
+        fallback_level = "todo"
+        error_msg = f"网页读取失败/需登录: {str(exc)}"
+        
+    # 如果处于 todo 降级或纯 meta 降级，自动帮用户创建一个 Todo 待读卡片
+    todo_item = None
+    if fallback_level == "todo" or not extracted_text:
+        fallback_level = "todo"
+        todo_title = f"[待读链接] {extracted_title or url[:40]}"
+        todo_item = Todo(
+            user_id=current_user.id,
+            title=todo_title,
+            description=f"分享链接自动转存为待读事项。\n原链接: {url}\n{error_msg or ''}",
+            priority="medium",
+            status="pending",
+            source_url=url,
+        )
+        db.add(todo_item)
+        db.commit()
+        db.refresh(todo_item)
+
+    return {
+        "status": "success" if fallback_level == "full" else "fallback",
+        "fallback_level": fallback_level,
+        "title": extracted_title or "外部分享文章",
+        "text": extracted_text,
+        "source_url": url,
+        "todo_id": todo_item.id if todo_item else None,
+        "message": "已成功提取正文" if fallback_level == "full" else ("已提取元数据书签" if fallback_level == "meta" else "由于网页保护，已自动为您转存为 Todo 待读任务")
+    }
+

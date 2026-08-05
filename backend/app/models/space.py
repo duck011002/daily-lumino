@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import BIGINT_FK, BIGINT_PK, Base
@@ -80,4 +80,28 @@ class SpaceInvite(Base):
 
     space = relationship("Space", back_populates="invites")
     creator = relationship("User", foreign_keys=[created_by])
+
+
+class SpaceAnniversary(Base):
+    __tablename__ = "space_anniversaries"
+
+    id: Mapped[int] = mapped_column(BIGINT_PK, primary_key=True, autoincrement=True)
+    space_id: Mapped[int] = mapped_column(
+        BIGINT_FK, ForeignKey("spaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    target_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    icon: Mapped[str | None] = mapped_column(String(50), default="❤️", nullable=True)
+    color: Mapped[str | None] = mapped_column(String(50), default="amber", nullable=True)
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_by: Mapped[int] = mapped_column(
+        BIGINT_FK, ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    space = relationship("Space", backref="anniversaries")
+    creator = relationship("User", foreign_keys=[created_by])
+
 

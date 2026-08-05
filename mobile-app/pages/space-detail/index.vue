@@ -2,7 +2,11 @@
   <view class="page-shell"><view class="status-space" /><view class="topbar"><text class="back" @tap="back">‹</text><text class="bar-title">空间</text><text class="top-symbol">◇</text></view>
     <scroll-view class="page-scroll" scroll-y refresher-enabled :refresher-triggered="refreshing" @refresherrefresh="loadSpace"><view class="content">
       <view v-if="loading" class="state">正在进入空间…</view><view v-else-if="!space" class="state">这个空间暂时不可见，请先登录或确认成员资格。</view>
-      <template v-else><view class="hero"><text class="eyebrow">{{ space.type || 'PERSONAL SPACE' }}</text><text class="space-name">{{ space.name }}</text><text class="description">{{ space.description || '在这里保存共同的文字、灵感与重要片段。' }}</text><text class="member-count">{{ members.length }} 位成员</text></view><view class="quick-actions"><view class="quick" @tap="openAlbums"><text>▣</text><text>空间相册</text></view><view class="quick" @tap="createNote"><text>＋</text><text>新建文章</text></view></view>
+      <template v-else><view class="hero"><text class="eyebrow">{{ space.type || 'PERSONAL SPACE' }}</text><text class="space-name">{{ space.name }}</text><text class="description">{{ space.description || '在这里保存共同的文字、灵感与重要片段。' }}</text><text class="member-count">{{ members.length }} 位成员</text></view><view class="quick-actions">
+  <view class="quick" @tap="openAlbums"><text>▣</text><text>空间相册</text></view>
+  <view class="quick" @tap="addAnniversary"><text>❤️</text><text>纪念日</text></view>
+  <view class="quick" @tap="createNote"><text>＋</text><text>新建文章</text></view>
+</view>
       <view class="heading"><view><text class="kicker">SPACE WRITING</text><text class="heading-title">空间文章</text></view><text class="count">{{ notes.length }}</text></view>
       <view v-if="!notes.length" class="empty">这个空间还没有文章。</view><view v-else class="note-list"><view v-for="note in notes" :key="note.id" class="note-card" @tap="openNote(note)"><image v-if="normalizeAssetUrl(note.cover_url)" class="note-cover" :src="normalizeAssetUrl(note.cover_url)" mode="aspectFill" lazy-load /><view v-else class="note-cover placeholder">文</view><view class="note-copy"><text class="note-title">{{ note.title }}</text><text class="note-excerpt">{{ excerpt(note.content) }}</text><text class="note-meta">{{ authorName(note) }} · {{ formatDate(note.updated_at || note.created_at) }}</text></view><text class="arrow">›</text></view></view></template>
     </view></scroll-view>
@@ -10,8 +14,81 @@
 </template>
 
 <script>
-import { getSpace, getSpaceNotes, normalizeAssetUrl } from '../../services/api'
-export default { data() { return { spaceId: '', space: null, notes: [], loading: true, refreshing: false } }, computed: { members() { return this.space && Array.isArray(this.space.members) ? this.space.members : [] } }, onLoad(query) { this.spaceId = query.id || ''; this.loadSpace() }, onShow() { if (this.spaceId && !this.loading) this.loadSpace() }, methods: { normalizeAssetUrl, async loadSpace() { if (!this.spaceId) { this.loading = false; return } this.loading = true; try { const [space, notes] = await Promise.all([getSpace(this.spaceId), getSpaceNotes(this.spaceId)]); this.space = space; this.notes = Array.isArray(notes) ? notes : [] } catch (error) { this.space = null; this.notes = [] } finally { this.loading = false; this.refreshing = false } }, back() { uni.navigateBack({ delta: 1 }) }, openAlbums() { uni.navigateTo({ url: '/pages/albums/index?spaceId=' + this.spaceId }) }, createNote() { uni.navigateTo({ url: '/pages/note-editor/index?spaceId=' + this.spaceId }) }, openNote(note) { uni.navigateTo({ url: '/pages/note-detail/index?spaceId=' + this.spaceId + '&noteId=' + note.id }) }, excerpt(value) { const text = String(value || '打开文章，阅读完整内容。').replace(/[#*_>`-]/g, ' ').replace(/\s+/g, ' ').trim(); return text.slice(0, 62) }, authorName(note) { return note.author ? (note.author.display_name || note.author.username || '空间成员') : '空间成员' }, formatDate(value) { if (!value) return '刚刚'; const date = new Date(value); return date.getFullYear() + '.' + String(date.getMonth() + 1).padStart(2, '0') + '.' + String(date.getDate()).padStart(2, '0') } } }
+import { getSpace, getSpaceNotes, getSpaceAnniversaries, createSpaceAnniversary, getSpaceActivities, normalizeAssetUrl } from '../../services/api'
+export default {
+  data() {
+    return {
+      spaceId: '',
+      space: null,
+      notes: [],
+      anniversaries: [],
+      activities: [],
+      loading: true,
+      refreshing: false
+    }
+  },
+  computed: {
+    members() { return this.space && Array.isArray(this.space.members) ? this.space.members : [] }
+  },
+  onLoad(query) {
+    this.spaceId = query.id || '';
+    this.loadSpace()
+  },
+  methods: {
+    normalizeAssetUrl,
+    async loadSpace() {
+      if (!this.spaceId) { this.loading = false; return }
+      this.loading = true;
+      try {
+        const [space, notes, annivs, acts] = await Promise.all([
+          getSpace(this.spaceId),
+          getSpaceNotes(this.spaceId),
+          getSpaceAnniversaries(this.spaceId).catch(() => []),
+          getSpaceActivities(this.spaceId).catch(() => [])
+        ]);
+        this.space = space;
+        this.notes = Array.isArray(notes) ? notes : [];
+        this.anniversaries = Array.isArray(annivs) ? annivs : [];
+        this.activities = Array.isArray(acts) ? acts : [];
+      } catch (error) {
+        this.space = null;
+        this.notes = [];
+      } finally {
+        this.loading = false;
+        this.refreshing = false
+      }
+    },
+    back() { uni.navigateBack({ delta: 1 }) },
+    openAlbums() { uni.navigateTo({ url: '/pages/albums/index?spaceId=' + this.spaceId }) },
+    createNote() { uni.navigateTo({ url: '/pages/note-editor/index?spaceId=' + this.spaceId }) },
+    async addAnniversary() {
+      uni.showModal({
+        title: '新建纪念日',
+        editable: true,
+        placeholderText: '请输入纪念日名称（如：相识纪念日）',
+        success: async (res) => {
+          if (res.confirm && res.content) {
+            try {
+              await createSpaceAnniversary(this.spaceId, {
+                title: res.content.trim(),
+                target_date: new Date().toISOString(),
+                icon: '❤️'
+              })
+              uni.showToast({ title: '添加纪念日成功', icon: 'success' })
+              this.loadSpace()
+            } catch (err) {
+              uni.showToast({ title: '添加失败', icon: 'none' })
+            }
+          }
+        }
+      })
+    },
+    openNote(note) { uni.navigateTo({ url: '/pages/note-detail/index?spaceId=' + this.spaceId + '&noteId=' + note.id }) },
+    excerpt(value) { const text = String(value || '打开文章，阅读完整内容。').replace(/[#*_>`-]/g, ' ').replace(/\s+/g, ' ').trim(); return text.slice(0, 62) },
+    authorName(note) { return note.author ? (note.author.display_name || note.author.username || '空间成员') : '空间成员' },
+    formatDate(value) { if (!value) return '刚刚'; const date = new Date(value); return date.getFullYear() + '.' + String(date.getMonth() + 1).padStart(2, '0') + '.' + String(date.getDate()).padStart(2, '0') }
+  }
+}
 </script>
 
 <style scoped>

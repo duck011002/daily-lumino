@@ -84,3 +84,28 @@ class StorageQuotaInfo(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ---------- Space Anniversary ----------
+class SpaceAnniversaryCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100)
+    target_date: datetime
+    icon: Optional[str] = "❤️"
+    color: Optional[str] = "amber"
+    is_pinned: bool = False
+
+
+class SpaceAnniversaryResponse(BaseModel):
+    id: int
+    space_id: int
+    title: str
+    target_date: datetime
+    icon: Optional[str] = "❤️"
+    color: Optional[str] = "amber"
+    is_pinned: bool = False
+    created_by: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+

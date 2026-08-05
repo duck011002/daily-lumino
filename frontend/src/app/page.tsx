@@ -63,6 +63,12 @@ const destinations = [
     icon: Newspaper,
   },
   {
+    label: '待办',
+    meaning: '事项与灵感清单',
+    href: '/todos',
+    icon: Sparkles,
+  },
+  {
     label: '内院',
     meaning: '登录后的私人空间',
     href: '/courtyard',

@@ -85,6 +85,38 @@ def get_public_site_profile(db: Session = Depends(get_db)):
     return public_site_profile(load_site_profile(db))
 
 
+@public_router.get("/daily-digest")
+def get_daily_digest(db: Session = Depends(get_db)):
+    from app.models.blog import BlogPost
+    posts = db.scalars(
+        select(BlogPost)
+        .where(BlogPost.is_published == True)
+        .order_by(BlogPost.published_at.desc())
+        .limit(3)
+    ).all()
+    if not posts:
+        return {
+            "title": "Lumino 数字花园每日导读",
+            "summary": "欢迎来到 Lumino 数字花园。这里记录了关于技术实践、深度思考与日常随笔的精选文章。",
+            "tags": ["数字花园", "技术思考", "随笔"],
+            "generated_at": "今日最新",
+        }
+    
+    titles = [p.title for p in posts]
+    summary = f"今日精选推荐：包含了《{titles[0]}》"
+    if len(titles) > 1:
+        summary += f"以及《{titles[1]}》等技术与生活深度探讨。"
+    else:
+        summary += "的深度探讨与实践记录。"
+        
+    return {
+        "title": "Lumino AI 每日博客简报",
+        "summary": summary,
+        "tags": ["精选文章", "技术探索", "每日导读"],
+        "generated_at": "今日最新",
+    }
+
+
 @admin_router.get("/site-profile", response_model=SiteProfile)
 def get_admin_site_profile(db: Session = Depends(get_db)):
     return load_site_profile(db)
