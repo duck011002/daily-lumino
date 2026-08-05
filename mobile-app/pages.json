@@ -1,18 +1,18 @@
 {
   "pages": [
     {
-      "path": "pages/login/index",
-      "style": {
-        "navigationStyle": "custom"
-      }
-    },
-    {
       "path": "pages/index/index",
       "style": {
         "navigationStyle": "custom",
         "app-plus": {
           "bounce": "none"
         }
+      }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationStyle": "custom"
       }
     },
     {

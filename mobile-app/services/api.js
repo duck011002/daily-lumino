@@ -1,4 +1,8 @@
-const API_ORIGIN = 'https://lovestory1314.fun'
+let API_ORIGIN = 'https://lovestory1314.fun'
+if (typeof window !== 'undefined') {
+  const hostname = window.location.hostname
+  if (hostname === 'localhost' || hostname === '127.0.0.1') API_ORIGIN = ''
+}
 
 function getAccessToken() {
   return uni.getStorageSync('lumino_access_token') || ''
