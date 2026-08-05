@@ -88,7 +88,7 @@ export default {
       return '◇'
     },
     openSpace(space) {
-      uni.showToast({ title: space.name + '详情将在下一阶段接入', icon: 'none' })
+      uni.navigateTo({ url: '/pages/space-detail/index?id=' + space.id })
     },
     goLogin() {
       uni.navigateTo({ url: '/pages/login/index' })

@@ -59,6 +59,27 @@ export function getHomeData() {
   })
 }
 
+export function getPublicLibrary() {
+  return request('/site/profile').then((profile) => {
+    const cards = Array.isArray(profile && profile.media_cards) ? profile.media_cards : []
+    return cards.filter((card) => card && card.is_public !== false)
+  })
+}
+
+export function getBlogCategories() {
+  return request('/blog/categories')
+}
+
+export function getBlogPostsPage(params = {}) {
+  const entries = Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  const query = entries.length ? '?' + entries.map(([key, value]) => encodeURIComponent(key) + '=' + encodeURIComponent(value)).join('&') : ''
+  return request('/blog/posts-page' + query)
+}
+
+export function getBlogPost(slug) {
+  return request('/blog/posts/' + encodeURIComponent(slug))
+}
+
 export function getCapabilities() {
   return request('/ai/capabilities')
 }
@@ -115,12 +136,21 @@ export function ingestAttachment(filePath, fileName, mimeType) {
   })
 }
 
-export function uploadImage(filePath, fileName, mimeType) {
-  return new Promise((resolve, reject) => {
+export function createImageUploadTask(filePath, fileName, mimeType, onProgress) {
+  let task = null
+  let settled = false
+  let rejectUpload = null
+  const finish = (callback, value) => {
+    if (settled) return
+    settled = true
+    callback(value)
+  }
+  const promise = new Promise((resolve, reject) => {
+    rejectUpload = reject
     const token = getAccessToken()
     const headers = {}
     if (token) headers.Authorization = 'Bearer ' + token
-    uni.uploadFile({
+    task = uni.uploadFile({
       url: API_ORIGIN + '/api/upload',
       filePath,
       name: 'file',
@@ -128,19 +158,35 @@ export function uploadImage(filePath, fileName, mimeType) {
       success(response) {
         if (response.statusCode >= 200 && response.statusCode < 300) {
           try {
-            resolve(JSON.parse(response.data))
+              finish(resolve, JSON.parse(response.data))
           } catch (error) {
-            reject(error)
+              finish(reject, error)
           }
           return
         }
-        reject(new Error('图片上传失败'))
+          finish(reject, new Error('图片上传失败'))
       },
       fail(error) {
-        reject(error)
+          finish(reject, error)
       },
     })
+    if (task && typeof task.onProgressUpdate === 'function') {
+      task.onProgressUpdate((event) => onProgress && onProgress(Math.min(100, Math.max(0, Number(event.progress) || 0))))
+    }
   })
+  return {
+    promise,
+    abort() {
+      if (task && !settled && typeof task.abort === 'function') {
+        finish(rejectUpload, new Error('已取消上传'))
+        task.abort()
+      }
+    },
+  }
+}
+
+export function uploadImage(filePath, fileName, mimeType) {
+  return createImageUploadTask(filePath, fileName, mimeType).promise
 }
 
 export function listChatSessions() {
@@ -161,4 +207,16 @@ export function sendChatMessage(id, content, attachments = []) {
 
 export function getSpaces() {
   return request('/spaces')
+}
+
+export function getSpace(spaceId) {
+  return request('/spaces/' + spaceId)
+}
+
+export function getSpaceNotes(spaceId) {
+  return request('/spaces/' + spaceId + '/notes')
+}
+
+export function getSpaceNote(spaceId, noteId) {
+  return request('/spaces/' + spaceId + '/notes/' + noteId)
 }

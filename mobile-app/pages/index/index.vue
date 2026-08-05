@@ -68,7 +68,7 @@
             <text class="section-kicker">SELECTED WRITING</text>
             <text class="section-title">博客精选</text>
           </view>
-          <text class="section-action" @tap="showComingSoon('博客列表')">查看全部 →</text>
+          <text class="section-action" @tap="openBlog">查看全部 →</text>
         </view>
 
         <view v-if="loading" class="loading-card">
@@ -258,6 +258,14 @@ export default {
       uni.showToast({ title: name + '将在下一阶段接入', icon: 'none' })
     },
     openDestination(item) {
+      if (item.key === 'library') {
+        uni.navigateTo({ url: '/pages/library/index' })
+        return
+      }
+      if (item.key === 'blog') {
+        this.openBlog()
+        return
+      }
       if (item.key === 'ai') {
         uni.navigateTo({ url: '/pages/ai/index' })
         return
@@ -278,7 +286,10 @@ export default {
       uni.navigateTo({ url: '/pages/account/index' })
     },
     openPost(post) {
-      this.showComingSoon('文章《' + post.title + '》')
+      if (post && post.slug) uni.navigateTo({ url: '/pages/blog-detail/index?slug=' + encodeURIComponent(post.slug) })
+    },
+    openBlog() {
+      uni.navigateTo({ url: '/pages/blog/index' })
     },
     postCategory(post) {
       if (post.category && post.category.name) return post.category.name

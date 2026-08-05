@@ -28,17 +28,17 @@
           <text class="login-arrow">→</text>
         </view>
 
-        <view v-else class="chat-card">
-          <scroll-view class="message-list" scroll-y :scroll-into-view="lastMessageId">
+          <view v-else class="chat-card">
+            <scroll-view class="message-list" scroll-y :scroll-into-view="lastMessageId">
             <view v-if="!messages.length" class="message-empty">你好，我可以帮你梳理文章结构、提炼素材或规划一个空间记录。</view>
             <view v-for="(message, index) in messages" :id="messageId(index)" :key="index" class="message-row" :class="message.role">
               <view class="message-bubble">{{ message.content }}</view>
             </view>
-            <view v-if="sending" class="message-row assistant"><view class="message-bubble typing">AI 正在思考…</view></view>
-          </scroll-view>
-          <view class="chat-input-row">
-            <textarea v-model="chatInput" class="chat-input" auto-height maxlength="4000" placeholder="输入你的想法…" />
-            <button class="image-button" @tap="chooseImage">图</button>
+              <view v-if="sending" class="message-row assistant"><view class="message-bubble typing">AI 正在思考…</view></view>
+            </scroll-view>
+            <ImageUploadGrid v-model="imageItems" />
+            <view class="chat-input-row">
+              <textarea v-model="chatInput" class="chat-input" auto-height maxlength="4000" placeholder="输入你的想法…" />
             <button class="send-button" :disabled="sending" @tap="sendMessage">发送</button>
           </view>
         </view>
@@ -73,9 +73,9 @@
           <textarea v-model="draft.content" class="content-field" auto-height maxlength="20000" placeholder="输入正文，或先上传文件解析…" placeholder-class="placeholder" />
           <view class="attachment-row">
             <button class="attachment-button" @tap="chooseAttachment">＋ 文档</button>
-            <button class="attachment-button image-attachment" @tap="chooseImage">图片</button>
             <text class="attachment-hint">图片 / TXT / MD / DOCX / PDF</text>
           </view>
+          <ImageUploadGrid v-model="imageItems" @change="syncImages" />
           <view v-if="ingestMessage" class="ingest-message">{{ ingestMessage }}</view>
           <view class="publish-row">
             <button class="draft-button" :disabled="publishing" @tap="saveDraft">保存草稿</button>
@@ -105,10 +105,11 @@ import {
   getSpaces,
   ingestAttachment,
   sendChatMessage,
-  uploadImage,
 } from '../../services/api'
+import ImageUploadGrid from '../../components/ImageUploadGrid.vue'
 
 export default {
+  components: { ImageUploadGrid },
   data() {
     return {
       mode: 'chat',
@@ -120,7 +121,7 @@ export default {
       chatInput: '',
       sending: false,
       draft: { target: 'blog', title: '', content: '', space_id: null, cover_url: '' },
-      attachments: [],
+      imageItems: [],
       publishing: false,
       ingestMessage: '',
     }
@@ -149,6 +150,9 @@ export default {
     lastMessageId() {
       if (!this.messages.length) return ''
       return this.messageId(this.messages.length - 1)
+    },
+    uploadedImageUrls() {
+      return this.imageItems.filter((item) => item.status === 'success' && item.url).map((item) => item.url)
     },
   },
   onShow() {
@@ -183,11 +187,11 @@ export default {
       this.messages.push({ role: 'user', content })
       try {
         const session = await this.ensureChatSession()
-        const raw = await sendChatMessage(session.id, content, this.attachments)
+        const raw = await sendChatMessage(session.id, content, this.uploadedImageUrls)
         const parsed = this.parseSSE(raw)
         const answer = parsed || 'AI 暂时没有返回内容，请稍后重试。'
         this.messages.push({ role: 'assistant', content: answer })
-        this.attachments = []
+        this.imageItems = []
       } catch (error) {
         this.messages.push({ role: 'assistant', content: '连接 AI 失败，请检查登录状态或稍后重试。' })
       } finally {
@@ -226,27 +230,15 @@ export default {
         this.ingestMessage = '没有选择文件，或当前平台不支持文件选择。'
       }
     },
-    async chooseImage() {
-      try {
-        const result = await new Promise((resolve, reject) => {
-          uni.chooseImage({ count: 3, sizeType: ['compressed'], success: resolve, fail: reject })
-        })
-        const paths = result.tempFilePaths || []
-        for (const path of paths) {
-          this.ingestMessage = '正在上传图片…'
-          const uploaded = await this.uploadImagePath(path)
-          if (uploaded && uploaded.url) {
-            this.attachments.push(uploaded.url)
-            if (!this.draft.cover_url) this.draft.cover_url = uploaded.url
-          }
-        }
-        this.ingestMessage = '图片已上传，可用于对话或作为文章封面。'
-      } catch (error) {
-        this.ingestMessage = '没有选择图片，或上传失败。'
+    syncImages(items) {
+      const successful = items.filter((item) => item.status === 'success' && item.url)
+      const urls = successful.map((item) => item.url)
+      if (!urls.length) {
+        this.draft.cover_url = ''
+        return
       }
-    },
-    async uploadImagePath(path) {
-      return uploadImage(path, 'lumino-mobile-image.jpg', 'image/jpeg')
+      if (!urls.includes(this.draft.cover_url)) this.draft.cover_url = urls[0]
+      this.ingestMessage = successful.length ? '图片已上传，可用于 AI 对话或作为文章封面。' : '正在准备图片…'
     },
     selectSpace(event) {
       const index = Number(event.detail.value)
@@ -284,6 +276,7 @@ export default {
         this.draft.title = ''
         this.draft.content = ''
         this.draft.cover_url = ''
+        this.imageItems = []
         this.ingestMessage = ''
       } catch (error) {
         uni.showToast({ title: '提交失败，请检查权限', icon: 'none' })
