@@ -8,7 +8,7 @@ from app.models.todo import Todo
 from app.models.user import User
 from app.schemas.todo import TodoCreate, TodoOut, TodoUpdate
 
-router = APIRouter(prefix="/todos", tags=["todos"])
+router = APIRouter(prefix="/api/todos", tags=["todos"])
 
 
 @router.get("", response_model=list[TodoOut])
