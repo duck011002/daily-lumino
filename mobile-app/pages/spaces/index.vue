@@ -6,7 +6,7 @@
         <text class="kicker">YOUR SPACES</text>
         <text class="page-title">空间</text>
       </view>
-      <view class="top-mark">◇</view>
+      <view class="top-mark" @tap="createSpace">＋</view>
     </view>
 
     <scroll-view class="page-scroll" scroll-y>
@@ -89,6 +89,9 @@ export default {
     },
     openSpace(space) {
       uni.navigateTo({ url: '/pages/space-detail/index?id=' + space.id })
+    },
+    createSpace() {
+      uni.navigateTo({ url: '/pages/space-create/index' })
     },
     goLogin() {
       uni.navigateTo({ url: '/pages/login/index' })

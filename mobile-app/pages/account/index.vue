@@ -48,6 +48,7 @@
         </view>
 
         <view class="account-actions">
+          <view v-if="isLoggedIn && canPublishBlog" class="account-action" @tap="openBlogManager"><text>{{ user.is_root ? '全站博客管理' : '我的博客' }}</text><text>›</text></view>
           <view v-if="isLoggedIn" class="account-action" @tap="showProfile"><text>个人资料</text><text>›</text></view>
           <view v-if="isLoggedIn" class="account-action" @tap="logout"><text>退出登录</text><text>›</text></view>
           <view v-else class="account-action" @tap="goLogin"><text>去登录</text><text>›</text></view>
@@ -127,6 +128,9 @@ export default {
     },
     showProfile() {
       uni.showToast({ title: '个人资料编辑将在下一阶段接入', icon: 'none' })
+    },
+    openBlogManager() {
+      uni.navigateTo({ url: '/pages/my-blog/index' })
     },
     logout() {
       clearLogin().finally(() => {

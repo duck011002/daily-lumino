@@ -137,6 +137,10 @@ export function ingestAttachment(filePath, fileName, mimeType) {
 }
 
 export function createImageUploadTask(filePath, fileName, mimeType, onProgress) {
+  return createUploadTask('/upload', filePath, fileName, mimeType, onProgress)
+}
+
+function createUploadTask(path, filePath, fileName, mimeType, onProgress) {
   let task = null
   let settled = false
   let rejectUpload = null
@@ -151,7 +155,7 @@ export function createImageUploadTask(filePath, fileName, mimeType, onProgress) 
     const headers = {}
     if (token) headers.Authorization = 'Bearer ' + token
     task = uni.uploadFile({
-      url: API_ORIGIN + '/api/upload',
+      url: API_ORIGIN + '/api' + path,
       filePath,
       name: 'file',
       header: headers,
@@ -189,6 +193,10 @@ export function uploadImage(filePath, fileName, mimeType) {
   return createImageUploadTask(filePath, fileName, mimeType).promise
 }
 
+export function createAlbumPhotoUploadTask(spaceId, albumId, filePath, fileName, mimeType, onProgress) {
+  return createUploadTask('/spaces/' + spaceId + '/albums/' + albumId + '/photos', filePath, fileName, mimeType, onProgress)
+}
+
 export function listChatSessions() {
   return request('/chat/sessions')
 }
@@ -219,4 +227,48 @@ export function getSpaceNotes(spaceId) {
 
 export function getSpaceNote(spaceId, noteId) {
   return request('/spaces/' + spaceId + '/notes/' + noteId)
+}
+
+export function createSpace(data) {
+  return request('/spaces', 'POST', data)
+}
+
+export function createSpaceNote(spaceId, data) {
+  return request('/spaces/' + spaceId + '/notes', 'POST', data)
+}
+
+export function updateSpaceNote(spaceId, noteId, data) {
+  return request('/spaces/' + spaceId + '/notes/' + noteId, 'PATCH', data)
+}
+
+export function getAlbums(spaceId) {
+  return request('/spaces/' + spaceId + '/albums')
+}
+
+export function createAlbum(spaceId, data) {
+  return request('/spaces/' + spaceId + '/albums', 'POST', data)
+}
+
+export function getAlbumPhotos(spaceId, albumId) {
+  return request('/spaces/' + spaceId + '/albums/' + albumId + '/photos')
+}
+
+export function deleteAlbumPhoto(spaceId, albumId, photoId) {
+  return request('/spaces/' + spaceId + '/albums/' + albumId + '/photos/' + photoId, 'DELETE')
+}
+
+export function getMyBlogPosts() {
+  return request('/blog/me/posts')
+}
+
+export function createMyBlogPost(data) {
+  return request('/blog/me/posts', 'POST', data)
+}
+
+export function updateMyBlogPost(postId, data) {
+  return request('/blog/me/posts/' + postId, 'PATCH', data)
+}
+
+export function deleteMyBlogPost(postId) {
+  return request('/blog/me/posts/' + postId, 'DELETE')
 }

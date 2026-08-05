@@ -50,8 +50,9 @@ export default {
   props: {
     modelValue: { type: Array, default: () => [] },
     maxCount: { type: Number, default: 6 },
+    uploadTaskFactory: { type: Function, default: null },
   },
-  emits: ['update:modelValue', 'change'],
+  emits: ['update:modelValue', 'change', 'remove'],
   data() {
     return { items: [], notice: '', tasks: {} }
   },
@@ -67,7 +68,10 @@ export default {
     modelValue: {
       immediate: true,
       handler(value) {
-        if (!this.items.length && Array.isArray(value) && value.length) this.items = value.map((item) => ({ ...item }))
+        const incoming = Array.isArray(value) ? value : []
+        const currentIds = this.items.map((item) => item.id).join('|')
+        const incomingIds = incoming.map((item) => item.id).join('|')
+        if (currentIds !== incomingIds) this.items = incoming.map((item) => ({ ...item }))
       },
     },
   },
@@ -130,7 +134,8 @@ export default {
         item.status = 'uploading'
         item.progress = 0
         this.emitChange()
-        const task = createImageUploadTask(preparedPath, 'lumino-' + item.id + '.' + extensionOf(preparedPath), mimeOf(preparedPath), (progress) => {
+        const createTask = this.uploadTaskFactory || createImageUploadTask
+        const task = createTask(preparedPath, 'lumino-' + item.id + '.' + extensionOf(preparedPath), mimeOf(preparedPath), (progress) => {
           item.progress = progress
           this.emitChange()
         })
@@ -138,6 +143,7 @@ export default {
         const result = await task.promise
         if (!this.items.some((current) => current.id === item.id)) return
         item.url = result && result.url ? result.url : ''
+        item.remote = result || null
         item.progress = 100
         item.status = item.url ? 'success' : 'failed'
         item.error = item.url ? '' : '服务未返回图片地址'
@@ -175,6 +181,7 @@ export default {
       if (task && task.abort) task.abort()
       delete this.tasks[item.id]
       this.items = this.items.filter((current) => current.id !== item.id)
+      this.$emit('remove', { ...item })
       this.emitChange()
     },
   },
