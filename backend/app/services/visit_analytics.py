@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 from fastapi import Request
-from sqlalchemy import delete, distinct, func, select
+from sqlalchemy import delete, distinct, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -20,11 +20,11 @@ from app.models.visit_analytics import (
     VisitEvent,
 )
 from app.schemas.visit_analytics import VisitCreate
+from app.services.ip_geolocation import UNKNOWN_VALUE, GeoLocation, lookup_ip_geolocation
 
 SHANGHAI_TZ = timezone(timedelta(hours=8))
 PUBLIC_PATH_RE = re.compile(r"^/blog/[^/?#]{1,300}/?$")
 PRIVATE_BLOG_PATHS = {"/blog/manage", "/blog/write"}
-UNKNOWN_VALUE = "XX"
 DIRECT_REFERRER = "direct"
 
 DIMENSION_COLUMNS = {
@@ -106,13 +106,75 @@ def resolve_client_ip(request: Request) -> tuple[str, bool]:
 
 
 def _safe_geo_header(request: Request, names: tuple[str, ...], trusted: bool) -> str:
-    if not trusted and settings.APP_ENV != "testing":
+    if not trusted:
         return UNKNOWN_VALUE
     for name in names:
         value = request.headers.get(name, "").strip()
-        if value and len(value) <= 100 and re.fullmatch(r"[\w .+:-]+", value):
+        if not value:
+            continue
+        try:
+            value = value.encode("latin-1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+        if len(value) <= 100 and all(char >= " " and char != "\x7f" for char in value):
             return value
     return UNKNOWN_VALUE
+
+
+def resolve_geolocation(request: Request, ip_address: str, trusted_edge: bool) -> GeoLocation:
+    """Prefer trusted ESA headers and fill any gaps from the local offline database."""
+    header_geo = GeoLocation(
+        country_code=_safe_geo_header(
+            request,
+            ("x-lumino-country", "ip-country-code", "ali-ip-country"),
+            trusted_edge,
+        ),
+        subdivision_code=_safe_geo_header(
+            request,
+            ("x-lumino-province", "ip-province-code"),
+            trusted_edge,
+        ),
+        city_name=_safe_geo_header(
+            request,
+            ("x-lumino-city", "ip-city-name"),
+            trusted_edge,
+        ),
+        isp_code=_safe_geo_header(
+            request,
+            ("x-lumino-isp", "ip-isp-code"),
+            trusted_edge,
+        ),
+    )
+    if all(
+        value != UNKNOWN_VALUE
+        for value in (
+            header_geo.country_code,
+            header_geo.subdivision_code,
+            header_geo.city_name,
+            header_geo.isp_code,
+        )
+    ):
+        return header_geo
+
+    offline_geo = lookup_ip_geolocation(ip_address)
+    return GeoLocation(
+        country_code=(
+            header_geo.country_code
+            if header_geo.country_code != UNKNOWN_VALUE
+            else offline_geo.country_code
+        ),
+        subdivision_code=(
+            header_geo.subdivision_code
+            if header_geo.subdivision_code != UNKNOWN_VALUE
+            else offline_geo.subdivision_code
+        ),
+        city_name=(
+            header_geo.city_name if header_geo.city_name != UNKNOWN_VALUE else offline_geo.city_name
+        ),
+        isp_code=(
+            header_geo.isp_code if header_geo.isp_code != UNKNOWN_VALUE else offline_geo.isp_code
+        ),
+    )
 
 
 def detect_device_type(user_agent: str) -> str:
@@ -151,6 +213,7 @@ def record_visit(db: Session, request: Request, payload: VisitCreate) -> bool:
     now = local_now_naive()
     visit_date = now.date()
     ip_address, trusted_edge = resolve_client_ip(request)
+    geo = resolve_geolocation(request, ip_address, trusted_edge)
     bucket_start = _bucket_start(now)
     ip_hash = _daily_ip_hash(ip_address, visit_date)
     duplicate_id = db.scalar(
@@ -171,14 +234,10 @@ def record_visit(db: Session, request: Request, payload: VisitCreate) -> bool:
         ip_address=ip_address,
         ip_hash=ip_hash,
         path=path,
-        country_code=_safe_geo_header(
-            request, ("x-lumino-country", "ip-country-code"), trusted_edge
-        ),
-        subdivision_code=_safe_geo_header(
-            request, ("x-lumino-province", "ip-province-code"), trusted_edge
-        ),
-        city_name=_safe_geo_header(request, ("x-lumino-city", "ip-city-name"), trusted_edge),
-        isp_code=_safe_geo_header(request, ("x-lumino-isp", "ip-isp-code"), trusted_edge),
+        country_code=geo.country_code,
+        subdivision_code=geo.subdivision_code,
+        city_name=geo.city_name,
+        isp_code=geo.isp_code,
         device_type=device_type,
         referrer_host=normalize_referrer_host(payload.referrer_host),
     )
@@ -189,6 +248,29 @@ def record_visit(db: Session, request: Request, payload: VisitCreate) -> bool:
     except IntegrityError:
         db.rollback()
         return False
+
+
+def _backfill_unknown_geolocation(db: Session) -> None:
+    events = db.scalars(
+        select(VisitEvent).where(
+            or_(
+                VisitEvent.country_code == UNKNOWN_VALUE,
+                VisitEvent.subdivision_code == UNKNOWN_VALUE,
+                VisitEvent.city_name == UNKNOWN_VALUE,
+                VisitEvent.isp_code == UNKNOWN_VALUE,
+            )
+        )
+    ).all()
+    for event in events:
+        offline_geo = lookup_ip_geolocation(event.ip_address)
+        if event.country_code == UNKNOWN_VALUE:
+            event.country_code = offline_geo.country_code
+        if event.subdivision_code == UNKNOWN_VALUE:
+            event.subdivision_code = offline_geo.subdivision_code
+        if event.city_name == UNKNOWN_VALUE:
+            event.city_name = offline_geo.city_name
+        if event.isp_code == UNKNOWN_VALUE:
+            event.isp_code = offline_geo.isp_code
 
 
 def _summarize_date(db: Session, summary_date: date) -> None:
@@ -237,6 +319,7 @@ def summarize_and_cleanup(db: Session | None = None, now: datetime | None = None
     current = now or local_now_naive()
     today = current.date()
     try:
+        _backfill_unknown_geolocation(session)
         pending_dates = session.scalars(
             select(VisitEvent.visit_date)
             .where(VisitEvent.visit_date < today)

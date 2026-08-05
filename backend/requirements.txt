@@ -9,6 +9,7 @@ passlib[bcrypt]
 bcrypt==4.0.1
 python-multipart
 pypdf>=5.0.0
+py-ip2region==3.0.4
 httpx
 python-dotenv
 openai

@@ -65,6 +65,91 @@ def test_public_visit_is_deduplicated_and_private_paths_are_ignored(client, db):
     assert event.referrer_host == "example.com"
 
 
+def test_esa_standard_headers_support_chinese_city_and_isp(client, db):
+    headers = {
+        "ali-real-client-ip": "203.0.113.8",
+        "ali-ip-country": "CN",
+        "x-lumino-province": "CN-SH",
+        "x-lumino-city": "上海".encode(),
+        "x-lumino-isp": "中国移动".encode(),
+        "user-agent": "Mozilla/5.0",
+    }
+    response = client.post("/api/analytics/visit", json={"path": "/"}, headers=headers)
+    assert response.status_code == 204
+
+    event = db.scalar(select(VisitEvent).order_by(VisitEvent.id.desc()))
+    assert event.country_code == "CN"
+    assert event.subdivision_code == "CN-SH"
+    assert event.city_name == "上海"
+    assert event.isp_code == "中国移动"
+
+
+def test_offline_geolocation_fills_missing_esa_headers(client, db):
+    headers = {
+        "x-real-ip": "1.2.3.4",
+        "user-agent": "Mozilla/5.0",
+    }
+    response = client.post("/api/analytics/visit", json={"path": "/blog"}, headers=headers)
+    assert response.status_code == 204
+
+    event = db.scalar(select(VisitEvent).order_by(VisitEvent.id.desc()))
+    assert event.country_code == "AU"
+    assert event.subdivision_code == "Queensland"
+    assert event.city_name == "Brisbane"
+
+
+def test_offline_geolocation_supports_ipv6():
+    from app.services.ip_geolocation import lookup_ip_geolocation
+
+    location = lookup_ip_geolocation("2604:a840:3::a04d")
+    assert location.country_code == "US"
+    assert location.subdivision_code == "California"
+    assert location.city_name == "San Jose"
+
+
+def test_recent_unknown_events_are_backfilled_from_the_offline_database(db):
+    now = local_now_naive().replace(second=0, microsecond=0)
+    event = VisitEvent(
+        visited_at=now,
+        visit_date=now.date(),
+        bucket_start=now,
+        ip_address="1.2.3.4",
+        ip_hash="b" * 64,
+        path="/",
+        country_code="XX",
+        subdivision_code="XX",
+        city_name="XX",
+        isp_code="XX",
+        device_type="desktop",
+        referrer_host="direct",
+    )
+    db.add(event)
+    db.commit()
+
+    summarize_and_cleanup(db, now)
+
+    db.refresh(event)
+    assert event.country_code == "AU"
+    assert event.subdivision_code == "Queensland"
+    assert event.city_name == "Brisbane"
+
+
+def test_untrusted_geolocation_headers_are_ignored():
+    from starlette.requests import Request
+
+    from app.services.visit_analytics import UNKNOWN_VALUE, _safe_geo_header
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/analytics/visit",
+            "headers": [(b"x-lumino-city", "上海".encode())],
+        }
+    )
+    assert _safe_geo_header(request, ("x-lumino-city",), trusted=False) == UNKNOWN_VALUE
+
+
 def test_analytics_dashboard_requires_root_and_returns_recent_ip(client, db):
     create_user(db, "analyticsroot", is_root=True)
     create_user(db, "analyticsuser", is_root=False)
