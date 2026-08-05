@@ -59,19 +59,19 @@
 
     <view class="bottom-nav safe-bottom">
       <view class="bottom-nav-item" @tap="go('/pages/index/index')">
-        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <image class="nav-icon-img" :src="getNavIcon('front', false)" mode="aspectFit" />
         <text>前厅</text>
       </view>
       <view class="bottom-nav-item" @tap="go('/pages/ai/index')">
-        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg>
+        <image class="nav-icon-img" :src="getNavIcon('ai', false)" mode="aspectFit" />
         <text>AI</text>
       </view>
       <view class="bottom-nav-item" @tap="go('/pages/spaces/index')">
-        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 10v4"/><path d="M17 10v4"/><path d="M12 7v10"/></svg>
+        <image class="nav-icon-img" :src="getNavIcon('courtyard', false)" mode="aspectFit" />
         <text>内院</text>
       </view>
       <view class="bottom-nav-item active">
-        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <image class="nav-icon-img" :src="getNavIcon('account', true)" mode="aspectFit" />
         <text>我的</text>
       </view>
     </view>
@@ -160,6 +160,16 @@ export default {
     go(url) {
       uni.navigateTo({ url })
     },
+    getNavIcon(key, isActive) {
+      const color = isActive ? '%23163a2b' : 'rgba(23,33,29,0.42)'
+      const icons = {
+        front: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+        ai: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg>`,
+        courtyard: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 10v4"/><path d="M17 10v4"/><path d="M12 7v10"/></svg>`,
+        account: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+      }
+      return 'data:image/svg+xml;utf8,' + icons[key]
+    },
   },
 }
 </script>
@@ -201,7 +211,7 @@ export default {
 .bottom-nav-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7rpx; color: rgba(23, 33, 29, 0.42); font-size: 19rpx; font-weight: 700; }
 .bottom-nav-item.active { color: #163a2b; }
 .bottom-nav-item.active::before { content: ''; position: absolute; top: 8rpx; width: 44rpx; height: 5rpx; border-radius: 999rpx; background: #f7b84b; }
-.svg-icon { width: 42rpx; height: 42rpx; stroke: currentColor; }
+.svg-icon, .nav-icon-img { width: 42rpx; height: 42rpx; }
 .bottom-nav-item.active .svg-icon { stroke: #163a2b; }
 .safe-bottom { padding-bottom: constant(safe-area-inset-bottom); padding-bottom: env(safe-area-inset-bottom); }
 </style>
