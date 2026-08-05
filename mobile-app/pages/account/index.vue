@@ -34,9 +34,9 @@
           </view>
         </view>
         <view v-if="isLoggedIn" class="status-card">
-          <view class="status-row"><text>博客编辑</text><text :class="permissionClass(user.can_write_blog)">{{ permissionLabel(user.can_write_blog) }}</text></view>
+          <view class="status-row"><text>博客编辑</text><text :class="permissionClass(canPublishBlog)">{{ permissionLabel(canPublishBlog) }}</text></view>
           <view class="status-row"><text>空间协作</text><text :class="permissionClass(user.can_create_spaces)">{{ permissionLabel(user.can_create_spaces) }}</text></view>
-          <view class="status-row"><text>AI / MCP 发布</text><text :class="permissionClass(user.can_use_mcp)">{{ permissionLabel(user.can_use_mcp) }}</text></view>
+          <view class="status-row"><text>AI / MCP 发布</text><text :class="permissionClass(canMcpPublish)">{{ permissionLabel(canMcpPublish) }}</text></view>
         </view>
 
         <view v-if="isLoggedIn" class="tip-card">
@@ -65,7 +65,7 @@
 </template>
 
 <script>
-import { clearLogin, getCurrentUser } from '../../services/api'
+import { clearLogin, getCapabilities, getCurrentUser } from '../../services/api'
 
 export default {
   data() {
@@ -78,6 +78,10 @@ export default {
         can_create_spaces: false,
         can_use_mcp: false,
       },
+      capabilities: {
+        can_publish_blog: false,
+        can_mcp_publish: false,
+      },
     }
   },
   computed: {
@@ -87,6 +91,12 @@ export default {
     avatarLetter() {
       const name = this.user.display_name || this.user.username || 'L'
       return String(name).slice(0, 1).toUpperCase()
+    },
+    canPublishBlog() {
+      return Boolean(this.user.is_root || this.capabilities.can_publish_blog)
+    },
+    canMcpPublish() {
+      return Boolean(this.user.is_root || this.capabilities.can_mcp_publish)
     },
   },
   onLoad() {
@@ -99,6 +109,12 @@ export default {
         this.user = { ...this.user, ...(await getCurrentUser()) }
       } catch (error) {
         uni.showToast({ title: '请先在 Web 端登录', icon: 'none' })
+        return
+      }
+      try {
+        this.capabilities = { ...this.capabilities, ...(await getCapabilities()) }
+      } catch (error) {
+        // 用户信息已成功加载时，超级管理员仍可由 is_root 正确展示其有效权限。
       }
     },
     permissionLabel(value) {
