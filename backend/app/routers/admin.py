@@ -158,6 +158,9 @@ def update_user_status(user_id: int, status_in: UserStatusUpdate, db: Session = 
     if status_in.can_write_blog is not None:
         user.can_write_blog = status_in.can_write_blog
 
+    if status_in.can_use_mcp is not None:
+        user.can_use_mcp = status_in.can_use_mcp
+
     db.commit()
     db.refresh(user)
     return user

@@ -28,6 +28,7 @@ class UserResponse(UserBase):
     can_create_spaces: bool
     is_discipline_authorized: bool
     can_write_blog: bool
+    can_use_mcp: bool
     created_at: datetime
     updated_at: datetime
 

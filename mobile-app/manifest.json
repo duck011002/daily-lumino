@@ -1,0 +1,30 @@
+{
+  "name": "Lumino",
+  "appid": "",
+  "description": "一座收藏技术、阅读与生活的个人数字庭院",
+  "versionName": "0.1.0",
+  "versionCode": 1,
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3,
+    "splashscreen": {
+      "alwaysShowBeforeRender": true,
+      "waiting": true,
+      "autoclose": true,
+      "delay": 0
+    },
+    "modules": {},
+    "distribute": {
+      "android": {
+        "permissions": [
+          "<uses-permission android:name=\"android.permission.INTERNET\"/>"
+        ],
+        "minSdkVersion": 23,
+        "targetSdkVersion": 35
+      }
+    }
+  },
+  "vueVersion": "3"
+}

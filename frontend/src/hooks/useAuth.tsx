@@ -15,6 +15,7 @@ export interface User {
   can_create_spaces: boolean
   is_discipline_authorized: boolean
   can_write_blog: boolean
+  can_use_mcp: boolean
   created_at: string
   updated_at: string
 }

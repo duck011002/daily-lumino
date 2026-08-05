@@ -7,6 +7,7 @@ from app.config import settings
 from app.mcp_blog import blog_mcp, blog_mcp_asgi
 from app.mcp_library import library_mcp, library_mcp_asgi
 from app.routers import (
+    ai,
     admin,
     albums,
     auth,
@@ -62,6 +63,7 @@ app.include_router(upload.router)
 app.include_router(discipline.router)
 app.include_router(visit_analytics.tracker_router)
 app.include_router(visit_analytics.admin_router)
+app.include_router(ai.router)
 app.mount("/api/mcp/blog", blog_mcp_asgi)
 app.mount("/api/mcp/library", library_mcp_asgi)
 

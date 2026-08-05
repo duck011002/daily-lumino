@@ -78,7 +78,14 @@ def _get_mcp_author(db) -> User:
     if not identity:
         raise ValueError("MCP blog credential was not resolved.")
     author = db.get(User, identity.author_id)
-    if not author or not author.is_active or (not author.is_root and not author.can_write_blog):
+    if (
+        not author
+        or not author.is_active
+        or (
+            not author.is_root
+            and (not author.can_write_blog or not author.can_use_mcp)
+        )
+    ):
         raise ValueError("The configured MCP blog author is unavailable or lacks blog permission.")
     return author
 

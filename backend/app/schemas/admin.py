@@ -8,6 +8,7 @@ class UserStatusUpdate(BaseModel):
     can_create_spaces: bool | None = None
     is_discipline_authorized: bool | None = None
     can_write_blog: bool | None = None
+    can_use_mcp: bool | None = None
 
 
 

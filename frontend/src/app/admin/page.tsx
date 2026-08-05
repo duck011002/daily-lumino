@@ -37,6 +37,7 @@ interface UserResponse {
   can_create_spaces: boolean
   is_discipline_authorized: boolean
   can_write_blog: boolean
+  can_use_mcp: boolean
   created_at: string
   token_usage?: number
   space_count?: number
@@ -468,6 +469,18 @@ export default function AdminConsole() {
       await api.patch(`/admin/users/${targetUser.id}`, { can_write_blog: newPermission })
       showToast('success', `已${newPermission ? '开通' : '取消'}用户 ${targetUser.username} 的博客写作权限`)
       setUsers((prev) => prev.map((item) => item.id === targetUser.id ? { ...item, can_write_blog: newPermission } : item))
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '权限更新失败。')
+    }
+  }
+
+  const handleToggleUserMcpPermission = async (targetUser: UserResponse) => {
+    if (targetUser.id === user?.id || targetUser.is_root) return
+    try {
+      const newPermission = !targetUser.can_use_mcp
+      await api.patch(`/admin/users/${targetUser.id}`, { can_use_mcp: newPermission })
+      showToast('success', `已${newPermission ? '开通' : '取消'}用户 ${targetUser.username} 的 MCP 发布权限`)
+      setUsers((prev) => prev.map((item) => item.id === targetUser.id ? { ...item, can_use_mcp: newPermission } : item))
     } catch (err: any) {
       showToast('error', err.response?.data?.detail || '权限更新失败。')
     }
@@ -1312,7 +1325,7 @@ export default function AdminConsole() {
                   </div>
                 ) : (
                   <div className="max-h-[70vh] max-w-full overflow-auto rounded-2xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard shadow-sm [scrollbar-gutter:stable]">
-                    <table className="min-w-[1560px] w-full text-left text-sm">
+                    <table className="min-w-[1680px] w-full text-left text-sm">
                       <thead className="sticky top-0 z-10 whitespace-nowrap bg-secondary dark:bg-darkBg text-onSurface/70 dark:text-foreground/70 border-b border-secondary dark:border-darkBorder">
                         <tr>
                           <th className="px-5 py-3 font-semibold">基本信息</th>
@@ -1326,6 +1339,7 @@ export default function AdminConsole() {
                           <th className="px-5 py-3 font-semibold text-center">创建空间权限</th>
                           <th className="px-5 py-3 font-semibold text-center">自律记录授权</th>
                           <th className="px-5 py-3 font-semibold text-center">博客写作权限</th>
+                          <th className="px-5 py-3 font-semibold text-center">MCP 发布权限</th>
                           <th className="px-5 py-3 font-semibold text-center">快捷控制</th>
                         </tr>
                       </thead>
@@ -1435,6 +1449,22 @@ export default function AdminConsole() {
                                 title={targetUser.can_write_blog ? '取消博客写作权限' : '开通博客写作权限'}
                               >
                                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${targetUser.can_write_blog ? 'translate-x-6' : 'translate-x-1'}`} />
+                              </button>
+                            </td>
+                            <td className="px-5 py-4 text-center">
+                              <button
+                                onClick={() => handleToggleUserMcpPermission(targetUser)}
+                                disabled={targetUser.id === user?.id || targetUser.is_root}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-primary/40 ${
+                                  targetUser.id === user?.id || targetUser.is_root
+                                    ? 'cursor-not-allowed bg-secondary opacity-40 dark:bg-darkBorder'
+                                    : targetUser.can_use_mcp
+                                    ? 'bg-primary'
+                                    : 'bg-onSurface/20 dark:bg-darkBorder'
+                                }`}
+                                title={targetUser.can_use_mcp ? '取消 MCP 发布权限' : '开通 MCP 发布权限'}
+                              >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${targetUser.can_use_mcp ? 'translate-x-6' : 'translate-x-1'}`} />
                               </button>
                             </td>
                             <td className="px-5 py-4">
