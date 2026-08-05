@@ -37,7 +37,15 @@ export default {
       try {
         await login(this.username, this.password)
         uni.showToast({ title: '登录成功', icon: 'success' })
-        setTimeout(() => uni.navigateBack(), 500)
+        setTimeout(() => {
+          // HBuilderX 可以直接以当前页作为 App 入口运行；此时 navigateBack 会被
+          // Android 当作退出应用，导致登录成功后误出现“再按一次退出应用”。
+          if (getCurrentPages().length > 1) {
+            uni.navigateBack()
+            return
+          }
+          uni.reLaunch({ url: '/pages/index/index' })
+        }, 500)
       } catch (error) {
         this.errorMessage = '登录失败，请检查账号或密码。'
       } finally {
