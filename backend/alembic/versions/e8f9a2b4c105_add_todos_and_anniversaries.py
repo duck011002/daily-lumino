@@ -1,7 +1,7 @@
 """add todos and space anniversaries tables
 
 Revision ID: e8f9a2b4c105
-Revises: c4e2a7d95b31
+Revises: a7e4c2d1f890
 """
 
 from collections.abc import Sequence
@@ -20,8 +20,8 @@ def upgrade() -> None:
     # 1. 创建 todos 表
     op.create_table(
         "todos",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("id", bigint_pk, autoincrement=True, nullable=False),
+        sa.Column("user_id", bigint_pk, nullable=False),
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("priority", sa.String(length=20), server_default="medium", nullable=False),
@@ -48,7 +48,7 @@ def upgrade() -> None:
         sa.Column("icon", sa.String(length=50), server_default="❤️", nullable=True),
         sa.Column("color", sa.String(length=50), server_default="amber", nullable=True),
         sa.Column("is_pinned", sa.Boolean(), server_default="0", nullable=False),
-        sa.Column("created_by", sa.Integer(), nullable=False),
+        sa.Column("created_by", bigint_pk, nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["space_id"], ["spaces.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"]),
