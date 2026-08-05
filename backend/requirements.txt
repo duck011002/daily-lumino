@@ -12,6 +12,7 @@ pypdf>=5.0.0
 py-ip2region==3.0.4
 httpx
 python-dotenv
+python-dotenv
 openai
 redis
 pydantic-settings
@@ -20,3 +21,4 @@ ruff
 black
 email-validator
 mcp==1.8.1
+beautifulsoup4>=4.12.0
