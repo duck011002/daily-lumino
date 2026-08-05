@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import {
   ArrowRight,
+  CheckSquare,
   FolderHeart,
   HeartPulse,
   Images,
@@ -57,6 +58,15 @@ export default function Dashboard() {
   )
 
   const personalTools = [
+    {
+      id: 'btn-todos',
+      title: '待办事项',
+      description: '记录灵感、待读文章与个人计划，仅对当前账号生效与提醒。',
+      href: '/todos',
+      icon: CheckSquare,
+      accent: 'bg-[#f7edd9] text-[#b56b19] dark:bg-[#3d311b] dark:text-[#f7b84b]',
+      show: true,
+    },
     {
       id: 'btn-ai-chat',
       title: 'AI 私人助手',
