@@ -226,11 +226,14 @@ def create_ai_draft(
         content=draft.content,
         cover_url=draft.cover_url,
         author_id=current_user.id,
-        is_published=True,
+        is_published=bool(draft.publish),
     )
     db.add(note)
     db.commit()
     db.refresh(note)
     return AIDraftResponse(
-        target="space", id=note.id, status="published", created_at=note.created_at
+        target="space",
+        id=note.id,
+        status="published" if note.is_published else "draft",
+        created_at=note.created_at,
     )

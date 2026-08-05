@@ -25,7 +25,7 @@
         </view>
 
         <view v-if="loading" class="empty-card"><text>正在读取空间…</text></view>
-        <view v-else-if="!spaces.length" class="empty-card">
+        <view v-else-if="!spaces.length" class="empty-card" @tap="goLogin">
           <text class="empty-title">还没有可见空间</text>
           <text class="empty-copy">登录后，你的私人庭院会出现在这里。</text>
         </view>
@@ -89,6 +89,9 @@ export default {
     },
     openSpace(space) {
       uni.showToast({ title: space.name + '详情将在下一阶段接入', icon: 'none' })
+    },
+    goLogin() {
+      uni.navigateTo({ url: '/pages/login/index' })
     },
     go(url) {
       uni.navigateTo({ url })

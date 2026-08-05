@@ -1,4 +1,4 @@
-# Lumino Mobile 首页原型
+# Lumino Mobile Android 客户端
 
 这是独立于现有 Next.js 前端的 uni-app Vue 3 原型，可直接作为后续 HBuilderX Android 项目的起点。
 
@@ -6,10 +6,10 @@
 
 ## 当前范围
 
-- 已完成移动端首页视觉和基础交互骨架。
-- 已接入线上公开接口：站点资料与精选博客。
-- 已复用头像、封面、状态、精选文章和精选收藏数据结构。
-- 书房、博客详情、内院、登录和个人中心暂时只保留入口，点击会提示下一阶段接入。
+- 已完成前厅、AI、空间、我的四栏导航。
+- 已接入登录、AI 对话、图片上传、Word/PDF/TXT/Markdown 解析、博客/空间文章草稿和发布。
+- 博客、空间文章、用户权限与 Web 共用后端数据。
+- HBuilderX 预览和 Android 打包配置已就绪；首次云打包需在 HBuilderX 中绑定你自己的 DCloud AppID 和签名证书。
 
 ## 在 HBuilderX 中预览
 

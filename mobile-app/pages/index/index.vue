@@ -12,7 +12,7 @@
       </view>
       <view class="top-actions">
         <view class="round-button" @tap="showComingSoon('搜索')">⌕</view>
-        <view class="avatar-mini" @tap="showComingSoon('个人中心')">
+        <view class="avatar-mini" @tap="openAccount">
           <image v-if="avatarUrl" :src="avatarUrl" mode="aspectFill" />
           <text v-else>{{ avatarLetter }}</text>
         </view>
@@ -273,6 +273,9 @@ export default {
       }
       if (item.key === 'front') return
       if (routes[item.key]) uni.navigateTo({ url: routes[item.key] })
+    },
+    openAccount() {
+      uni.navigateTo({ url: '/pages/account/index' })
     },
     openPost(post) {
       this.showComingSoon('文章《' + post.title + '》')

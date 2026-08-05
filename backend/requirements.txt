@@ -8,6 +8,7 @@ python-jose[cryptography]
 passlib[bcrypt]
 bcrypt==4.0.1
 python-multipart
+pypdf>=5.0.0
 httpx
 python-dotenv
 openai

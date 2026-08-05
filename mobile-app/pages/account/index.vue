@@ -11,7 +11,15 @@
 
     <scroll-view class="page-scroll" scroll-y>
       <view class="content">
-        <view class="profile-card">
+        <view v-if="!isLoggedIn" class="login-card" @tap="goLogin">
+          <view class="avatar">L</view>
+          <view class="profile-copy">
+            <text class="profile-name">登录 Lumino</text>
+            <text class="profile-email">登录后查看权限、空间和 AI 草稿</text>
+          </view>
+          <text class="login-arrow">→</text>
+        </view>
+        <view v-else class="profile-card">
           <view class="avatar">{{ avatarLetter }}</view>
           <view class="profile-copy">
             <text class="profile-name">{{ user.display_name || user.username || 'Lumino 用户' }}</text>
@@ -25,13 +33,13 @@
             <text class="section-title">使用权限</text>
           </view>
         </view>
-        <view class="status-card">
+        <view v-if="isLoggedIn" class="status-card">
           <view class="status-row"><text>博客编辑</text><text :class="permissionClass(user.can_write_blog)">{{ permissionLabel(user.can_write_blog) }}</text></view>
           <view class="status-row"><text>空间协作</text><text :class="permissionClass(user.can_create_spaces)">{{ permissionLabel(user.can_create_spaces) }}</text></view>
           <view class="status-row"><text>AI / MCP 发布</text><text :class="permissionClass(user.can_use_mcp)">{{ permissionLabel(user.can_use_mcp) }}</text></view>
         </view>
 
-        <view class="tip-card">
+        <view v-if="isLoggedIn" class="tip-card">
           <text class="tip-mark">✦</text>
           <view>
             <text class="tip-title">内容会和 Web 自动同步</text>
@@ -40,8 +48,9 @@
         </view>
 
         <view class="account-actions">
-          <view class="account-action" @tap="showProfile"><text>个人资料</text><text>›</text></view>
-          <view class="account-action" @tap="logout"><text>退出登录</text><text>›</text></view>
+          <view v-if="isLoggedIn" class="account-action" @tap="showProfile"><text>个人资料</text><text>›</text></view>
+          <view v-if="isLoggedIn" class="account-action" @tap="logout"><text>退出登录</text><text>›</text></view>
+          <view v-else class="account-action" @tap="goLogin"><text>去登录</text><text>›</text></view>
         </view>
       </view>
     </scroll-view>
@@ -56,7 +65,7 @@
 </template>
 
 <script>
-import { getCurrentUser } from '../../services/api'
+import { clearLogin, getCurrentUser } from '../../services/api'
 
 export default {
   data() {
@@ -72,6 +81,9 @@ export default {
     }
   },
   computed: {
+    isLoggedIn() {
+      return Boolean(uni.getStorageSync('lumino_access_token')) && Boolean(this.user.username)
+    },
     avatarLetter() {
       const name = this.user.display_name || this.user.username || 'L'
       return String(name).slice(0, 1).toUpperCase()
@@ -82,6 +94,7 @@ export default {
   },
   methods: {
     async loadUser() {
+      if (!uni.getStorageSync('lumino_access_token')) return
       try {
         this.user = { ...this.user, ...(await getCurrentUser()) }
       } catch (error) {
@@ -100,7 +113,13 @@ export default {
       uni.showToast({ title: '个人资料编辑将在下一阶段接入', icon: 'none' })
     },
     logout() {
-      uni.showToast({ title: '退出登录将在下一阶段接入', icon: 'none' })
+      clearLogin().finally(() => {
+        this.user = { ...this.user, username: '', email: '', display_name: '' }
+        uni.showToast({ title: '已退出登录', icon: 'success' })
+      })
+    },
+    goLogin() {
+      uni.navigateTo({ url: '/pages/login/index' })
     },
     go(url) {
       uni.navigateTo({ url })
@@ -119,6 +138,8 @@ export default {
 .page-scroll { height: calc(100vh - var(--status-bar-height) - 116rpx - 126rpx); }
 .content { padding: 28rpx 28rpx 56rpx; }
 .profile-card { padding: 30rpx; display: flex; align-items: center; gap: 22rpx; border-radius: 38rpx; color: #fff; background: #163a2b; box-shadow: 0 28rpx 56rpx rgba(22, 58, 43, 0.16); }
+.login-card { position: relative; padding: 30rpx; display: flex; align-items: center; gap: 22rpx; border-radius: 38rpx; color: #17211d; background: #f4d8a4; }
+.login-arrow { margin-left: auto; color: #9b611f; font-size: 34rpx; }
 .avatar { width: 92rpx; height: 92rpx; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 30rpx; color: #f7b84b; background: rgba(255, 255, 255, 0.12); font-family: Georgia, serif; font-size: 40rpx; font-weight: 700; }
 .profile-copy { min-width: 0; }
 .profile-name, .profile-email { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
