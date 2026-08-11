@@ -107,6 +107,17 @@ def ensure_post_manager(post: BlogPost, current_user: User) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只能管理自己的博客文章。")
 
 
+def ensure_private_preview_owner(post: BlogPost, current_user: User) -> None:
+    """Private previews are intentionally limited to the post's author.
+
+    Root users retain their existing cross-author management permissions, but a
+    private preview is not a management operation: it exposes unpublished
+    content and therefore must remain owner-only.
+    """
+    if post.author_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只能预览自己创作的博客文章。")
+
+
 def build_post(
     post_in: BlogPostCreate,
     current_user: User,
@@ -277,6 +288,24 @@ def list_my_posts(
     if not current_user.is_root:
         statement = statement.where(BlogPost.author_id == current_user.id)
     return db.scalars(statement).all()
+
+
+@router.get("/api/blog/me/posts/{post_id}/preview", response_model=BlogPostResponse)
+def preview_my_post(
+    post_id: int,
+    current_user: User = Depends(require_blog_writer),
+    db: Session = Depends(get_db),
+):
+    """Return a post for its author without changing publication state or views."""
+    post = db.scalar(
+        select(BlogPost)
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
+        .where(BlogPost.id == post_id)
+    )
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
+    ensure_private_preview_owner(post, current_user)
+    return post
 
 
 @router.post("/api/blog/me/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)

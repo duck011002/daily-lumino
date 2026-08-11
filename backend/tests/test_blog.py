@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from app.main import app
 from app.models.invite_code import InviteCode
 from app.models.user import User
 from app.models.blog import BlogCategory, BlogPost
@@ -139,6 +140,46 @@ def test_mcp_can_revise_only_its_own_blog_post(db, monkeypatch):
             update_blog_post(post_id=other_post.id, title="Should not change")
     finally:
         current_mcp_blog_identity.reset(context_token)
+
+
+def test_private_preview_is_author_only_and_does_not_mutate_post(client: TestClient, blog_test_setup, db):
+    writer = db.scalar(select(User).where(User.username == "normaluser"))
+    writer.can_write_blog = True
+    draft = BlogPost(
+        title="Private draft",
+        slug="private-draft",
+        content="Only the author should see this.",
+        author_id=writer.id,
+        is_public=False,
+        is_published=False,
+        view_count=7,
+    )
+    db.add(draft)
+    db.commit()
+
+    anonymous_client = TestClient(app)
+    try:
+        anonymous_response = anonymous_client.get(f"/api/blog/me/posts/{draft.id}/preview")
+    finally:
+        anonymous_client.close()
+    assert anonymous_response.status_code == 401
+
+    admin_response = client.get(
+        f"/api/blog/me/posts/{draft.id}/preview", cookies=blog_test_setup["admin"]
+    )
+    assert admin_response.status_code == 403
+
+    author_response = client.get(
+        f"/api/blog/me/posts/{draft.id}/preview", cookies=blog_test_setup["normal"]
+    )
+    assert author_response.status_code == 200
+    assert author_response.json()["content"] == "Only the author should see this."
+
+    db.refresh(draft)
+    assert draft.is_public is False
+    assert draft.is_published is False
+    assert draft.published_at is None
+    assert draft.view_count == 7
 
 
 def test_admin_blog_crud(client: TestClient, blog_test_setup, db):
