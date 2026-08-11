@@ -108,13 +108,8 @@ def ensure_post_manager(post: BlogPost, current_user: User) -> None:
 
 
 def ensure_private_preview_owner(post: BlogPost, current_user: User) -> None:
-    """Private previews are intentionally limited to the post's author.
-
-    Root users retain their existing cross-author management permissions, but a
-    private preview is not a management operation: it exposes unpublished
-    content and therefore must remain owner-only.
-    """
-    if post.author_id != current_user.id:
+    """Allow the author, or a root user, to read a private preview."""
+    if not current_user.is_root and post.author_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只能预览自己创作的博客文章。")
 
 

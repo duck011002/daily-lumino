@@ -142,7 +142,7 @@ def test_mcp_can_revise_only_its_own_blog_post(db, monkeypatch):
         current_mcp_blog_identity.reset(context_token)
 
 
-def test_private_preview_is_author_only_and_does_not_mutate_post(client: TestClient, blog_test_setup, db):
+def test_private_preview_allows_author_or_root_without_mutating_post(client: TestClient, blog_test_setup, db):
     writer = db.scalar(select(User).where(User.username == "normaluser"))
     writer.can_write_blog = True
     draft = BlogPost(
@@ -167,7 +167,8 @@ def test_private_preview_is_author_only_and_does_not_mutate_post(client: TestCli
     admin_response = client.get(
         f"/api/blog/me/posts/{draft.id}/preview", cookies=blog_test_setup["admin"]
     )
-    assert admin_response.status_code == 403
+    assert admin_response.status_code == 200
+    assert admin_response.json()["content"] == "Only the author should see this."
 
     author_response = client.get(
         f"/api/blog/me/posts/{draft.id}/preview", cookies=blog_test_setup["normal"]
