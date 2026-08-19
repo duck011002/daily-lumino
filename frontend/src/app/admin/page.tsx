@@ -119,6 +119,41 @@ interface AIProvider {
   last_error_message?: string | null
 }
 
+type MCPLuminoScope =
+  | 'ledger:read'
+  | 'ledger:write'
+  | 'todos:read'
+  | 'todos:write'
+  | 'blog:read'
+  | 'blog:write'
+  | 'blog:publish'
+  | 'library:read'
+  | 'library:write'
+
+interface MCPLuminoToken {
+  id: number
+  label: string
+  user_id: number
+  user_name: string
+  scopes: MCPLuminoScope[]
+  allow_auto_publish: boolean
+  is_active: boolean
+  created_at: string
+  last_used_at: string | null
+}
+
+const LUMINO_SCOPE_OPTIONS: { value: MCPLuminoScope; label: string }[] = [
+  { value: 'ledger:read', label: '读取账本' },
+  { value: 'ledger:write', label: '修改账本' },
+  { value: 'todos:read', label: '读取待办' },
+  { value: 'todos:write', label: '修改待办' },
+  { value: 'blog:read', label: '读取博客' },
+  { value: 'blog:write', label: '写博客草稿' },
+  { value: 'blog:publish', label: '公开发布博客' },
+  { value: 'library:read', label: '读取 Library' },
+  { value: 'library:write', label: '修改 Library' },
+]
+
 interface AIHealthResult {
   status: 'success' | 'error'
   message: string
@@ -185,6 +220,17 @@ export default function AdminConsole() {
   const [mcpAutoPublish, setMcpAutoPublish] = useState(false)
   const [creatingMcpToken, setCreatingMcpToken] = useState(false)
   const [newMcpToken, setNewMcpToken] = useState<string | null>(null)
+  const [luminoMcpTokens, setLuminoMcpTokens] = useState<MCPLuminoToken[]>([])
+  const [luminoMcpLabel, setLuminoMcpLabel] = useState('Codex Lumino')
+  const [luminoMcpUserId, setLuminoMcpUserId] = useState('')
+  const [luminoMcpScopes, setLuminoMcpScopes] = useState<MCPLuminoScope[]>([
+    'ledger:read',
+    'ledger:write',
+    'todos:read',
+    'todos:write',
+  ])
+  const [creatingLuminoMcpToken, setCreatingLuminoMcpToken] = useState(false)
+  const [newLuminoMcpToken, setNewLuminoMcpToken] = useState<string | null>(null)
   
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [copiedShareSlug, setCopiedShareSlug] = useState<string | null>(null)
@@ -379,15 +425,21 @@ export default function AdminConsole() {
   const fetchMcpTokens = async () => {
     setLoadingMcpTokens(true)
     try {
-      const [tokensRes, usersRes] = await Promise.all([
+      const [tokensRes, luminoTokensRes, usersRes] = await Promise.all([
         api.get('/admin/mcp-blog/tokens'),
+        api.get('/admin/mcp-lumino/tokens'),
         api.get('/admin/users'),
       ])
       setMcpTokens(tokensRes.data)
+      setLuminoMcpTokens(luminoTokensRes.data)
       setUsers(usersRes.data)
       if (!mcpAuthorId) {
         const defaultAuthor = usersRes.data.find((item: UserResponse) => item.is_root) || usersRes.data.find((item: UserResponse) => item.can_write_blog)
         if (defaultAuthor) setMcpAuthorId(String(defaultAuthor.id))
+      }
+      if (!luminoMcpUserId) {
+        const defaultUser = usersRes.data.find((item: UserResponse) => item.is_root) || usersRes.data.find((item: UserResponse) => item.can_use_mcp)
+        if (defaultUser) setLuminoMcpUserId(String(defaultUser.id))
       }
     } catch (err) {
       console.error('获取 MCP 凭据失败', err)
@@ -784,6 +836,49 @@ export default function AdminConsole() {
     const command = `codex mcp add lumino-blog --url ${origin}/api/mcp/blog/ --bearer-token-env-var LUMINO_BLOG_MCP_TOKEN`
     const success = await copyText(command)
     showToast(success ? 'success' : 'error', success ? 'Codex 连接命令已复制。' : '复制失败，请手动复制。')
+  }
+
+  const handleCreateLuminoMcpToken = async () => {
+    if (!luminoMcpLabel.trim() || !luminoMcpUserId || luminoMcpScopes.length === 0) {
+      showToast('warning', '请选择绑定用户和至少一个权限范围。')
+      return
+    }
+    setCreatingLuminoMcpToken(true)
+    try {
+      const res = await api.post('/admin/mcp-lumino/tokens', {
+        label: luminoMcpLabel.trim(),
+        user_id: Number(luminoMcpUserId),
+        scopes: luminoMcpScopes,
+        allow_auto_publish: luminoMcpScopes.includes('blog:publish'),
+      })
+      setLuminoMcpTokens((prev) => [res.data, ...prev])
+      setNewLuminoMcpToken(res.data.token)
+      showToast('success', '统一 Lumino MCP 凭据已创建，请立即复制令牌。')
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '创建统一 MCP 凭据失败。')
+    } finally {
+      setCreatingLuminoMcpToken(false)
+    }
+  }
+
+  const handleUpdateLuminoMcpToken = async (
+    token: MCPLuminoToken,
+    changes: Partial<Pick<MCPLuminoToken, 'scopes' | 'allow_auto_publish' | 'is_active'>>
+  ) => {
+    try {
+      const res = await api.patch(`/admin/mcp-lumino/tokens/${token.id}`, changes)
+      setLuminoMcpTokens((prev) => prev.map((item) => item.id === token.id ? res.data : item))
+      showToast('success', `统一 MCP 凭据已${res.data.is_active ? '更新' : '停用'}。`)
+    } catch (err: any) {
+      showToast('error', err.response?.data?.detail || '更新统一 MCP 凭据失败。')
+    }
+  }
+
+  const handleCopyLuminoMcpCommand = async () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://lovestory1314.fun'
+    const command = `codex mcp add lumino --url ${origin}/api/mcp/lumino/ --bearer-token-env-var LUMINO_MCP_TOKEN`
+    const success = await copyText(command)
+    showToast(success ? 'success' : 'error', success ? 'Lumino MCP 连接命令已复制。' : '复制失败，请手动复制。')
   }
 
   // Blog Tab Actions
@@ -1539,6 +1634,63 @@ export default function AdminConsole() {
             {/* ======================================= */}
             {activeTab === 'mcp' && (
               <div className="space-y-6 animate-fade-in">
+                <div className="rounded-2xl border border-primary/25 bg-primary/5 p-6 shadow-sm dark:border-primary/30 dark:bg-primary/10">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2"><Bot size={20} className="text-primary" /><h2 className="text-xl font-bold text-onSurface dark:text-foreground">统一 Lumino MCP</h2></div>
+                      <p className="mt-2 max-w-3xl text-xs leading-6 text-onSurface/60 dark:text-foreground/60">一个连接管理绑定用户的账本、待办、博客与 Library。每个令牌按范围授权；账本和待办数据始终按绑定用户隔离。旧博客 MCP 继续可用。</p>
+                    </div>
+                    <button onClick={handleCopyLuminoMcpCommand} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/25 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/5"><Copy size={14} />复制统一连接命令</button>
+                  </div>
+                </div>
+
+                {newLuminoMcpToken && (
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-500/40 dark:bg-amber-500/10">
+                    <p className="text-sm font-bold text-amber-800 dark:text-amber-300">新统一 MCP 令牌，只显示这一次</p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row"><code className="flex-1 break-all rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-xs text-onSurface dark:border-amber-500/30 dark:bg-darkBg dark:text-foreground">{newLuminoMcpToken}</code><Button size="sm" onClick={() => copyToClipboard(newLuminoMcpToken)}><Copy size={14} className="mr-1" />复制令牌</Button></div>
+                    <p className="mt-3 text-xs leading-5 text-amber-800/80 dark:text-amber-300/80">请保存到本机环境变量 <code>LUMINO_MCP_TOKEN</code>。关闭本提示后，服务器无法还原令牌原值。</p>
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-secondary bg-white p-6 shadow-sm dark:border-darkBorder dark:bg-darkCard">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div><label className="mb-1 block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">凭据名称</label><input value={luminoMcpLabel} onChange={(e) => setLuminoMcpLabel(e.target.value)} maxLength={100} className="w-full rounded-lg border border-secondary bg-surface px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg" /></div>
+                    <div><label className="mb-1 block text-xs font-semibold text-onSurface/70 dark:text-foreground/70">绑定用户</label><select value={luminoMcpUserId} onChange={(e) => setLuminoMcpUserId(e.target.value)} className="w-full rounded-lg border border-secondary bg-surface px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary dark:border-darkBorder dark:bg-darkBg"><option value="">请选择已开通 MCP 的用户</option>{users.filter((item) => item.is_active && (item.is_root || item.can_use_mcp)).map((item) => <option key={item.id} value={item.id}>{item.display_name || item.username}{item.is_root ? '（超管）' : ''}</option>)}</select></div>
+                  </div>
+                  <div className="mt-5">
+                    <p className="text-xs font-semibold text-onSurface/70 dark:text-foreground/70">权限范围</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {LUMINO_SCOPE_OPTIONS.map((scope) => (
+                        <label key={scope.value} className="flex items-center gap-2 rounded-lg border border-secondary px-3 py-2 text-xs text-onSurface/70 dark:border-darkBorder dark:text-foreground/70">
+                          <input
+                            type="checkbox"
+                            checked={luminoMcpScopes.includes(scope.value)}
+                            onChange={(event) => setLuminoMcpScopes((prev) => event.target.checked ? [...prev, scope.value] : prev.filter((item) => item !== scope.value))}
+                            className="rounded text-primary focus:ring-primary"
+                          />
+                          {scope.label}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs text-onSurface/50 dark:text-foreground/50">“公开发布博客”是高风险权限，只应在明确需要自动发布时开启；普通博客写入默认保持草稿。</p>
+                  </div>
+                  <div className="mt-5 flex justify-end"><Button size="sm" onClick={handleCreateLuminoMcpToken} isLoading={creatingLuminoMcpToken}><Plus size={14} className="mr-1" />创建统一凭据</Button></div>
+                </div>
+
+                {loadingMcpTokens ? <div className="py-10 text-center"><Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" /></div> : luminoMcpTokens.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-secondary py-10 text-center dark:border-darkBorder"><p className="text-sm text-onSurface/55 dark:text-foreground/55">尚未创建统一 Lumino MCP 凭据。</p></div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-secondary bg-white shadow-sm dark:border-darkBorder dark:bg-darkCard">
+                    <table className="w-full min-w-[820px] text-left text-sm">
+                      <thead className="border-b border-secondary bg-secondary/40 text-onSurface/70 dark:border-darkBorder dark:bg-darkBg dark:text-foreground/70"><tr><th className="px-5 py-3">名称</th><th className="px-5 py-3">绑定用户</th><th className="px-5 py-3">权限范围</th><th className="px-5 py-3">最近使用</th><th className="px-5 py-3 text-center">状态</th></tr></thead>
+                      <tbody className="divide-y divide-secondary dark:divide-darkBorder">
+                        {luminoMcpTokens.map((token) => <tr key={token.id}><td className="px-5 py-4 font-semibold text-onSurface dark:text-foreground">{token.label}</td><td className="px-5 py-4 text-xs text-onSurface/70 dark:text-foreground/70">{token.user_name}<span className="ml-1 font-mono opacity-50">#{token.user_id}</span></td><td className="max-w-md px-5 py-4"><div className="flex flex-wrap gap-1">{token.scopes.map((scope) => <span key={scope} className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[10px] text-onSurface/65 dark:bg-darkBorder dark:text-foreground/65">{scope}</span>)}</div></td><td className="px-5 py-4 text-xs text-onSurface/60 dark:text-foreground/60">{token.last_used_at ? new Date(token.last_used_at).toLocaleString() : '尚未使用'}</td><td className="px-5 py-4 text-center"><button onClick={() => handleUpdateLuminoMcpToken(token, { is_active: !token.is_active })} className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${token.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300'}`}>{token.is_active ? '启用，点击停用' : '已停用，点击启用'}</button></td></tr>)}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="pt-4 text-xs font-bold uppercase tracking-[0.18em] text-onSurface/40 dark:text-foreground/40">兼容连接</div>
                 <div className="rounded-2xl border border-secondary bg-white p-6 shadow-sm dark:border-darkBorder dark:bg-darkCard">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>

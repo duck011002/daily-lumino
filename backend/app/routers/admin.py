@@ -13,6 +13,7 @@ from app.dependencies import require_root
 from app.models.invite_code import InviteCode
 from app.models.mcp_blog_token import MCPBlogToken
 from app.models.mcp_library_token import MCPLibraryToken
+from app.models.mcp_lumino_token import MCPLuminoToken
 from app.models.storage_quota import StorageQuota
 from app.models.system_config import SystemConfig
 from app.models.user import User
@@ -36,6 +37,10 @@ from app.schemas.admin import (
     MCPLibraryTokenCreateResponse,
     MCPLibraryTokenResponse,
     MCPLibraryTokenUpdate,
+    MCPLuminoTokenCreate,
+    MCPLuminoTokenCreateResponse,
+    MCPLuminoTokenResponse,
+    MCPLuminoTokenUpdate,
 )
 from app.schemas.user import UserResponse
 from app.utils.crypto import decrypt_value, encrypt_value
@@ -83,6 +88,20 @@ def serialize_mcp_blog_token(token: MCPBlogToken) -> dict:
     }
 
 
+def serialize_mcp_lumino_token(token: MCPLuminoToken) -> dict:
+    return {
+        "id": token.id,
+        "label": token.label,
+        "user_id": token.user_id,
+        "user_name": token.user.display_name or token.user.username,
+        "scopes": token.scopes,
+        "allow_auto_publish": token.allow_auto_publish,
+        "is_active": token.is_active,
+        "created_at": token.created_at,
+        "last_used_at": token.last_used_at,
+    }
+
+
 def get_mcp_blog_author_or_400(db: Session, author_id: int) -> User:
     author = db.get(User, author_id)
     if not author or not author.is_active:
@@ -93,6 +112,21 @@ def get_mcp_blog_author_or_400(db: Session, author_id: int) -> User:
             detail="所选用户没有博客写作权限。",
         )
     return author
+
+
+def get_mcp_lumino_user_or_400(db: Session, user_id: int) -> User:
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="所选 MCP 用户不可用。",
+        )
+    if not user.is_root and not user.can_use_mcp:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="所选用户尚未开通 MCP 使用权限。",
+        )
+    return user
 
 
 from app.models.chat import ChatMessage, ChatSession
@@ -400,6 +434,65 @@ def update_mcp_library_token(
     db.commit()
     db.refresh(token)
     return serialize_mcp_library_token(token)
+
+
+@router.get("/mcp-lumino/tokens", response_model=list[MCPLuminoTokenResponse])
+def list_mcp_lumino_tokens(db: Session = Depends(get_db)):
+    tokens = db.scalars(
+        select(MCPLuminoToken).order_by(MCPLuminoToken.id.desc())
+    ).all()
+    return [serialize_mcp_lumino_token(token) for token in tokens]
+
+
+@router.post(
+    "/mcp-lumino/tokens",
+    response_model=MCPLuminoTokenCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_mcp_lumino_token(
+    token_in: MCPLuminoTokenCreate,
+    current_user: User = Depends(require_root),
+    db: Session = Depends(get_db),
+):
+    get_mcp_lumino_user_or_400(db, token_in.user_id)
+    raw_token = f"lmu_mcp_{secrets.token_urlsafe(32)}"
+    token = MCPLuminoToken(
+        label=token_in.label.strip(),
+        token_hash=hash_mcp_blog_token(raw_token),
+        user_id=token_in.user_id,
+        created_by=current_user.id,
+        scopes=list(dict.fromkeys(token_in.scopes)),
+        allow_auto_publish=token_in.allow_auto_publish,
+    )
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+    return {**serialize_mcp_lumino_token(token), "token": raw_token}
+
+
+@router.patch(
+    "/mcp-lumino/tokens/{token_id}", response_model=MCPLuminoTokenResponse
+)
+def update_mcp_lumino_token(
+    token_id: int,
+    token_in: MCPLuminoTokenUpdate,
+    db: Session = Depends(get_db),
+):
+    token = db.get(MCPLuminoToken, token_id)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lumino MCP 凭据不存在。",
+        )
+    if token_in.scopes is not None:
+        token.scopes = list(dict.fromkeys(token_in.scopes))
+    if token_in.allow_auto_publish is not None:
+        token.allow_auto_publish = token_in.allow_auto_publish
+    if token_in.is_active is not None:
+        token.is_active = token_in.is_active
+    db.commit()
+    db.refresh(token)
+    return serialize_mcp_lumino_token(token)
 
 
 @router.get("/storage-quota", response_model=StorageQuotaResponse)

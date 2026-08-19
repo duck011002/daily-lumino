@@ -107,6 +107,48 @@ class MCPLibraryTokenCreateResponse(MCPLibraryTokenResponse):
     token: str
 
 
+MCPLuminoScope = Literal[
+    "ledger:read",
+    "ledger:write",
+    "todos:read",
+    "todos:write",
+    "blog:read",
+    "blog:write",
+    "blog:publish",
+    "library:read",
+    "library:write",
+]
+
+
+class MCPLuminoTokenCreate(BaseModel):
+    label: str = Field(..., min_length=1, max_length=100)
+    user_id: int
+    scopes: list[MCPLuminoScope] = Field(..., min_length=1)
+    allow_auto_publish: bool = False
+
+
+class MCPLuminoTokenUpdate(BaseModel):
+    scopes: list[MCPLuminoScope] | None = Field(None, min_length=1)
+    allow_auto_publish: bool | None = None
+    is_active: bool | None = None
+
+
+class MCPLuminoTokenResponse(BaseModel):
+    id: int
+    label: str
+    user_id: int
+    user_name: str
+    scopes: list[MCPLuminoScope]
+    allow_auto_publish: bool
+    is_active: bool
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+class MCPLuminoTokenCreateResponse(MCPLuminoTokenResponse):
+    token: str
+
+
 class AITestConnectionRequest(BaseModel):
     id: str | None = None
     base_url: str | None = None
