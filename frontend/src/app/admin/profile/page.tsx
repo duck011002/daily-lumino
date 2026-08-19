@@ -28,6 +28,7 @@ import { useAuth } from '@/hooks/useAuth'
 import SiteNav from '@/components/layout/SiteNav'
 import BackLink from '@/components/ui/BackLink'
 import LibraryMcpPanel from '@/components/admin/LibraryMcpPanel'
+import AIQuickAction from '@/components/ai/AIQuickAction'
 import {
   defaultSiteProfile,
   MediaCategory,
@@ -294,6 +295,14 @@ export default function ProfileAdminPage() {
     }
   }
 
+  const refreshProfile = async () => {
+    const response = await api.get<SiteProfile>('/admin/site-profile')
+    const serverTags = response.data.interest_tags.join('、')
+    setProfile(response.data)
+    setTagsText(serverTags)
+    setSavedSnapshot(JSON.stringify({ profile: response.data, tagsText: serverTags }))
+  }
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
@@ -313,6 +322,13 @@ export default function ProfileAdminPage() {
       <SiteNav />
 
       <main className="mx-auto max-w-7xl px-4 pb-28 pt-8 sm:px-6 lg:px-8 lg:pb-28 lg:pt-12">
+        <div className="mb-8">
+          <AIQuickAction
+            context="library"
+            placeholder="告诉 AI：在 Library 新增一本《……》，作者是……"
+            onCompleted={refreshProfile}
+          />
+        </div>
         <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="mb-4">

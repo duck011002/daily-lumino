@@ -16,6 +16,8 @@ from app.schemas.ledger import LedgerEntryCreate, LedgerEntryOut, LedgerEntryUpd
 from app.schemas.todo import TodoCreate, TodoOut, TodoUpdate
 from app.services import ledger as ledger_service
 from app.services import todos as todo_service
+from app.services import blog_actions, library_actions
+from app.routers.site import load_site_profile, save_site_profile
 
 
 class ActionError(ValueError):
@@ -260,6 +262,123 @@ def _undo_deleted_todo(db: Session, user: User, run: AIActionRun) -> dict[str, A
     return TodoOut.model_validate(restored).model_dump(mode="json")
 
 
+def _create_blog(
+    db: Session, user: User, arguments: BaseModel, action_key: str
+) -> ActionMutation:
+    if not user.is_root and not user.can_write_blog:
+        raise ActionPermissionError("当前用户没有博客写作权限。")
+    payload = blog_actions.CreateBlogPostArguments.model_validate(
+        arguments.model_dump()
+    )
+    post = blog_actions.create_draft(db, user, payload, commit=False)
+    return ActionMutation("blog_post", post.id, blog_actions.serialize_post(post))
+
+
+def _update_blog(
+    db: Session, user: User, arguments: BaseModel, action_key: str
+) -> ActionMutation:
+    if not user.is_root and not user.can_write_blog:
+        raise ActionPermissionError("当前用户没有博客写作权限。")
+    payload = blog_actions.UpdateBlogPostArguments.model_validate(
+        arguments.model_dump(exclude_unset=True)
+    )
+    post = blog_actions.get_owned_post(db, user, payload.post_id)
+    before = blog_actions.serialize_post(post)
+    post = blog_actions.update_post(db, user, payload, commit=False)
+    return ActionMutation(
+        "blog_post", post.id, blog_actions.serialize_post(post), before
+    )
+
+
+def _publish_blog(
+    db: Session, user: User, arguments: BaseModel, action_key: str
+) -> ActionMutation:
+    if not user.is_root and not user.can_write_blog:
+        raise ActionPermissionError("当前用户没有博客写作权限。")
+    payload = blog_actions.PublishBlogPostArguments.model_validate(
+        arguments.model_dump()
+    )
+    post = blog_actions.get_owned_post(db, user, payload.post_id)
+    before = blog_actions.serialize_post(post)
+    post = blog_actions.publish_post(db, user, post.id, commit=False)
+    return ActionMutation(
+        "blog_post", post.id, blog_actions.serialize_post(post), before
+    )
+
+
+def _undo_created_blog(db: Session, user: User, run: AIActionRun) -> dict[str, Any]:
+    target_id = run.target_id or 0
+    blog_actions.delete_post(db, user, target_id, commit=False)
+    return {"deleted_post_id": target_id}
+
+
+def _undo_blog_snapshot(db: Session, user: User, run: AIActionRun) -> dict[str, Any]:
+    if not run.before_json or run.target_id is None:
+        raise ActionUndoError("该行动缺少可撤销快照。")
+    post = blog_actions.get_owned_post(db, user, run.target_id)
+    before = run.before_json
+    for field in (
+        "title",
+        "slug",
+        "content",
+        "excerpt",
+        "cover_url",
+        "tags",
+        "category_id",
+        "is_public",
+        "is_published",
+    ):
+        setattr(post, field, before.get(field))
+    published_at = before.get("published_at")
+    post.published_at = datetime.fromisoformat(published_at) if published_at else None
+    db.flush()
+    return blog_actions.serialize_post(post)
+
+
+def _update_library(
+    db: Session, user: User, arguments: BaseModel, action_key: str
+) -> ActionMutation:
+    if not user.is_root:
+        raise ActionPermissionError("只有超级管理员可以修改 Library。")
+    before = load_site_profile(db).model_dump(mode="json")
+    payload = library_actions.UpdateLibraryProfileArguments.model_validate(
+        arguments.model_dump(exclude_unset=True)
+    )
+    updated = library_actions.update_profile(db, user, payload, commit=False)
+    return ActionMutation(
+        "library_profile", 0, updated.model_dump(mode="json"), before
+    )
+
+
+def _upsert_library_card(
+    db: Session, user: User, arguments: BaseModel, action_key: str
+) -> ActionMutation:
+    if not user.is_root:
+        raise ActionPermissionError("只有超级管理员可以修改 Library。")
+    before = load_site_profile(db).model_dump(mode="json")
+    payload = library_actions.UpsertLibraryMediaCardArguments.model_validate(
+        arguments.model_dump(exclude_unset=True)
+    )
+    _, item = library_actions.upsert_media_card(db, user, payload, commit=False)
+    return ActionMutation(
+        "library_media_card", 0, item.model_dump(mode="json"), before
+    )
+
+
+def _undo_library_snapshot(db: Session, user: User, run: AIActionRun) -> dict[str, Any]:
+    if not user.is_root:
+        raise ActionPermissionError("只有超级管理员可以修改 Library。")
+    if not run.before_json:
+        raise ActionUndoError("该行动缺少可撤销快照。")
+    restored = save_site_profile(
+        db,
+        library_actions.SiteProfile.model_validate(run.before_json),
+        user.id,
+        commit=False,
+    )
+    return restored.model_dump(mode="json")
+
+
 TOOLS: dict[str, ActionTool] = {
     "create_ledger_entry": ActionTool(
         "create_ledger_entry", "ledger:write", LedgerEntryCreate, _create_ledger, _undo_created_ledger
@@ -278,6 +397,21 @@ TOOLS: dict[str, ActionTool] = {
     ),
     "delete_todo": ActionTool(
         "delete_todo", "todos:write", TodoIdArguments, _delete_todo, _undo_deleted_todo
+    ),
+    "create_blog_post": ActionTool(
+        "create_blog_post", "blog:write", blog_actions.CreateBlogPostArguments, _create_blog, _undo_created_blog
+    ),
+    "update_blog_post": ActionTool(
+        "update_blog_post", "blog:write", blog_actions.UpdateBlogPostArguments, _update_blog, _undo_blog_snapshot
+    ),
+    "publish_blog_post": ActionTool(
+        "publish_blog_post", "blog:publish", blog_actions.PublishBlogPostArguments, _publish_blog, _undo_blog_snapshot
+    ),
+    "update_library_profile": ActionTool(
+        "update_library_profile", "library:write", library_actions.UpdateLibraryProfileArguments, _update_library, _undo_library_snapshot
+    ),
+    "upsert_library_media_card": ActionTool(
+        "upsert_library_media_card", "library:write", library_actions.UpsertLibraryMediaCardArguments, _upsert_library_card, _undo_library_snapshot
     ),
 }
 

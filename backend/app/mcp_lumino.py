@@ -15,10 +15,13 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.database import SessionLocal
 from app.models.mcp_lumino_token import MCPLuminoToken
 from app.models.user import User
+from app.models.blog import BlogPost
 from app.schemas.actions import ActionRequest
 from app.schemas.ledger import LedgerCategoryOut, LedgerEntryOut
 from app.schemas.todo import TodoOut
 from app.services import action_executor, ledger as ledger_service, todos as todo_service
+from app.services import blog_actions, library_actions
+from app.routers.site import load_site_profile
 
 
 lumino_mcp = FastMCP(
@@ -93,6 +96,11 @@ def _user(db, identity: MCPLuminoIdentity) -> User:
     if not user or not user.is_active:
         raise ValueError("The user bound to this MCP token is unavailable.")
     return user
+
+
+def _require_root(user: User) -> None:
+    if not user.is_root:
+        raise ValueError("Library MCP tools are restricted to the root user.")
 
 
 def _execute(tool: str, arguments: dict[str, Any], idempotency_key: str | None):
@@ -312,6 +320,164 @@ def undo_action(action_id: int) -> dict[str, Any]:
             allowed_scopes=set(identity.scopes),
         )
         return receipt.model_dump(mode="json")
+
+
+@lumino_mcp.tool(description="List blog posts owned by this MCP token's user, including drafts.")
+def list_blog_posts() -> list[dict[str, Any]]:
+    identity = _identity()
+    _require_scope(identity, "blog:read")
+    with SessionLocal() as db:
+        user = _user(db, identity)
+        blog_actions.ensure_writer(user)
+        stmt = select(BlogPost).order_by(BlogPost.created_at.desc())
+        if not user.is_root:
+            stmt = stmt.where(BlogPost.author_id == user.id)
+        return [blog_actions.serialize_post(post) for post in db.scalars(stmt).all()]
+
+
+@lumino_mcp.tool(description="Create a private blog draft. This never publishes the post.")
+def create_blog_post(
+    title: str,
+    content: str,
+    slug: str | None = None,
+    excerpt: str | None = None,
+    cover_url: str | None = None,
+    tags: list[str] | None = None,
+    category_id: int | None = None,
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    identity = _identity()
+    _require_scope(identity, "blog:write")
+    arguments = {
+        "title": title,
+        "content": content,
+        "slug": slug,
+        "excerpt": excerpt,
+        "cover_url": cover_url,
+        "tags": tags,
+        "category_id": category_id,
+    }
+    return _execute(
+        "create_blog_post",
+        {key: value for key, value in arguments.items() if value is not None},
+        idempotency_key,
+    )
+
+
+@lumino_mcp.tool(
+    description="Update an owned blog post without changing public or published status."
+)
+def update_blog_post(
+    post_id: int,
+    title: str | None = None,
+    content: str | None = None,
+    slug: str | None = None,
+    excerpt: str | None = None,
+    cover_url: str | None = None,
+    tags: list[str] | None = None,
+    category_id: int | None = None,
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    identity = _identity()
+    _require_scope(identity, "blog:write")
+    arguments = {
+        "post_id": post_id,
+        "title": title,
+        "content": content,
+        "slug": slug,
+        "excerpt": excerpt,
+        "cover_url": cover_url,
+        "tags": tags,
+        "category_id": category_id,
+    }
+    return _execute(
+        "update_blog_post",
+        {key: value for key, value in arguments.items() if value is not None},
+        idempotency_key,
+    )
+
+
+@lumino_mcp.tool(description="Publish an owned blog draft after explicit user approval.")
+def publish_blog_post(
+    post_id: int, idempotency_key: str | None = None
+) -> dict[str, Any]:
+    identity = _identity()
+    _require_scope(identity, "blog:publish")
+    if not identity.allow_auto_publish:
+        raise ValueError("Auto-publish is disabled for this Lumino MCP token.")
+    return _execute(
+        "publish_blog_post", {"post_id": post_id}, idempotency_key
+    )
+
+
+@lumino_mcp.tool(description="Read the complete root Library profile, including hidden items.")
+def get_library_profile() -> dict[str, Any]:
+    identity = _identity()
+    _require_scope(identity, "library:read")
+    with SessionLocal() as db:
+        user = _user(db, identity)
+        _require_root(user)
+        return load_site_profile(db).model_dump(mode="json")
+
+
+@lumino_mcp.tool(description="Update selected root Library profile fields.")
+def update_library_profile(
+    display_name: str | None = None,
+    headline: str | None = None,
+    bio: str | None = None,
+    interest_tags: list[str] | None = None,
+    status_text: str | None = None,
+    status_public: bool | None = None,
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    identity = _identity()
+    _require_scope(identity, "library:write")
+    arguments = {
+        "display_name": display_name,
+        "headline": headline,
+        "bio": bio,
+        "interest_tags": interest_tags,
+        "status_text": status_text,
+        "status_public": status_public,
+    }
+    return _execute(
+        "update_library_profile",
+        {key: value for key, value in arguments.items() if value is not None},
+        idempotency_key,
+    )
+
+
+@lumino_mcp.tool(description="Create or update one root Library collection card.")
+def upsert_library_media_card(
+    title: str,
+    category: Literal["book", "movie", "music", "status", "other"] = "other",
+    card_id: str | None = None,
+    creator: str | None = None,
+    note: str | None = None,
+    image_url: str | None = None,
+    url: str | None = None,
+    is_public: bool = True,
+    is_featured: bool = False,
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    identity = _identity()
+    _require_scope(identity, "library:write")
+    arguments = {
+        "title": title,
+        "category": category,
+        "card_id": card_id,
+        "creator": creator,
+        "note": note,
+        "image_url": image_url,
+        "url": url,
+        "is_public": is_public,
+        "is_featured": is_featured,
+    }
+    return _execute(
+        "upsert_library_media_card",
+        {key: value for key, value in arguments.items() if value is not None},
+        idempotency_key,
+    )
 
 
 class MCPLuminoTokenMiddleware:

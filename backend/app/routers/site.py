@@ -43,7 +43,13 @@ def load_site_profile(db: Session, *, for_update: bool = False) -> SiteProfile:
         return default_site_profile()
 
 
-def save_site_profile(db: Session, profile: SiteProfile, updated_by: int) -> SiteProfile:
+def save_site_profile(
+    db: Session,
+    profile: SiteProfile,
+    updated_by: int,
+    *,
+    commit: bool = True,
+) -> SiteProfile:
     config = db.scalar(
         select(SystemConfig)
         .where(SystemConfig.config_key == PROFILE_CONFIG_KEY)
@@ -59,7 +65,10 @@ def save_site_profile(db: Session, profile: SiteProfile, updated_by: int) -> Sit
         profile.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")
     )
     config.updated_by = updated_by
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return profile
 
 

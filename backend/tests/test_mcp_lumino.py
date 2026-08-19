@@ -6,6 +6,10 @@ from app.mcp_lumino import (
     MCPLuminoIdentity,
     create_ledger_entry,
     create_todo,
+    create_blog_post,
+    update_blog_post,
+    publish_blog_post,
+    update_library_profile,
     current_mcp_lumino_identity,
     list_ledger_entries,
     resolve_mcp_lumino_identity,
@@ -124,3 +128,74 @@ def test_root_can_issue_user_bound_lumino_token(client, user_cookies_factory):
     listed = client.get("/api/admin/mcp-lumino/tokens", cookies=root_cookies)
     assert listed.status_code == 200
     assert "token" not in listed.json()[0]
+
+
+def test_lumino_token_scopes_must_match_bound_user_permissions(
+    client, user_cookies_factory
+):
+    _, root_cookies = user_cookies_factory("lumino-scope-admin", is_root=True)
+    owner, _ = user_cookies_factory("lumino-scope-user")
+    owner.can_use_mcp = True
+
+    blog_response = client.post(
+        "/api/admin/mcp-lumino/tokens",
+        cookies=root_cookies,
+        json={
+            "label": "Blog denied",
+            "user_id": owner.id,
+            "scopes": ["blog:write"],
+        },
+    )
+    library_response = client.post(
+        "/api/admin/mcp-lumino/tokens",
+        cookies=root_cookies,
+        json={
+            "label": "Library denied",
+            "user_id": owner.id,
+            "scopes": ["library:read"],
+        },
+    )
+
+    assert blog_response.status_code == 400
+    assert "博客" in blog_response.json()["detail"]
+    assert library_response.status_code == 400
+    assert "Library" in library_response.json()["detail"]
+
+
+def test_unified_mcp_blog_update_preserves_draft_and_library_is_root_only(
+    db, user_factory, monkeypatch
+):
+    root = user_factory("lumino-all-root", is_root=True)
+    monkeypatch.setattr("app.mcp_lumino.SessionLocal", lambda: SessionContext(db))
+    identity_token = current_mcp_lumino_identity.set(
+        MCPLuminoIdentity(
+            user_id=root.id,
+            scopes=frozenset(
+                {"blog:read", "blog:write", "blog:publish", "library:write"}
+            ),
+            allow_auto_publish=False,
+        )
+    )
+    try:
+        created = create_blog_post(
+            title="统一 MCP 草稿",
+            content="old",
+            idempotency_key="all-blog-create",
+        )
+        post_id = created["target_id"]
+        updated = update_blog_post(
+            post_id=post_id,
+            content="new",
+            idempotency_key="all-blog-update",
+        )
+        assert updated["result"]["is_published"] is False
+        with pytest.raises(ValueError, match="Auto-publish"):
+            publish_blog_post(post_id, idempotency_key="all-blog-publish")
+
+        library = update_library_profile(
+            headline="MCP 更新的 Library",
+            idempotency_key="all-library-update",
+        )
+        assert library["result"]["headline"] == "MCP 更新的 Library"
+    finally:
+        current_mcp_lumino_identity.reset(identity_token)

@@ -129,6 +129,28 @@ def get_mcp_lumino_user_or_400(db: Session, user_id: int) -> User:
     return user
 
 
+def validate_mcp_lumino_scopes(
+    user: User, scopes: list[str], *, allow_auto_publish: bool = False
+) -> None:
+    scope_set = set(scopes)
+    if any(scope.startswith("blog:") for scope in scope_set):
+        if not user.is_root and not user.can_write_blog:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="所选用户没有博客写作权限，不能签发博客作用域。",
+            )
+    if any(scope.startswith("library:") for scope in scope_set) and not user.is_root:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Library 作用域只能签发给超级管理员。",
+        )
+    if allow_auto_publish and "blog:publish" not in scope_set:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="允许自动发布时必须同时授予 blog:publish 作用域。",
+        )
+
+
 from app.models.chat import ChatMessage, ChatSession
 from app.models.space import SpaceMember
 from app.models.blog import BlogPost
@@ -454,7 +476,12 @@ def create_mcp_lumino_token(
     current_user: User = Depends(require_root),
     db: Session = Depends(get_db),
 ):
-    get_mcp_lumino_user_or_400(db, token_in.user_id)
+    target_user = get_mcp_lumino_user_or_400(db, token_in.user_id)
+    validate_mcp_lumino_scopes(
+        target_user,
+        token_in.scopes,
+        allow_auto_publish=token_in.allow_auto_publish,
+    )
     raw_token = f"lmu_mcp_{secrets.token_urlsafe(32)}"
     token = MCPLuminoToken(
         label=token_in.label.strip(),
@@ -484,6 +511,18 @@ def update_mcp_lumino_token(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Lumino MCP 凭据不存在。",
         )
+    target_user = get_mcp_lumino_user_or_400(db, token.user_id)
+    next_scopes = token_in.scopes if token_in.scopes is not None else token.scopes
+    next_auto_publish = (
+        token_in.allow_auto_publish
+        if token_in.allow_auto_publish is not None
+        else token.allow_auto_publish
+    )
+    validate_mcp_lumino_scopes(
+        target_user,
+        next_scopes,
+        allow_auto_publish=next_auto_publish,
+    )
     if token_in.scopes is not None:
         token.scopes = list(dict.fromkeys(token_in.scopes))
     if token_in.allow_auto_publish is not None:

@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from app.models.ai_action import AIActionRun
 from app.models.ledger import LedgerEntry
 from app.models.todo import Todo
+from app.models.blog import BlogPost
 from app.schemas.actions import ActionRequest
 from app.schemas.actions import InterpretActionResponse
 from app.services.action_executor import (
@@ -17,6 +18,7 @@ from app.services.ai_action_planner import interpret_and_execute
 class FakeToolModel:
     def __init__(self):
         self.response = None
+        self.offered_tools = []
 
     def reply_with(self, tool: str, arguments: dict):
         self.response = {"tool": tool, "arguments": arguments}
@@ -25,6 +27,7 @@ class FakeToolModel:
         self.response = {"text": text}
 
     def plan(self, *, message: str, context: str, tools: list[dict]):
+        self.offered_tools = [item["function"]["name"] for item in tools]
         return self.response
 
 
@@ -261,6 +264,48 @@ def test_planner_context_rejects_unrelated_tool(db, user_factory):
     assert db.scalar(select(func.count(Todo.id))) == 0
 
 
+def test_planner_only_offers_tools_the_user_can_use(db, user_factory):
+    model = FakeToolModel()
+    model.reply_with_text("请描述要处理的事项。")
+
+    interpret_and_execute(
+        db,
+        user_factory("planner-private-tools"),
+        "帮我处理一下",
+        context="general",
+        model=model,
+    )
+
+    assert "create_ledger_entry" in model.offered_tools
+    assert "create_todo" in model.offered_tools
+    assert "create_blog_post" not in model.offered_tools
+    assert "update_library_profile" not in model.offered_tools
+
+
+def test_planner_offers_blog_and_library_tools_by_user_permission(db, user_factory):
+    writer = user_factory("planner-writer")
+    writer.can_write_blog = True
+    writer_model = FakeToolModel()
+    writer_model.reply_with_text("好的。")
+
+    interpret_and_execute(db, writer, "修改博客", context="general", model=writer_model)
+
+    assert "create_blog_post" in writer_model.offered_tools
+    assert "update_library_profile" not in writer_model.offered_tools
+
+    root_model = FakeToolModel()
+    root_model.reply_with_text("好的。")
+    interpret_and_execute(
+        db,
+        user_factory("planner-root", is_root=True),
+        "修改书房",
+        context="general",
+        model=root_model,
+    )
+    assert "create_blog_post" in root_model.offered_tools
+    assert "update_library_profile" in root_model.offered_tools
+
+
 def test_planner_parse_failure_never_executes(db, user_factory):
     class BrokenModel:
         def plan(self, **_):
@@ -296,3 +341,106 @@ def test_interpret_rest_endpoint_returns_receipts(
 
     assert response.status_code == 200
     assert response.json() == {"text": "请补充金额。", "actions": []}
+
+
+def test_blog_update_action_preserves_publication_state(db, user_factory):
+    author = user_factory("blog-action-author")
+    author.can_write_blog = True
+    post = BlogPost(
+        title="Published",
+        slug="published-action",
+        content="old",
+        author_id=author.id,
+        is_public=True,
+        is_published=True,
+    )
+    db.add(post)
+    db.commit()
+
+    result = execute_action(
+        db,
+        author,
+        ActionRequest(
+            tool="update_blog_post",
+            arguments={"post_id": post.id, "content": "new"},
+            idempotency_key="blog-update-action",
+        ),
+        source="web_ai",
+    )
+    db.refresh(post)
+
+    assert result.status == "succeeded"
+    assert post.content == "new"
+    assert post.is_public is True
+    assert post.is_published is True
+
+
+def test_library_action_rejects_non_root(db, user_factory):
+    normal_user = user_factory("library-action-user")
+
+    try:
+        execute_action(
+            db,
+            normal_user,
+            ActionRequest(
+                tool="update_library_profile",
+                arguments={"headline": "不应更新"},
+                idempotency_key="library-denied",
+            ),
+            source="web_ai",
+        )
+    except ActionPermissionError:
+        pass
+    else:
+        raise AssertionError("非超级管理员不能修改 Library")
+
+
+def test_blog_create_is_draft_and_publish_is_separate(db, user_factory):
+    author = user_factory("blog-action-draft")
+    author.can_write_blog = True
+    created = execute_action(
+        db,
+        author,
+        ActionRequest(
+            tool="create_blog_post",
+            arguments={"title": "私密草稿", "content": "正文"},
+            idempotency_key="blog-create-draft",
+        ),
+        source="web_ai",
+    )
+    post = db.get(BlogPost, created.target_id)
+    assert post.is_public is False
+    assert post.is_published is False
+
+    published = execute_action(
+        db,
+        author,
+        ActionRequest(
+            tool="publish_blog_post",
+            arguments={"post_id": post.id},
+            idempotency_key="blog-publish-explicit",
+        ),
+        source="web_ai",
+    )
+    assert db.get(BlogPost, post.id).is_published is True
+    undo_action(db, author, published.action_id)
+    assert db.get(BlogPost, post.id).is_published is False
+
+
+def test_root_library_action_is_undoable(db, user_factory):
+    root = user_factory("library-action-root", is_root=True)
+    updated = execute_action(
+        db,
+        root,
+        ActionRequest(
+            tool="update_library_profile",
+            arguments={"headline": "新的 Library 标题"},
+            idempotency_key="library-update-root",
+        ),
+        source="web_ai",
+    )
+    assert updated.result["headline"] == "新的 Library 标题"
+
+    undone = undo_action(db, root, updated.action_id)
+    assert undone.status == "undone"
+    assert undone.result["undo"]["headline"] != "新的 Library 标题"

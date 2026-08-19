@@ -19,6 +19,7 @@ import api from '@/lib/api'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import { useAuth } from '@/hooks/useAuth'
 import BackLink from '@/components/ui/BackLink'
+import AIQuickAction from '@/components/ai/AIQuickAction'
 
 interface BlogPost {
   id: number
@@ -221,6 +222,14 @@ export default function BlogManagementPage() {
           </div>
           <Link href="/blog/write" className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#163a2b] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#24553f]"><Plus size={17} />新建文章</Link>
         </section>
+
+        <div className="mt-6">
+          <AIQuickAction
+            context="blog"
+            placeholder="告诉 AI：创建一篇关于……的博客草稿（不会自动公开）"
+            onCompleted={loadPosts}
+          />
+        </div>
 
         {isRoot && <section className="mt-7 rounded-2xl border border-[#17211d]/10 bg-white p-5 dark:border-darkBorder dark:bg-darkCard">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b56b19]">Blog sections</p><h2 className="mt-1 font-display text-xl font-bold">技术分区</h2><p className="mt-1 text-xs text-[#17211d]/50 dark:text-foreground/50">只填写访客看到的名称，系统会自动生成内部 URL 标识。</p></div><div className="flex w-full gap-2 md:w-auto"><input value={categoryName} onChange={(event) => setCategoryName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') createCategory() }} placeholder="例如：深度学习" className="min-w-0 flex-1 rounded-xl border border-[#17211d]/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-[#163a2b] md:w-48 dark:border-darkBorder" /><button disabled={creatingCategory} onClick={createCategory} className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-[#163a2b] px-3 py-2 text-sm font-bold text-white disabled:opacity-50"><Plus size={15} />新增</button></div></div>
