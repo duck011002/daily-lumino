@@ -4,12 +4,28 @@ from app.models.ai_action import AIActionRun
 from app.models.ledger import LedgerEntry
 from app.models.todo import Todo
 from app.schemas.actions import ActionRequest
+from app.schemas.actions import InterpretActionResponse
 from app.services.action_executor import (
     ActionPermissionError,
     ActionUndoError,
     execute_action,
     undo_action,
 )
+from app.services.ai_action_planner import interpret_and_execute
+
+
+class FakeToolModel:
+    def __init__(self):
+        self.response = None
+
+    def reply_with(self, tool: str, arguments: dict):
+        self.response = {"tool": tool, "arguments": arguments}
+
+    def reply_with_text(self, text: str):
+        self.response = {"text": text}
+
+    def plan(self, *, message: str, context: str, tools: list[dict]):
+        return self.response
 
 
 def test_action_executor_is_idempotent_and_undoes_ledger_create(db, user_factory):
@@ -187,3 +203,96 @@ def test_delete_todo_action_undo_restores_datetime_and_id(db, user_factory):
     restored = db.get(Todo, created.target_id)
     assert restored is not None
     assert restored.due_at.isoformat() == "2026-08-20T09:30:00"
+
+
+def test_planner_executes_clear_expense(db, user_factory):
+    model = FakeToolModel()
+    model.reply_with(
+        "create_ledger_entry",
+        {
+            "entry_type": "expense",
+            "amount": "28",
+            "category_name": "餐饮",
+            "note": "午饭",
+        },
+    )
+
+    result = interpret_and_execute(
+        db,
+        user_factory("planner-ledger"),
+        "午饭 28",
+        context="ledger",
+        model=model,
+    )
+
+    assert result.actions[0].status == "succeeded"
+    assert result.actions[0].tool == "create_ledger_entry"
+
+
+def test_planner_does_not_execute_ambiguous_amount(db, user_factory):
+    model = FakeToolModel()
+    model.reply_with_text("请问午饭花了多少钱？")
+
+    result = interpret_and_execute(
+        db,
+        user_factory("planner-ambiguous"),
+        "记一下今天午饭",
+        context="ledger",
+        model=model,
+    )
+
+    assert result.actions == []
+    assert "多少钱" in result.text
+
+
+def test_planner_context_rejects_unrelated_tool(db, user_factory):
+    model = FakeToolModel()
+    model.reply_with("create_todo", {"title": "不应创建"})
+
+    result = interpret_and_execute(
+        db,
+        user_factory("planner-context"),
+        "新增待办",
+        context="ledger",
+        model=model,
+    )
+
+    assert result.actions == []
+    assert db.scalar(select(func.count(Todo.id))) == 0
+
+
+def test_planner_parse_failure_never_executes(db, user_factory):
+    class BrokenModel:
+        def plan(self, **_):
+            raise ValueError("invalid json")
+
+    result = interpret_and_execute(
+        db,
+        user_factory("planner-broken"),
+        "帮我记一下",
+        context="ledger",
+        model=BrokenModel(),
+    )
+
+    assert result.actions == []
+    assert "没有修改" in result.text
+    assert db.scalar(select(func.count(LedgerEntry.id))) == 0
+
+
+def test_interpret_rest_endpoint_returns_receipts(
+    client, user_cookies_factory, monkeypatch
+):
+    _, cookies = user_cookies_factory("planner-api")
+
+    def fake_interpret(*_, **__):
+        return InterpretActionResponse(text="请补充金额。", actions=[])
+
+    monkeypatch.setattr("app.routers.actions.interpret_and_execute", fake_interpret)
+    response = client.post(
+        "/api/ai/actions/interpret",
+        cookies=cookies,
+        json={"message": "记一笔午饭", "context": "ledger"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"text": "请补充金额。", "actions": []}

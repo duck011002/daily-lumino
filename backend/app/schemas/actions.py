@@ -27,3 +27,15 @@ class EntryIdArguments(BaseModel):
 
 class TodoIdArguments(BaseModel):
     todo_id: int = Field(..., gt=0)
+
+
+class InterpretActionRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=4000)
+    context: Literal["general", "ledger", "todos", "blog", "library"] = "general"
+    model: str | None = Field(None, max_length=200)
+    idempotency_key: str | None = Field(None, min_length=1, max_length=100)
+
+
+class InterpretActionResponse(BaseModel):
+    text: str
+    actions: list[ActionReceipt]
