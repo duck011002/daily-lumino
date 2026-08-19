@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -116,6 +118,16 @@ class AIGetModelsRequest(BaseModel):
     id: str | None = None
     base_url: str | None = None
     api_key: str
+
+
+class AIProviderHealthResponse(BaseModel):
+    status: Literal["success", "error"]
+    message: str
+    model: str
+    checked_at: datetime
+    latency_ms: int
+    error_category: str | None = None
+    action_hint: str | None = None
 
 
 from app.schemas.user import UserResponse

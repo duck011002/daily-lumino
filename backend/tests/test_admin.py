@@ -94,6 +94,23 @@ def test_user_status_management(client: TestClient, admin_test_setup, db):
     assert login_res2.status_code == 200
 
 
+def test_admin_lists_legacy_local_email(client: TestClient, admin_test_setup, db):
+    legacy = User(
+        username="legacyuser",
+        email="legacy@lumino.local",
+        password=hash_password("password123"),
+        display_name="Legacy User",
+        is_active=True,
+    )
+    db.add(legacy)
+    db.commit()
+
+    response = client.get("/api/admin/users", cookies=admin_test_setup["admin"])
+
+    assert response.status_code == 200
+    assert any(item["email"] == "legacy@lumino.local" for item in response.json())
+
+
 def test_invite_code_management(client: TestClient, admin_test_setup, db):
     admin_cookies = admin_test_setup["admin"]
 
@@ -194,6 +211,44 @@ def test_configs_encryption_and_masking(client: TestClient, admin_test_setup, db
     assert list_res.status_code == 200
     qwen_config = next(c for c in list_res.json() if c["config_key"] == "qwen_api_key")
     assert "****" in qwen_config["config_val"]
+
+
+def test_ai_connection_classifies_product_not_activated(
+    client: TestClient, admin_test_setup, monkeypatch
+):
+    class FakeCompletions:
+        @staticmethod
+        def create(**kwargs):
+            raise RuntimeError(
+                "The product is not activated, please confirm that you have activated products"
+            )
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeClient:
+        chat = FakeChat()
+
+    monkeypatch.setattr("app.routers.admin.OpenAI", lambda **kwargs: FakeClient())
+
+    response = client.post(
+        "/api/admin/ai/test-connection",
+        cookies=admin_test_setup["admin"],
+        json={
+            "base_url": "https://example.com/v1",
+            "api_key": "sk-test",
+            "model": "qwen-flash",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert payload["model"] == "qwen-flash"
+    assert payload["error_category"] == "product_not_activated"
+    assert payload["checked_at"]
+    assert payload["latency_ms"] >= 0
+    assert payload["action_hint"]
 
 
 def test_storage_quota_updates(client: TestClient, admin_test_setup, db):

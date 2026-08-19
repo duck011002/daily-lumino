@@ -26,6 +26,7 @@ from app.schemas.admin import (
     UserStatusUpdate,
     AITestConnectionRequest,
     AIGetModelsRequest,
+    AIProviderHealthResponse,
     UserAdminResponse,
     MCPBlogTokenCreate,
     MCPBlogTokenCreateResponse,
@@ -38,6 +39,7 @@ from app.schemas.admin import (
 )
 from app.schemas.user import UserResponse
 from app.utils.crypto import decrypt_value, encrypt_value
+from app.services.ai_provider_health import run_provider_health_check
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_root)])
 
@@ -450,40 +452,38 @@ def resolve_api_key(db: Session, provider_id: str | None, api_key: str) -> str:
     return api_key
 
 
-@router.post("/ai/test-connection")
+@router.post("/ai/test-connection", response_model=AIProviderHealthResponse)
 def test_connection(req: AITestConnectionRequest, db: Session = Depends(get_db)):
-    try:
-        api_key = resolve_api_key(db, req.id, req.api_key)
-        client = OpenAI(api_key=api_key, base_url=req.base_url or None)
-        # Test connection with a very simple completion request
-        client.chat.completions.create(
-            model=req.model,
-            messages=[{"role": "user", "content": "ping"}],
-            max_tokens=1,
-            timeout=10.0,
-        )
-        # Automatically mark as reachable in the database if it was saved
-        if req.id:
-            cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
-            if cfg and cfg.config_val:
-                try:
-                    providers = json.loads(cfg.config_val)
-                    updated = False
-                    for p in providers:
-                        if p.get("id") == req.id:
-                            p["is_reachable"] = True
-                            p["last_checked"] = datetime.now().isoformat()
-                            updated = True
-                            break
-                    if updated:
-                        cfg.config_val = json.dumps(providers, ensure_ascii=False)
-                        db.commit()
-                except Exception as e:
-                    print(f"Failed to auto-update is_reachable on test success: {e}")
-                    
-        return {"status": "success", "message": "连接测试成功！"}
-    except Exception as e:
-        return {"status": "error", "message": f"连接测试失败: {str(e)}"}
+    api_key = resolve_api_key(db, req.id, req.api_key)
+    result = run_provider_health_check(
+        client_factory=OpenAI,
+        api_key=api_key,
+        base_url=req.base_url,
+        model=req.model,
+    )
+
+    if req.id:
+        cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
+        if cfg and cfg.config_val:
+            try:
+                providers = json.loads(cfg.config_val)
+                for provider in providers:
+                    if provider.get("id") != req.id:
+                        continue
+                    provider["is_reachable"] = result.status == "success"
+                    provider["last_checked"] = result.checked_at.isoformat()
+                    provider["last_check_model"] = result.model
+                    provider["last_error_category"] = result.error_category
+                    provider["last_error_message"] = (
+                        result.message[:800] if result.status == "error" else None
+                    )
+                    cfg.config_val = json.dumps(providers, ensure_ascii=False)
+                    db.commit()
+                    break
+            except (TypeError, ValueError, json.JSONDecodeError):
+                db.rollback()
+
+    return result
 
 
 @router.post("/ai/models")

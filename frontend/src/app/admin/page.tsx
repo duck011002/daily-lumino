@@ -114,6 +114,19 @@ interface AIProvider {
   models: string[]
   is_reachable?: boolean
   last_checked?: string
+  last_check_model?: string
+  last_error_category?: string | null
+  last_error_message?: string | null
+}
+
+interface AIHealthResult {
+  status: 'success' | 'error'
+  message: string
+  model: string
+  checked_at: string
+  latency_ms: number
+  error_category: string | null
+  action_hint: string | null
 }
 
 type TabType = 'blog' | 'users' | 'mcp' | 'configs' | 'quota'
@@ -148,6 +161,7 @@ export default function AdminConsole() {
   // States for Users Tab
   const [users, setUsers] = useState<UserResponse[]>([])
   const [loadingUsers, setLoadingUsers] = useState(true)
+  const [usersError, setUsersError] = useState('')
 
   // States for Configs Tab
   const [configs, setConfigs] = useState<SystemConfig[]>([])
@@ -183,7 +197,7 @@ export default function AdminConsole() {
   const [modelsInput, setModelsInput] = useState('')
   const [checkingAll, setCheckingAll] = useState(false)
   const [testingProviderId, setTestingProviderId] = useState<string | null>(null)
-  const [testResult, setTestResult] = useState<Record<string, { status: 'success' | 'error'; message: string }>>({})
+  const [testResult, setTestResult] = useState<Record<string, AIHealthResult | undefined>>({})
   const [fetchingModelsId, setFetchingModelsId] = useState<string | null>(null)
   const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({})
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null)
@@ -296,11 +310,13 @@ export default function AdminConsole() {
 
   const fetchUsers = async () => {
     setLoadingUsers(true)
+    setUsersError('')
     try {
       const res = await api.get('/admin/users')
       setUsers(res.data)
-    } catch (err) {
+    } catch (err: any) {
       console.error('获取用户列表失败', err)
+      setUsersError(err.response?.data?.detail || '用户列表加载失败，请重试。')
     } finally {
       setLoadingUsers(false)
     }
@@ -538,12 +554,7 @@ export default function AdminConsole() {
     setTestingProviderId(provider.id)
     setTestResult(prev => ({ ...prev, [provider.id]: undefined as any }))
     
-    let testModel = 'gpt-3.5-turbo'
-    if (provider.models && provider.models.length > 0) {
-      testModel = provider.models[0]
-    } else if (provider.model) {
-      testModel = provider.model
-    }
+    const testModel = provider.model || provider.models?.[0] || 'gpt-3.5-turbo'
 
     try {
       const res = await api.post('/admin/ai/test-connection', {
@@ -552,15 +563,28 @@ export default function AdminConsole() {
         api_key: provider.api_key,
         model: testModel,
       })
-      if (res.data.status === 'success') {
-        setTestResult(prev => ({ ...prev, [provider.id]: { status: 'success', message: res.data.message } }))
-      } else {
-        setTestResult(prev => ({ ...prev, [provider.id]: { status: 'error', message: res.data.message } }))
-      }
+      const health = res.data as AIHealthResult
+      setTestResult(prev => ({ ...prev, [provider.id]: health }))
+      setAiProviders(prev => prev.map(item => item.id === provider.id ? {
+        ...item,
+        is_reachable: health.status === 'success',
+        last_checked: health.checked_at,
+        last_check_model: health.model,
+        last_error_category: health.error_category,
+        last_error_message: health.status === 'error' ? health.message : null,
+      } : item))
     } catch (err: any) {
       setTestResult(prev => ({
         ...prev,
-        [provider.id]: { status: 'error', message: err.response?.data?.detail || '请求失败' }
+        [provider.id]: {
+          status: 'error',
+          message: err.response?.data?.detail || '请求失败',
+          model: testModel,
+          checked_at: new Date().toISOString(),
+          latency_ms: 0,
+          error_category: 'network',
+          action_hint: '请检查 Lumino 服务状态后重试。',
+        }
       }))
     } finally {
       setTestingProviderId(null)
@@ -1323,6 +1347,12 @@ export default function AdminConsole() {
                   <div className="py-20 flex justify-center">
                     <Loader2 className="animate-spin text-primary h-8 w-8" />
                   </div>
+                ) : usersError ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+                    <p className="font-semibold">无法加载用户账号</p>
+                    <p className="mt-2">{usersError}</p>
+                    <button onClick={fetchUsers} className="mt-4 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-500">重新加载</button>
+                  </div>
                 ) : (
                   <div className="max-h-[70vh] max-w-full overflow-auto rounded-2xl border border-secondary dark:border-darkBorder bg-white dark:bg-darkCard shadow-sm [scrollbar-gutter:stable]">
                     <table className="min-w-[1680px] w-full text-left text-sm">
@@ -1816,7 +1846,12 @@ export default function AdminConsole() {
                                       : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
                                   }`}
                                 >
-                                  {tr.message}
+                                  <p className="font-semibold">{tr.message}</p>
+                                  <p className="mt-1 opacity-80">
+                                    实测模型：{tr.model} · {tr.latency_ms} ms · {new Date(tr.checked_at).toLocaleString()}
+                                  </p>
+                                  {tr.error_category && <p className="mt-1">错误分类：{tr.error_category}</p>}
+                                  {tr.action_hint && <p className="mt-1">建议：{tr.action_hint}</p>}
                                 </div>
                               )}
                             </div>
