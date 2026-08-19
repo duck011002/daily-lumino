@@ -10,6 +10,7 @@ from app.models.invite_code import InviteCode
 from app.models.user import User
 from app.services.auth import hash_password
 from app.schemas.actions import ActionReceipt, InterpretActionResponse
+from app.schemas.private_agent import PrivateAgentDecision
 
 
 @pytest.fixture
@@ -149,12 +150,16 @@ def test_send_message_stream(mock_openai_class, client: TestClient, auth_headers
         )
         session_id = res_create.json()["id"]
 
-        # Send message
-        res = client.post(
-            f"/api/chat/sessions/{session_id}/messages",
-            json={"content": "Hi"},
-            cookies=auth_headers,
-        )
+        with patch(
+            "app.routers.chat.route_private_agent",
+            return_value=PrivateAgentDecision(route="chat"),
+        ) as route_mock:
+            res = client.post(
+                f"/api/chat/sessions/{session_id}/messages",
+                json={"content": "Hi"},
+                cookies=auth_headers,
+            )
+        route_mock.assert_called_once()
 
         assert res.status_code == 200
         assert "text/event-stream" in res.headers["content-type"]
@@ -189,12 +194,15 @@ def test_send_message_updates_tokens_used(mock_openai_class, client: TestClient,
         )
         session_id = res_create.json()["id"]
 
-        # Send message
-        res = client.post(
-            f"/api/chat/sessions/{session_id}/messages",
-            json={"content": "Hello world!"},
-            cookies=auth_headers,
-        )
+        with patch(
+            "app.routers.chat.route_private_agent",
+            return_value=PrivateAgentDecision(route="chat"),
+        ):
+            res = client.post(
+                f"/api/chat/sessions/{session_id}/messages",
+                json={"content": "Hello world!"},
+                cookies=auth_headers,
+            )
         assert res.status_code == 200
 
         # Query messages from db and check tokens_used
@@ -221,7 +229,8 @@ def test_chat_stream_emits_action_receipt(client, auth_headers, monkeypatch):
     session_id = created.json()["id"]
 
     monkeypatch.setattr(
-        "app.routers.chat.looks_like_action_request", lambda _: True
+        "app.routers.chat.route_private_agent",
+        lambda *_, **__: PrivateAgentDecision(route="execute", context="ledger"),
     )
     monkeypatch.setattr(
         "app.routers.chat.interpret_and_execute",
@@ -252,3 +261,31 @@ def test_chat_stream_emits_action_receipt(client, auth_headers, monkeypatch):
     assert '"type": "action_succeeded"' in response.text
     assert '"tool": "create_ledger_entry"' in response.text
     assert "已记录午饭支出" in response.text
+
+
+def test_chat_stream_clarifies_without_executing(client, auth_headers, monkeypatch):
+    created = client.post(
+        "/api/chat/sessions",
+        json={"title": "Clarify Test", "model": "qwen"},
+        cookies=auth_headers,
+    )
+    session_id = created.json()["id"]
+    monkeypatch.setattr(
+        "app.routers.chat.route_private_agent",
+        lambda *_, **__: PrivateAgentDecision(
+            route="clarify", question="这笔金额是多少？"
+        ),
+    )
+    execute = MagicMock()
+    monkeypatch.setattr("app.routers.chat.interpret_and_execute", execute)
+
+    response = client.post(
+        f"/api/chat/sessions/{session_id}/messages",
+        json={"content": "帮我记一笔"},
+        cookies=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert "这笔金额是多少" in response.text
+    assert '"type": "done"' in response.text
+    execute.assert_not_called()

@@ -1,5 +1,4 @@
 import json
-import re
 from datetime import datetime
 from typing import List
 
@@ -21,15 +20,7 @@ from app.schemas.chat import (
 )
 from app.services.llm import stream_chat_completion, resolve_multimodal_support
 from app.services.ai_action_planner import interpret_and_execute
-
-
-ACTION_INTENT_PATTERN = re.compile(
-    r"(记账|账本|花了|消费|支出|收入|工资|报销|待办|提醒我|记得|新增任务|创建任务|完成任务|删除任务|博客草稿|更新博客|发布博客|Library|书房资料|收藏卡片)"
-)
-
-
-def looks_like_action_request(content: str) -> bool:
-    return bool(ACTION_INTENT_PATTERN.search(content))
+from app.services.private_agent_router import route_private_agent
 
 def estimate_tokens(text: str) -> int:
     if not text:
@@ -241,17 +232,43 @@ def send_message(
                     yield f"data: {json.dumps({'type': 'error', 'content': '会话已删除'})}\n\n"
                     return
 
-                if looks_like_action_request(message_in.content):
-                    local_user = local_db.get(User, user_id)
-                    if not local_user:
-                        yield f"data: {json.dumps({'type': 'error', 'content': '用户账号不可用'}, ensure_ascii=False)}\n\n"
-                        return
+                local_user = local_db.get(User, user_id)
+                if not local_user:
+                    yield f"data: {json.dumps({'type': 'error', 'content': '用户账号不可用'}, ensure_ascii=False)}\n\n"
+                    return
+                route_history = [
+                    {"role": item.role.value, "content": item.content}
+                    for item in history
+                ]
+                decision = route_private_agent(
+                    local_db,
+                    local_user,
+                    message_in.content,
+                    history=route_history,
+                )
+
+                if decision.route == "clarify":
+                    accumulated_text = decision.question or "请再补充一些信息。"
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': accumulated_text}, ensure_ascii=False)}\n\n"
+                    assistant_msg = ChatMessage(
+                        session_id=session_id,
+                        role=ChatRoleType.ASSISTANT,
+                        content=accumulated_text,
+                        attachments=None,
+                        tokens_used=estimate_tokens(accumulated_text),
+                    )
+                    local_db.add(assistant_msg)
+                    local_session.updated_at = datetime.now()
+                    local_db.commit()
+                    yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id}, ensure_ascii=False)}\n\n"
+                    return
+
+                if decision.route == "execute":
                     interpretation = interpret_and_execute(
                         local_db,
                         local_user,
                         message_in.content,
-                        context="general",
-                        model_id=local_session.model,
+                        context=decision.context or "general",
                         idempotency_key=f"chat:{user_message_id}",
                     )
                     for receipt in interpretation.actions:
