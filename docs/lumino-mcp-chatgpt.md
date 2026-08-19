@@ -8,7 +8,7 @@
 https://<lumino-domain>/api/mcp/lumino/
 ```
 
-在超级管理员后台的“AI 发布 MCP → 统一 Lumino MCP”中选择绑定用户与最小权限范围并创建凭据。令牌只显示一次，网页前端不会收到该令牌。Library 作用域只允许签发给超级管理员；Blog 作用域要求目标用户有博客权限；公开发布还必须同时满足 `blog:publish` 与 `allow_auto_publish`，普通创建和更新不会改变公开/发布状态。
+在超级管理员后台的“AI 发布 MCP → 统一 Lumino MCP”中选择绑定用户与最小权限范围并创建凭据。令牌只显示一次，网页前端不会收到该令牌。Library 作用域只允许签发给超级管理员；Blog 作用域要求目标用户有博客权限。MCP 新建博客默认请求公开：只有 Token 同时具备 `blog:publish` 与 `allow_auto_publish` 时才会公开；否则安全降级为私密草稿并返回提示。`update_blog_post` 永远不改变公开/发布状态。
 
 Codex 使用专用环境变量连接，不要把令牌直接写入命令、配置示例、聊天或日志：
 
@@ -16,7 +16,7 @@ Codex 使用专用环境变量连接，不要把令牌直接写入命令、配�
 codex mcp add lumino --url https://<lumino-domain>/api/mcp/lumino/ --bearer-token-env-var LUMINO_MCP_TOKEN
 ```
 
-建议先只授权读取与草稿写入。记账和待办写操作返回 `action_id`，可使用统一 `undo_action` 撤销；重复请求应复用稳定的幂等键。
+建议先只授权读取与草稿写入。记账和待办写操作返回 `action_id`，可使用统一 `undo_action` 撤销；重复请求应复用稳定的幂等键。添加 Library 内容前先调用 `search_library_media_cards`；服务端还会归一化标题、作者、年份和 URL，阻止完全重复项，并将同名不同信息识别为冲突。
 
 ## 兼容 Blog MCP
 
@@ -36,7 +36,14 @@ alembic upgrade head
 pm2 restart lumino-backend
 ```
 
-随后在 Lumino 的超级管理员后台创建专用 MCP 凭据。令牌只会显示一次；请使用专用、可撤销的令牌，且首轮保持“自动发布”关闭。MCP 提供分类查询、图片上传、文章创建、读取、修改和显式发布工具。
+随后在 Lumino 的超级管理员后台创建专用 MCP 凭据。令牌只会显示一次；请使用专用、可撤销的令牌，且首轮保持“自动发布”关闭。兼容 Blog MCP 的创建工具也默认请求公开：开关关闭时只建私密草稿，开关开启时直接公开；调用方仍可显式传入 `publish=false` 强制创建草稿。修改工具不改变原有状态。
+
+## 网页私人 Agent 与 MCP 的博客边界
+
+- 网页主对话中的每条消息先经过系统 Agent 模型，自动选择普通对话、记账、待办、博客或 Library；模块页入口只开放本模块工具。
+- 网页生成新博客时先返回完整私密预览，不写入博客表。用户点击“保存为草稿”或在同一对话明确同意后，才创建私密草稿；取消则不写入。
+- MCP 新建博客按上述 Token 策略默认请求公开。这是自动化入口的既定行为，与网页确认后只存草稿并存。
+- 无论网页还是 MCP，更新既有博客都不改变 `is_public`、`is_published` 或 `published_at`。
 
 ## ChatGPT 网页版
 
