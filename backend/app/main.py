@@ -14,6 +14,7 @@ from app.routers import (
     blog,
     chat,
     discipline,
+    ledger,
     notes,
     site,
     spaces,
@@ -58,6 +59,7 @@ app.include_router(site.admin_router)
 app.include_router(chat.router)
 app.include_router(spaces.router)
 app.include_router(todos.router)
+app.include_router(ledger.router)
 app.include_router(albums.router)
 app.include_router(notes.router)
 app.include_router(blog.router)
