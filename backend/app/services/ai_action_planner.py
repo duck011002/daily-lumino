@@ -1,4 +1,6 @@
 import json
+import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -38,7 +40,7 @@ BLOG_TOOLS = {"create_blog_post", "update_blog_post", "publish_blog_post"}
 LIBRARY_TOOLS = {"update_library_profile", "upsert_library_media_card"}
 
 TOOL_DESCRIPTIONS = {
-    "create_ledger_entry": "记录一笔收入或支出。category_name 可使用已有分类，也可在用户明确要求时创建新分类。",
+    "create_ledger_entry": "记录一笔收入或支出。category_name 可使用已有分类，也可按消费语义自动创建合理的新分类。",
     "update_ledger_entry": "按 entry_id 修改当前用户的一笔账目。",
     "delete_ledger_entry": "按 entry_id 删除当前用户的一笔账目。",
     "create_todo": "创建当前用户的待办事项。",
@@ -51,11 +53,39 @@ TOOL_DESCRIPTIONS = {
     "upsert_library_media_card": "在超级管理员的全局 Library 新增或更新收藏卡片。",
 }
 
-SYSTEM_PROMPT = """你是 Lumino 的行动规划器。只在用户意图清楚、执行所需字段完整时调用工具。
-金额、目标对象或关键内容不明确时，直接用简短中文追问，不得猜测或执行。
-记账金额必须是正数；根据语义判断收入或支出。优先匹配常见分类，用户明确提出新分类时可通过 category_name 创建。
-博客创建默认只能生成私密草稿。只有用户明确说“公开发布”并指定目标时，才可调用 publish_blog_post；update_blog_post 不得替代发布。
+SHANGHAI_TIMEZONE = timezone(timedelta(hours=8))
+
+
+def build_action_system_prompt(
+    context: str, now: datetime | None = None
+) -> str:
+    current = now or datetime.now(SHANGHAI_TIMEZONE)
+    base = """你是 Lumino 的行动规划器。用户要求记录或创建时，应优先执行，不要因为可合理推断的字段而追问。
+只有金额、要修改的目标或核心内容确实缺失，且无法安全推断时，才用简短中文追问。
+可以在一次回复中调用多个工具；每项成功都必须来自真实工具调用，绝不能只用文字声称已经记录、创建、更新或发布。
 只能使用本次提供的工具，不能输出 SQL、代码或不存在的工具。"""
+    context_rules = {
+        "ledger": """记账规则：
+- 根据语义判断收入或支出，金额必须为正数。
+- 自动推断常见分类，例如午饭/吃饭/早餐/晚餐归入“餐饮”，烟/香烟归入“烟酒”，打车/公交归入“交通”。合理分类不存在时允许通过 category_name 自动新增。
+- “8.17”“20号”等部分日期使用当前年份和当前月份能确定的部分；未给时间时可用中午 12:00，不要因此追问。
+- 一句话包含多笔账时必须批量拆成多个 create_ledger_entry 工具调用，并正确继承相邻日期和语义。
+- 只有金额缺失或多个金额与事项无法对应时才追问。""",
+        "todos": """待办规则：
+- “提醒学 Harness”“记得整理资料”等内容已经足够创建待办。
+- 用户没有时间要求时，due_at 和 remind_at 都留空并直接创建，不要追问日期或时间。
+- 只有标题或要做的事情无法确定时才追问。""",
+        "blog": """博客规则：
+- 网页博客创建只能生成私密草稿；公开发布必须是独立且明确的操作。
+- update_blog_post 永远不改变公开和发布状态。""",
+        "library": """Library 规则：
+- 仅处理用户明确要加入或更新的内容；写入前必须先校验已有内容，不能制造重复收藏。""",
+    }
+    return (
+        f"{base}\n当前入口：{context}。\n"
+        f"当前上海时间：{current.isoformat()}，解析部分日期时采用当前年份。\n"
+        f"{context_rules.get(context, '')}"
+    )
 
 
 def _tool_specs(names: set[str]) -> list[dict[str, Any]]:
@@ -126,7 +156,7 @@ class OpenAIActionModel:
         self, *, message: str, context: str, tools: list[dict[str, Any]]
     ) -> dict[str, Any]:
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": build_action_system_prompt(context)},
             {"role": "user", "content": f"当前入口：{context}\n用户：{message}"},
         ]
         try:
@@ -170,7 +200,7 @@ class OpenAIActionModel:
             {
                 "role": "system",
                 "content": (
-                    SYSTEM_PROMPT
+                    messages[0]["content"]
                     + "\n仅返回 JSON 对象："
                     + '{"text":"给用户的回复","actions":[{"tool":"工具名","arguments":{}}]}。'
                     + "\n工具定义："
@@ -211,6 +241,11 @@ def _normalize_plan(raw: Any) -> tuple[str, list[dict[str, Any]]]:
             continue
         valid.append({"tool": item["tool"], "arguments": arguments})
     return text, valid
+
+
+SUCCESS_WITHOUT_RECEIPT_PATTERN = re.compile(
+    r"(?<!未)(已记录|已创建|已添加|已更新|已删除|已发布|已完成|已经记录|已经创建)"
+)
 
 
 def interpret_and_execute(
@@ -275,6 +310,8 @@ def interpret_and_execute(
 
     if receipts and not text:
         text = f"已完成 {len(receipts)} 项操作。"
+    if not receipts and SUCCESS_WITHOUT_RECEIPT_PATTERN.search(text):
+        text = "我没有执行任何操作；模型未返回可验证的工具调用，请换一种更明确的说法。"
     if not receipts and not text:
         text = "请再提供更明确的信息，我暂时没有修改任何内容。"
     return InterpretActionResponse(text=text, actions=receipts)

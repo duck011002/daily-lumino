@@ -12,7 +12,7 @@ from app.services.action_executor import (
     execute_action,
     undo_action,
 )
-from app.services.ai_action_planner import interpret_and_execute
+from app.services.ai_action_planner import build_action_system_prompt, interpret_and_execute
 
 
 class FakeToolModel:
@@ -25,6 +25,9 @@ class FakeToolModel:
 
     def reply_with_text(self, text: str):
         self.response = {"text": text}
+
+    def reply_with_actions(self, actions: list[dict]):
+        self.response = {"actions": actions}
 
     def plan(self, *, message: str, context: str, tools: list[dict]):
         self.offered_tools = [item["function"]["name"] for item in tools]
@@ -232,6 +235,80 @@ def test_planner_executes_clear_expense(db, user_factory):
     assert result.actions[0].tool == "create_ledger_entry"
 
 
+def test_ledger_prompt_requires_common_inference_and_batch_entries():
+    prompt = build_action_system_prompt("ledger")
+
+    assert "午饭" in prompt and "餐饮" in prompt
+    assert "烟" in prompt and "烟酒" in prompt
+    assert "批量" in prompt
+    assert "当前年份" in prompt
+
+
+def test_todo_prompt_allows_a_todo_without_time():
+    prompt = build_action_system_prompt("todos")
+
+    assert "没有时间" in prompt
+    assert "due_at" in prompt
+    assert "直接创建" in prompt
+
+
+def test_planner_executes_multiple_ledger_entries(db, user_factory):
+    model = FakeToolModel()
+    model.reply_with_actions(
+        [
+            {
+                "tool": "create_ledger_entry",
+                "arguments": {
+                    "entry_type": "expense",
+                    "amount": amount,
+                    "category_name": category,
+                    "note": note,
+                    "occurred_at": occurred_at,
+                },
+            }
+            for amount, category, note, occurred_at in [
+                ("16.79", "餐饮", "午饭", "2026-08-17T12:00:00"),
+                ("36", "烟酒", "烟", "2026-08-17T12:00:00"),
+                ("21", "餐饮", "午饭", "2026-08-18T12:00:00"),
+                ("20", "烟酒", "烟", "2026-08-18T12:00:00"),
+            ]
+        ]
+    )
+
+    result = interpret_and_execute(
+        db,
+        user_factory("planner-ledger-batch"),
+        "8.17 午饭16.79，烟36，8.18 午饭21烟20",
+        context="ledger",
+        model=model,
+        idempotency_key="ledger-batch",
+    )
+
+    assert len(result.actions) == 4
+    assert all(action.status == "succeeded" for action in result.actions)
+
+
+def test_planner_creates_todo_without_due_time(db, user_factory):
+    model = FakeToolModel()
+    model.reply_with(
+        "create_todo",
+        {"title": "学习 Harness"},
+    )
+
+    result = interpret_and_execute(
+        db,
+        user_factory("planner-todo-no-time"),
+        "提醒学 Harness",
+        context="todos",
+        model=model,
+    )
+
+    todo = db.get(Todo, result.actions[0].target_id)
+    assert todo is not None
+    assert todo.due_at is None
+    assert todo.remind_at is None
+
+
 def test_planner_does_not_execute_ambiguous_amount(db, user_factory):
     model = FakeToolModel()
     model.reply_with_text("请问午饭花了多少钱？")
@@ -246,6 +323,22 @@ def test_planner_does_not_execute_ambiguous_amount(db, user_factory):
 
     assert result.actions == []
     assert "多少钱" in result.text
+
+
+def test_planner_never_reports_success_without_a_receipt(db, user_factory):
+    model = FakeToolModel()
+    model.reply_with_text("已记录午饭支出 50 元。")
+
+    result = interpret_and_execute(
+        db,
+        user_factory("planner-no-fake-success"),
+        "记录，20号吃饭50",
+        context="ledger",
+        model=model,
+    )
+
+    assert result.actions == []
+    assert "没有执行" in result.text
 
 
 def test_planner_context_rejects_unrelated_tool(db, user_factory):
