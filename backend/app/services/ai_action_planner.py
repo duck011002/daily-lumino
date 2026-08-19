@@ -21,7 +21,7 @@ CONTEXT_TOOLS = {
         "delete_ledger_entry",
     },
     "todos": {"create_todo", "update_todo", "delete_todo"},
-    "blog": {"create_blog_post", "update_blog_post", "publish_blog_post"},
+    "blog": {"update_blog_post", "publish_blog_post"},
     "library": {"update_library_profile", "upsert_library_media_card"},
     "general": {
         "create_ledger_entry",
@@ -30,7 +30,6 @@ CONTEXT_TOOLS = {
         "create_todo",
         "update_todo",
         "delete_todo",
-        "create_blog_post",
         "update_blog_post",
         "publish_blog_post",
         "update_library_profile",

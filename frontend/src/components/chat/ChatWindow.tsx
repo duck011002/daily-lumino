@@ -8,6 +8,7 @@ import MessageBubble, { Message } from './MessageBubble'
 import ChatInput from './ChatInput'
 import BackLink from '@/components/ui/BackLink'
 import ActionReceipt, { ActionReceiptData } from '@/components/ai/ActionReceipt'
+import ActionProposal, { ActionProposalData } from '@/components/ai/ActionProposal'
 
 interface ChatWindowProps {
   sessionId: number
@@ -38,6 +39,7 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionReceipts, setActionReceipts] = useState<ActionReceiptData[]>([])
+  const [actionProposals, setActionProposals] = useState<ActionProposalData[]>([])
   
   const [availableModels, setAvailableModels] = useState<ChatModel[]>([])
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
@@ -82,6 +84,7 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
       setLoading(true)
       setError(null)
       setActionReceipts([])
+      setActionProposals([])
       try {
         const response = await api.get(`/chat/sessions/${sessionId}`)
         if (active) {
@@ -198,6 +201,11 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
                 setActionReceipts((prev) => [
                   ...prev.filter((item) => item.action_id !== parsed.action_id),
                   parsed as ActionReceiptData,
+                ])
+              } else if (parsed.type === 'action_proposed') {
+                setActionProposals((prev) => [
+                  ...prev.filter((item) => item.id !== parsed.id),
+                  parsed as ActionProposalData,
                 ])
               } else if (parsed.type === 'done') {
                 // Update temp id to actual database message id
@@ -340,6 +348,20 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
           {actionReceipts.map((receipt) => (
             <div key={receipt.action_id} className="ml-0 max-w-xl md:ml-12">
               <ActionReceipt receipt={receipt} />
+            </div>
+          ))}
+          {actionProposals.map((proposal) => (
+            <div key={proposal.id} className="ml-0 max-w-2xl md:ml-12">
+              <ActionProposal
+                proposal={proposal}
+                onConfirmed={(receipt) => {
+                  setActionReceipts((current) => [...current, receipt])
+                  setActionProposals((current) => current.filter((item) => item.id !== proposal.id))
+                }}
+                onCancelled={(proposalId) => {
+                  setActionProposals((current) => current.filter((item) => item.id !== proposalId))
+                }}
+              />
             </div>
           ))}
           <div ref={messagesEndRef} />

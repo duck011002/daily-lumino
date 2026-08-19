@@ -386,7 +386,8 @@ def test_planner_offers_blog_and_library_tools_by_user_permission(db, user_facto
 
     interpret_and_execute(db, writer, "修改博客", context="general", model=writer_model)
 
-    assert "create_blog_post" in writer_model.offered_tools
+    assert "create_blog_post" not in writer_model.offered_tools
+    assert "update_blog_post" in writer_model.offered_tools
     assert "update_library_profile" not in writer_model.offered_tools
 
     root_model = FakeToolModel()
@@ -398,8 +399,20 @@ def test_planner_offers_blog_and_library_tools_by_user_permission(db, user_facto
         context="general",
         model=root_model,
     )
-    assert "create_blog_post" in root_model.offered_tools
+    assert "create_blog_post" not in root_model.offered_tools
     assert "update_library_profile" in root_model.offered_tools
+
+
+def test_web_blog_planner_never_offers_direct_create(db, user_factory):
+    writer = user_factory("planner-blog-proposal-only")
+    writer.can_write_blog = True
+    model = FakeToolModel()
+    model.reply_with_text("请先生成预览。")
+
+    interpret_and_execute(db, writer, "写一篇博客", context="blog", model=model)
+
+    assert "create_blog_post" not in model.offered_tools
+    assert "update_blog_post" in model.offered_tools
 
 
 def test_planner_parse_failure_never_executes(db, user_factory):

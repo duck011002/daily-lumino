@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Loader2, Send, Sparkles } from 'lucide-react'
 import api, { getErrorMessage } from '@/lib/api'
 import ActionReceipt, { ActionReceiptData } from './ActionReceipt'
+import ActionProposal, { ActionProposalData } from './ActionProposal'
 
 type ActionContext = 'general' | 'ledger' | 'todos' | 'blog' | 'library'
 
@@ -19,6 +20,7 @@ export default function AIQuickAction({
   const [message, setMessage] = useState('')
   const [reply, setReply] = useState('')
   const [receipts, setReceipts] = useState<ActionReceiptData[]>([])
+  const [proposals, setProposals] = useState<ActionProposalData[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -30,10 +32,12 @@ export default function AIQuickAction({
     setError('')
     setReply('')
     setReceipts([])
+    setProposals([])
     try {
       const response = await api.post<{
         text: string
         actions: ActionReceiptData[]
+        proposals: ActionProposalData[]
       }>('/ai/actions/interpret', {
         message: content,
         context,
@@ -44,6 +48,7 @@ export default function AIQuickAction({
       })
       setReply(response.data.text)
       setReceipts(response.data.actions)
+      setProposals(response.data.proposals || [])
       if (response.data.actions.length) {
         setMessage('')
         await onCompleted?.()
@@ -77,12 +82,27 @@ export default function AIQuickAction({
           执行
         </button>
       </form>
-      {(reply || error || receipts.length > 0) && (
+      {(reply || error || receipts.length > 0 || proposals.length > 0) && (
         <div className="mt-3 space-y-2 border-t border-[#17211d]/8 pt-3 dark:border-darkBorder">
           {reply && <p className="text-sm leading-6 text-[#17211d]/65 dark:text-foreground/65">{reply}</p>}
           {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
           {receipts.map((receipt) => (
             <ActionReceipt key={receipt.action_id} receipt={receipt} onUndone={onCompleted} />
+          ))}
+          {proposals.map((proposal) => (
+            <ActionProposal
+              key={proposal.id}
+              proposal={proposal}
+              onConfirmed={async (receipt) => {
+                setReceipts((current) => [...current, receipt])
+                setProposals((current) => current.filter((item) => item.id !== proposal.id))
+                setMessage('')
+                await onCompleted?.()
+              }}
+              onCancelled={(proposalId) => {
+                setProposals((current) => current.filter((item) => item.id !== proposalId))
+              }}
+            />
           ))}
         </div>
       )}
