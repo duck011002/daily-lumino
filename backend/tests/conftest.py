@@ -89,6 +89,39 @@ def invite_code_factory(db):
 
 
 @pytest.fixture
+def user_factory(db):
+    def create(username: str, *, is_root: bool = False) -> User:
+        user = User(
+            username=username,
+            email=f"{username}@example.com",
+            password=hash_password("password123"),
+            display_name=username,
+            is_root=is_root,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    return create
+
+
+@pytest.fixture
+def user_cookies_factory(client, user_factory):
+    def create(username: str, *, is_root: bool = False):
+        user = user_factory(username, is_root=is_root)
+        response = client.post(
+            "/api/auth/login",
+            json={"username_or_email": username, "password": "password123"},
+        )
+        assert response.status_code == 200
+        return user, response.cookies
+
+    return create
+
+
+@pytest.fixture
 def client(db):
     def override_get_db():
         try:
