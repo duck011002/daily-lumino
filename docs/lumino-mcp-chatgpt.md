@@ -1,8 +1,26 @@
-# Lumino Blog MCP 接入 ChatGPT 网页版
+# Lumino MCP 接入 Codex 与 ChatGPT
 
-## 服务端
+## 统一 Lumino MCP
 
-Lumino 的博客 MCP 位于分支 `codex/sync-server-20260727`，采用 Streamable HTTP，部署地址为：
+统一端点覆盖绑定用户的账本、待办和博客；超级管理员 Token 还可管理全局 Library。原有 Blog MCP 与 Library MCP 地址继续兼容，不需要迁移已有客户端。
+
+```text
+https://<lumino-domain>/api/mcp/lumino/
+```
+
+在超级管理员后台的“AI 发布 MCP → 统一 Lumino MCP”中选择绑定用户与最小权限范围并创建凭据。令牌只显示一次，网页前端不会收到该令牌。Library 作用域只允许签发给超级管理员；Blog 作用域要求目标用户有博客权限；公开发布还必须同时满足 `blog:publish` 与 `allow_auto_publish`，普通创建和更新不会改变公开/发布状态。
+
+Codex 使用专用环境变量连接，不要把令牌直接写入命令、配置示例、聊天或日志：
+
+```bash
+codex mcp add lumino --url https://<lumino-domain>/api/mcp/lumino/ --bearer-token-env-var LUMINO_MCP_TOKEN
+```
+
+建议先只授权读取与草稿写入。记账和待办写操作返回 `action_id`，可使用统一 `undo_action` 撤销；重复请求应复用稳定的幂等键。
+
+## 兼容 Blog MCP
+
+Lumino 的博客 MCP 采用 Streamable HTTP，部署地址为：
 
 ```text
 https://<lumino-domain>/api/mcp/blog/

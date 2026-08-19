@@ -1,7 +1,7 @@
 # Lumino Production Deployment Runbook
 
 Use this checklist after code has passed local tests and has been pushed to
-`codex/sync-server-20260727`. Do not place passwords, API tokens, or database
+`master`. Do not place passwords, API tokens, or database
 credentials in this document.
 
 ## Production Layout
@@ -30,42 +30,32 @@ source to production with SCP, SFTP, rsync, or direct editor changes.
 
 1. Verify the local branch is clean, tests pass, and the intended commit is
    pushed.
-2. Connect to the server, fetch the branch, and check out the exact commit:
+2. Confirm the intended commit is the remote `master` head without detaching
+   production from its branch:
 
    ```bash
    cd /opt/lumino
-   git fetch origin codex/sync-server-20260727
-   git checkout <commit-sha>
+   git fetch origin master
+   git status --short --branch
+   git rev-parse origin/master
    ```
 
-3. Run the migration whenever the release contains a new Alembic revision:
-
-   ```bash
-   cd /opt/lumino/backend
-   .venv/bin/alembic upgrade head
-   ```
-
-4. Build the frontend whenever `frontend/` changed:
-
-   ```bash
-   cd /opt/lumino/frontend
-   npm run build
-   ```
-
-5. Restart both processes after backend or frontend changes:
+3. Run the guarded deployment entry point. It performs a fast-forward update,
+   dependency install when required, Alembic migration, frontend build,
+   selective PM2 restart, and local health check:
 
    ```bash
    cd /opt/lumino
-   pm2 restart lumino-backend lumino-frontend --update-env
-   pm2 status
+   ./scripts/deploy-production.sh
    ```
 
-6. Verify externally:
+4. For the unified AI/ledger/MCP release, complete the release-specific
+   smoke checks after the script succeeds:
 
-   ```bash
-   curl -i https://lovestory1314.fun/api/health
-   curl -i https://lovestory1314.fun/
-   ```
+   - follow `docs/operations/2026-08-19-unified-ai-ledger-mcp-release.md`;
+   - verify the admin user list and AI provider self-check;
+   - verify a draft update does not change its publication state;
+   - do not use real private content for smoke tests.
 
 ## Important Notes
 

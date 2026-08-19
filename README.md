@@ -1,5 +1,7 @@
 # Lumino v1.0 细节优化与全流程测试指南
 
+> 当前发布流程以 [`docs/operations/production-deployment-runbook.md`](docs/operations/production-deployment-runbook.md) 为准。统一 AI、个人账本与 Lumino MCP 的发布验收见 [`docs/operations/2026-08-19-unified-ai-ledger-mcp-release.md`](docs/operations/2026-08-19-unified-ai-ledger-mcp-release.md)。仓库文档不得保存生产密码、API Key 或 MCP Token。
+
 本仓库已完成 Lumino v1.0 核心功能的全部细节优化与功能补全。为确保系统稳定并便于测试，我们进行了全流程的联调测试与功能截图。
 
 以下是完整的系统测试演示与说明：
@@ -124,14 +126,12 @@ npm run dev
      max_connections = 50
      key_buffer_size = 16M
      ```
-  3. 创建了数据库 `lumino` 并为后端配置了授权用户 `username`，密码：`134679werLQ@`。
+  3. 创建数据库并为后端配置最小权限数据库用户；凭据仅保存在服务器环境变量或受控密钥存储中，不写入仓库。
 
 ### 3.4 初始管理员用户与 Bcrypt 降级
 - **数据库迁移**：后端在虚拟环境下使用 `alembic upgrade head` 执行了全部迁移规则。
 - **Bcrypt 降级**：因为 Python 安全库 `passlib` 的 bcrypt 后端与新版的 `bcrypt 5.0.0+` 存在严重不兼容（引发 `ValueError: password cannot be longer than 72 bytes`），我们强制将服务器后端虚拟环境中的依赖降级锁死为了 **`bcrypt==4.0.1`**。
-- **管理员账号**：通过 `python scripts/init_db.py` 完成了初始化：
-  - 用户名：`admin`
-  - 密码：`AdminLumino@2026!Secret` （生产环境建议及时修改）
+- **管理员账号**：通过 `python scripts/init_db.py` 完成初始化。首次登录凭据通过部署侧安全渠道设置，并在首次登录后轮换；仓库不记录用户名或密码。
 
 ### 3.5 Nginx 反向代理与多域名自适应
 - **配置文件**：`/etc/nginx/conf.d/lumino.conf`。
@@ -148,7 +148,7 @@ npm run dev
 - **服务应用名**：`lumino-frontend`（监听 3000），`lumino-backend`（监听 8000）
 
 ### 3.7 每次开发更新与代码同步流程 (Git 一键发布)
-云服务器已经配置了针对私有仓库的 GitHub Deploy Key 只读授权，且服务器上的 Git 已经与云端 `master` 分支打通。以后在本地修改代码并发布到云服务器的规范流程如下：
+云服务器已经配置了针对私有仓库的只读 Deploy Key，且服务器上的 Git 已与云端 `master` 分支打通。以后发布必须使用 `scripts/deploy-production.sh`；以下为原理说明，具体门禁以生产发布 Runbook 为准。
 
 #### 步骤一：本地开发、提交并推送至 GitHub
 在本地工作区修改完代码后，在本地终端执行推送：
@@ -162,7 +162,7 @@ git push origin master
 通过 SSH 登录云服务器，进入代码根目录并拉取：
 ```bash
 cd /opt/lumino
-git pull
+./scripts/deploy-production.sh
 ```
 
 #### 步骤三：根据修改内容执行对应的更新操作
@@ -192,5 +192,4 @@ git pull
    ```bash
    pm2 restart all
    ```
-
 
