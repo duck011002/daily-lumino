@@ -10,6 +10,7 @@ from app.models.invite_request import InviteRequest
 from app.models.location_pin import LocationPin
 from app.models.ledger import LedgerCategory, LedgerEntry
 from app.models.ai_action import AIActionRun
+from app.models.ai_action_proposal import AIActionProposal
 from app.models.mcp_blog_token import MCPBlogToken
 from app.models.mcp_library_token import MCPLibraryToken
 from app.models.mcp_lumino_token import MCPLuminoToken
@@ -40,6 +41,7 @@ __all__ = [
     "LedgerCategory",
     "LedgerEntry",
     "AIActionRun",
+    "AIActionProposal",
     "MCPBlogToken",
     "MCPLibraryToken",
     "MCPLuminoToken",

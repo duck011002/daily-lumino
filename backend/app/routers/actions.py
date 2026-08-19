@@ -5,15 +5,27 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.actions import (
+    ActionProposalResponse,
     ActionReceipt,
     ActionRequest,
     InterpretActionRequest,
     InterpretActionResponse,
 )
 from app.services import action_executor
+from app.services import action_proposals
 from app.services.ai_action_planner import interpret_and_execute
 
 router = APIRouter(prefix="/api/ai/actions", tags=["ai-actions"])
+
+
+def _proposal_response(proposal) -> ActionProposalResponse:
+    return ActionProposalResponse(
+        id=proposal.id,
+        tool=proposal.tool,
+        arguments=proposal.arguments_json,
+        status=proposal.status,
+        expires_at=proposal.expires_at,
+    )
 
 
 def _http_error(exc: action_executor.ActionError) -> HTTPException:
@@ -38,6 +50,33 @@ def execute(
         return action_executor.execute_action(
             db, current_user, payload, source="web_ai"
         )
+    except action_executor.ActionError as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post("/proposals/{proposal_id}/confirm", response_model=ActionReceipt)
+def confirm_proposal(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return action_proposals.confirm_proposal(db, current_user, proposal_id)
+    except action_executor.ActionError as exc:
+        raise _http_error(exc) from exc
+
+
+@router.post(
+    "/proposals/{proposal_id}/cancel", response_model=ActionProposalResponse
+)
+def cancel_proposal(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        proposal = action_proposals.cancel_proposal(db, current_user, proposal_id)
+        return _proposal_response(proposal)
     except action_executor.ActionError as exc:
         raise _http_error(exc) from exc
 

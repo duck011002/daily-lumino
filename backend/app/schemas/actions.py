@@ -21,6 +21,14 @@ class ActionReceipt(BaseModel):
     created_at: datetime
 
 
+class ActionProposalResponse(BaseModel):
+    id: int
+    tool: str
+    arguments: dict[str, Any]
+    status: str
+    expires_at: datetime
+
+
 class EntryIdArguments(BaseModel):
     entry_id: int = Field(..., gt=0)
 
