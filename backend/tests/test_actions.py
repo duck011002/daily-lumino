@@ -1,3 +1,5 @@
+import pytest
+
 from sqlalchemy import func, select
 
 from app.models.ai_action import AIActionRun
@@ -13,6 +15,7 @@ from app.services.action_executor import (
     undo_action,
 )
 from app.services.ai_action_planner import build_action_system_prompt, interpret_and_execute
+from app.services import library_actions
 
 
 class FakeToolModel:
@@ -541,3 +544,59 @@ def test_root_library_action_is_undoable(db, user_factory):
     undone = undo_action(db, root, updated.action_id)
     assert undone.status == "undone"
     assert undone.result["undo"]["headline"] != "新的 Library 标题"
+
+
+def test_library_duplicate_is_rejected_before_write(db, user_factory):
+    root = user_factory("library-duplicate-root", is_root=True)
+    first = library_actions.upsert_media_card(
+        db,
+        root,
+        library_actions.UpsertLibraryMediaCardArguments(
+            title="Harness",
+            category="book",
+            creator="Someone",
+            year="2026",
+            url="https://example.com/harness",
+        ),
+    )[1]
+
+    with pytest.raises(library_actions.LibraryDuplicateError) as exc:
+        library_actions.upsert_media_card(
+            db,
+            root,
+            library_actions.UpsertLibraryMediaCardArguments(
+                title="  harness ",
+                category="book",
+                creator="someone",
+                year="2026",
+                url="https://example.com/harness/",
+            ),
+        )
+
+    assert exc.value.existing_id == first.id
+    assert len(library_actions.search_media_cards(db, "harness")) == 1
+
+
+def test_library_agent_reports_existing_item_without_receipt(db, user_factory):
+    root = user_factory("library-preflight-root", is_root=True)
+    library_actions.upsert_media_card(
+        db,
+        root,
+        library_actions.UpsertLibraryMediaCardArguments(
+            title="Harness",
+            category="book",
+            creator="Someone",
+        ),
+    )
+    model = FakeToolModel()
+    model.reply_with(
+        "upsert_library_media_card",
+        {"title": " harness ", "category": "book", "creator": "someone"},
+    )
+
+    result = interpret_and_execute(
+        db, root, "把 Harness 加入 Library", context="library", model=model
+    )
+
+    assert result.actions == []
+    assert "已经在 Library" in result.text

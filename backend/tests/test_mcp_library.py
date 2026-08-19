@@ -59,4 +59,22 @@ def test_library_mcp_updates_profile_and_public_card_directly(db, monkeypatch):
         assert stored.headline == "新的书房介绍"
     finally:
         current_mcp_library_identity.reset(context_token)
+
+
+def test_library_mcp_rejects_duplicate_card(db, user_factory, monkeypatch):
+    root = user_factory("library-mcp-duplicate", is_root=True)
+    monkeypatch.setattr("app.mcp_library.SessionLocal", lambda: SessionContext(db))
+    token = current_mcp_library_identity.set(MCPLibraryIdentity(user_id=root.id))
+    try:
+        upsert_library_media_card(
+            title="Harness", category="book", url="https://example.com/harness"
+        )
+        with pytest.raises(ValueError, match="already exists"):
+            upsert_library_media_card(
+                title="harness",
+                category="book",
+                url="https://example.com/harness/",
+            )
+    finally:
+        current_mcp_library_identity.reset(token)
 import pytest

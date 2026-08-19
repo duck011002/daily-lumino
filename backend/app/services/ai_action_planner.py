@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.actions import ActionRequest, InterpretActionResponse
 from app.services import action_executor
+from app.services import library_actions
+from app.routers.site import load_site_profile
 from app.services.llm import get_llm_client_and_model, get_system_config
 
 
@@ -292,6 +294,26 @@ def interpret_and_execute(
             text="这条指令仍缺少执行所需的信息，因此没有修改任何内容。请补充后再试。",
             actions=[],
         )
+
+    for planned in planned_actions:
+        if planned["tool"] != "upsert_library_media_card":
+            continue
+        payload = library_actions.UpsertLibraryMediaCardArguments.model_validate(
+            planned["arguments"]
+        )
+        match = library_actions.find_media_card_match(
+            load_site_profile(db), payload, exclude_id=payload.card_id
+        )
+        if match and match.kind == "exact":
+            return InterpretActionResponse(
+                text=f"该内容已经在 Library 中（卡片 {match.card.id}），没有重复添加。",
+                actions=[],
+            )
+        if match and match.kind == "conflict" and not payload.allow_same_title:
+            return InterpretActionResponse(
+                text="Library 中已有同名但信息不同的内容。请确认是更新现有条目，还是作为不同版本新增。",
+                actions=[],
+            )
 
     receipts = []
     base_key = idempotency_key or uuid4().hex

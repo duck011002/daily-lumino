@@ -21,6 +21,7 @@ from app.models.mcp_library_token import MCPLibraryToken
 from app.models.user import User
 from app.routers.site import load_site_profile, save_site_profile
 from app.schemas.site import SiteMediaCard, SiteProfile, SiteProfileLink
+from app.services import library_actions
 from app.services.upload import upload_file_to_lsky
 
 
@@ -174,9 +175,7 @@ def upsert_library_media_card(
     identity = _identity()
     with SessionLocal() as db:
         profile = load_site_profile(db, for_update=True)
-        cards = list(profile.media_cards)
-        target_id = card_id or str(uuid.uuid4())
-        old = next((x for x in cards if x.id == target_id), None)
+        old = next((x for x in profile.media_cards if x.id == card_id), None)
         optional = {"creator": creator, "year": year, "badge": badge, "note": note, "image_url": image_url, "url": url}
         clearable = set(optional)
         for field in clear_fields or []:
@@ -189,22 +188,21 @@ def upsert_library_media_card(
         featured_value = is_featured if is_featured is not None else (old.is_featured if old else False)
         if featured_value and not public_value:
             raise ValueError("A hidden collection card cannot be featured on the home page.")
-        item = SiteMediaCard(
-            id=target_id, title=title, category=category or (old.category if old else "other"),
-            **optional,
-            is_public=public_value,
-            is_featured=featured_value,
-            sort_order=old.sort_order if old else len(cards),
+        user = db.get(User, identity.user_id)
+        if not user:
+            raise ValueError("MCP library user no longer exists.")
+        _, item = library_actions.upsert_media_card(
+            db,
+            user,
+            library_actions.UpsertLibraryMediaCardArguments(
+                card_id=card_id,
+                title=title,
+                category=category or (old.category if old else "other"),
+                **optional,
+                is_public=public_value,
+                is_featured=featured_value,
+            ),
         )
-        index = next((i for i, value in enumerate(cards) if value.id == target_id), None)
-        if index is None:
-            if len(cards) >= 24:
-                raise ValueError("The library already has the maximum number of collection cards.")
-            cards.append(item)
-        else:
-            cards[index] = item
-        updated = profile.model_copy(update={"media_cards": cards})
-        save_site_profile(db, updated, identity.user_id)
         return item.model_dump(mode="json")
 
 

@@ -10,6 +10,8 @@ from app.mcp_lumino import (
     update_blog_post,
     publish_blog_post,
     update_library_profile,
+    search_library_media_cards,
+    upsert_library_media_card,
     current_mcp_lumino_identity,
     list_ledger_entries,
     resolve_mcp_lumino_identity,
@@ -199,3 +201,27 @@ def test_unified_mcp_blog_update_preserves_draft_and_library_is_root_only(
         assert library["result"]["headline"] == "MCP 更新的 Library"
     finally:
         current_mcp_lumino_identity.reset(identity_token)
+
+
+def test_unified_mcp_searches_library_before_add(db, user_factory, monkeypatch):
+    root = user_factory("lumino-library-search", is_root=True)
+    monkeypatch.setattr("app.mcp_lumino.SessionLocal", lambda: SessionContext(db))
+    token = current_mcp_lumino_identity.set(
+        MCPLuminoIdentity(
+            user_id=root.id,
+            scopes=frozenset({"library:read", "library:write"}),
+            allow_auto_publish=False,
+        )
+    )
+    try:
+        upsert_library_media_card(
+            title="Harness",
+            category="book",
+            creator="Someone",
+            idempotency_key="library-harness",
+        )
+        matches = search_library_media_cards("harness")
+        assert len(matches) == 1
+        assert matches[0]["title"] == "Harness"
+    finally:
+        current_mcp_lumino_identity.reset(token)

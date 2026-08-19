@@ -420,6 +420,19 @@ def get_library_profile() -> dict[str, Any]:
         return load_site_profile(db).model_dump(mode="json")
 
 
+@lumino_mcp.tool(description="Search root Library cards before adding or updating one.")
+def search_library_media_cards(query: str) -> list[dict[str, Any]]:
+    identity = _identity()
+    _require_scope(identity, "library:read")
+    with SessionLocal() as db:
+        user = _user(db, identity)
+        _require_root(user)
+        return [
+            item.model_dump(mode="json")
+            for item in library_actions.search_media_cards(db, query)
+        ]
+
+
 @lumino_mcp.tool(description="Update selected root Library profile fields.")
 def update_library_profile(
     display_name: str | None = None,
