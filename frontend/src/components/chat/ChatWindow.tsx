@@ -7,6 +7,7 @@ import api from '@/lib/api'
 import MessageBubble, { Message } from './MessageBubble'
 import ChatInput from './ChatInput'
 import BackLink from '@/components/ui/BackLink'
+import ActionReceipt, { ActionReceiptData } from '@/components/ai/ActionReceipt'
 
 interface ChatWindowProps {
   sessionId: number
@@ -36,6 +37,7 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [actionReceipts, setActionReceipts] = useState<ActionReceiptData[]>([])
   
   const [availableModels, setAvailableModels] = useState<ChatModel[]>([])
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
@@ -79,6 +81,7 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
     const fetchSessionDetails = async () => {
       setLoading(true)
       setError(null)
+      setActionReceipts([])
       try {
         const response = await api.get(`/chat/sessions/${sessionId}`)
         if (active) {
@@ -145,6 +148,7 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
           'Content-Type': 'application/json',
           // Explicitly include credentials because backend stores auth cookie HTTPOnly
         },
+        credentials: 'include',
         // Direct credentials sharing
         body: JSON.stringify({ content, attachments }),
       })
@@ -190,6 +194,11 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
                       : msg
                   )
                 )
+              } else if (parsed.type === 'action_succeeded') {
+                setActionReceipts((prev) => [
+                  ...prev.filter((item) => item.action_id !== parsed.action_id),
+                  parsed as ActionReceiptData,
+                ])
               } else if (parsed.type === 'done') {
                 // Update temp id to actual database message id
                 setMessages((prev) =>
@@ -328,6 +337,11 @@ export default function ChatWindow({ sessionId, onRefreshSessions }: ChatWindowP
               <span>{error}</span>
             </div>
           )}
+          {actionReceipts.map((receipt) => (
+            <div key={receipt.action_id} className="ml-0 max-w-xl md:ml-12">
+              <ActionReceipt receipt={receipt} />
+            </div>
+          ))}
           <div ref={messagesEndRef} />
         </div>
       </div>

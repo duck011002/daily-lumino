@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 from typing import List
 
@@ -19,6 +20,16 @@ from app.schemas.chat import (
     ChatSessionUpdate,
 )
 from app.services.llm import stream_chat_completion, resolve_multimodal_support
+from app.services.ai_action_planner import interpret_and_execute
+
+
+ACTION_INTENT_PATTERN = re.compile(
+    r"(记账|账本|花了|消费|支出|收入|工资|报销|待办|提醒我|记得|新增任务|创建任务|完成任务|删除任务|博客草稿|更新博客|发布博客|Library|书房资料|收藏卡片)"
+)
+
+
+def looks_like_action_request(content: str) -> bool:
+    return bool(ACTION_INTENT_PATTERN.search(content))
 
 def estimate_tokens(text: str) -> int:
     if not text:
@@ -207,6 +218,8 @@ def send_message(
     db.add(user_msg)
     session.updated_at = func.now()
     db.commit()
+    user_message_id = user_msg.id
+    user_id = current_user.id
 
     async def sse_generator():
         with SessionLocal() as local_db:
@@ -226,6 +239,42 @@ def send_message(
                 local_session = local_db.get(ChatSession, session_id)
                 if not local_session:
                     yield f"data: {json.dumps({'type': 'error', 'content': '会话已删除'})}\n\n"
+                    return
+
+                if looks_like_action_request(message_in.content):
+                    local_user = local_db.get(User, user_id)
+                    if not local_user:
+                        yield f"data: {json.dumps({'type': 'error', 'content': '用户账号不可用'}, ensure_ascii=False)}\n\n"
+                        return
+                    interpretation = interpret_and_execute(
+                        local_db,
+                        local_user,
+                        message_in.content,
+                        context="general",
+                        model_id=local_session.model,
+                        idempotency_key=f"chat:{user_message_id}",
+                    )
+                    for receipt in interpretation.actions:
+                        event = {
+                            "type": "action_succeeded",
+                            **receipt.model_dump(mode="json"),
+                        }
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+                    accumulated_text = interpretation.text
+                    if accumulated_text:
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': accumulated_text}, ensure_ascii=False)}\n\n"
+                    assistant_msg = ChatMessage(
+                        session_id=session_id,
+                        role=ChatRoleType.ASSISTANT,
+                        content=accumulated_text,
+                        attachments=None,
+                        tokens_used=estimate_tokens(accumulated_text),
+                    )
+                    local_db.add(assistant_msg)
+                    local_session.updated_at = datetime.now()
+                    local_db.commit()
+                    yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id}, ensure_ascii=False)}\n\n"
                     return
 
                 accumulated_text = ""
@@ -334,4 +383,3 @@ def list_available_models(db: Session = Depends(get_db)):
             }
         ]
     return providers_list
-

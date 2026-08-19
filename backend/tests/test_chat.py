@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+from datetime import datetime
 from uuid import uuid4
 
 import pytest
@@ -8,6 +9,7 @@ from app.models.chat import ChatModelType, ChatSession
 from app.models.invite_code import InviteCode
 from app.models.user import User
 from app.services.auth import hash_password
+from app.schemas.actions import ActionReceipt, InterpretActionResponse
 
 
 @pytest.fixture
@@ -208,3 +210,45 @@ def test_send_message_updates_tokens_used(mock_openai_class, client: TestClient,
 
         assert assistant_msg.tokens_used > 0
         assert assistant_msg.tokens_used == 1
+
+
+def test_chat_stream_emits_action_receipt(client, auth_headers, monkeypatch):
+    created = client.post(
+        "/api/chat/sessions",
+        json={"title": "Action Test", "model": "qwen"},
+        cookies=auth_headers,
+    )
+    session_id = created.json()["id"]
+
+    monkeypatch.setattr(
+        "app.routers.chat.looks_like_action_request", lambda _: True
+    )
+    monkeypatch.setattr(
+        "app.routers.chat.interpret_and_execute",
+        lambda *_, **__: InterpretActionResponse(
+            text="已记录午饭支出 28 元。",
+            actions=[
+                ActionReceipt(
+                    action_id=123,
+                    tool="create_ledger_entry",
+                    status="succeeded",
+                    result={"amount": "28.00"},
+                    target_type="ledger_entry",
+                    target_id=9,
+                    can_undo=True,
+                    created_at=datetime(2026, 8, 19, 12, 0),
+                )
+            ],
+        ),
+    )
+
+    response = client.post(
+        f"/api/chat/sessions/{session_id}/messages",
+        json={"content": "午饭花了 28 元"},
+        cookies=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert '"type": "action_succeeded"' in response.text
+    assert '"tool": "create_ledger_entry"' in response.text
+    assert "已记录午饭支出" in response.text

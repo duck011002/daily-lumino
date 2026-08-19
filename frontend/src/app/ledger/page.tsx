@@ -18,6 +18,7 @@ import BackLink from '@/components/ui/BackLink'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import { useAuth } from '@/hooks/useAuth'
 import api, { getErrorMessage } from '@/lib/api'
+import AIQuickAction from '@/components/ai/AIQuickAction'
 
 type EntryType = 'expense' | 'income'
 
@@ -224,6 +225,14 @@ export default function LedgerPage() {
             {error}
           </div>
         )}
+
+        <div className="mt-5">
+          <AIQuickAction
+            context="ledger"
+            placeholder="告诉 AI：午饭花了 28 元，记到餐饮"
+            onCompleted={loadLedger}
+          />
+        </div>
 
         <section className="mt-6 grid gap-4 sm:grid-cols-3">
           <SummaryCard label="本月收入" value={summary?.income_total} icon={ArrowDownRight} tone="income" />

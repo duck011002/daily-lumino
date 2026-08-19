@@ -17,6 +17,7 @@ import api, { getErrorMessage } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import BackLink from '@/components/ui/BackLink'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import AIQuickAction from '@/components/ai/AIQuickAction'
 
 interface TodoItem {
   id: number
@@ -129,6 +130,13 @@ export default function TodosPage() {
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+        <div className="mb-6">
+          <AIQuickAction
+            context="todos"
+            placeholder="告诉 AI：明天下午三点提醒我提交报告"
+            onCompleted={loadTodos}
+          />
+        </div>
         {/* 通知权限 Banner */}
         <div className="mb-6 flex flex-col items-start justify-between gap-4 rounded-3xl border border-amber-200/70 bg-gradient-to-r from-amber-50 to-orange-50 p-5 shadow-sm sm:flex-row sm:items-center dark:border-amber-900/40 dark:from-amber-950/30 dark:to-orange-950/20">
           <div className="flex items-center gap-3">
