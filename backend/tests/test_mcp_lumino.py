@@ -225,3 +225,29 @@ def test_unified_mcp_searches_library_before_add(db, user_factory, monkeypatch):
         assert matches[0]["title"] == "Harness"
     finally:
         current_mcp_lumino_identity.reset(token)
+
+
+def test_unified_mcp_blog_create_defaults_to_publish_when_allowed(
+    db, user_factory, monkeypatch
+):
+    writer = user_factory("lumino-blog-default-publish")
+    writer.can_write_blog = True
+    monkeypatch.setattr("app.mcp_lumino.SessionLocal", lambda: SessionContext(db))
+    token = current_mcp_lumino_identity.set(
+        MCPLuminoIdentity(
+            user_id=writer.id,
+            scopes=frozenset({"blog:write", "blog:publish"}),
+            allow_auto_publish=True,
+        )
+    )
+    try:
+        created = create_blog_post(
+            title="统一 MCP 默认公开",
+            content="正文",
+            idempotency_key="unified-default-publish",
+        )
+        assert created["result"]["is_public"] is True
+        assert created["result"]["is_published"] is True
+        assert created["publish_action_id"] > 0
+    finally:
+        current_mcp_lumino_identity.reset(token)

@@ -11,7 +11,13 @@ from app.models.invite_code import InviteCode
 from app.models.user import User
 from app.models.blog import BlogCategory, BlogPost
 from app.routers.blog import ensure_featured_capacity, list_featured_posts
-from app.mcp_blog import MCPBlogIdentity, current_mcp_blog_identity, get_blog_post, update_blog_post
+from app.mcp_blog import (
+    MCPBlogIdentity,
+    create_blog_post as create_mcp_blog_post,
+    current_mcp_blog_identity,
+    get_blog_post,
+    update_blog_post,
+)
 from app.services.auth import hash_password
 
 
@@ -140,6 +146,38 @@ def test_mcp_can_revise_only_its_own_blog_post(db, monkeypatch):
             update_blog_post(post_id=other_post.id, title="Should not change")
     finally:
         current_mcp_blog_identity.reset(context_token)
+
+
+def test_legacy_blog_mcp_defaults_to_publish_when_token_allows(db, user_factory, monkeypatch):
+    import app.mcp_blog
+
+    author = user_factory("mcp-default-publish")
+    author.can_write_blog = True
+
+    @contextmanager
+    def test_session():
+        yield db
+
+    monkeypatch.setattr(app.mcp_blog, "SessionLocal", test_session)
+    token = current_mcp_blog_identity.set(
+        MCPBlogIdentity(author_id=author.id, allow_auto_publish=True)
+    )
+    try:
+        published = create_mcp_blog_post(title="默认公开", content="正文")
+        assert published["status"] == "published"
+        assert db.get(BlogPost, published["id"]).is_public is True
+    finally:
+        current_mcp_blog_identity.reset(token)
+
+    token = current_mcp_blog_identity.set(
+        MCPBlogIdentity(author_id=author.id, allow_auto_publish=False)
+    )
+    try:
+        draft = create_mcp_blog_post(title="权限降级", content="正文")
+        assert draft["status"] == "draft"
+        assert "disabled" in draft["notice"]
+    finally:
+        current_mcp_blog_identity.reset(token)
 
 
 def test_private_preview_allows_author_or_root_without_mutating_post(client: TestClient, blog_test_setup, db):

@@ -211,8 +211,8 @@ async def upload_blog_image(
 
 @blog_mcp.tool(
     description=(
-        "Create a technical blog post. It is a draft unless publish is true "
-        "and auto-publish is enabled."
+        "Create a technical blog post. It requests publication by default; "
+        "tokens without auto-publish permission safely create a private draft instead."
     )
 )
 def create_blog_post(
@@ -223,7 +223,7 @@ def create_blog_post(
     cover_url: str | None = None,
     tags: list[str] | None = None,
     slug: str | None = None,
-    publish: bool = False,
+    publish: bool = True,
 ) -> dict[str, Any]:
     return _create_post(
         title=title,

@@ -335,7 +335,12 @@ def list_blog_posts() -> list[dict[str, Any]]:
         return [blog_actions.serialize_post(post) for post in db.scalars(stmt).all()]
 
 
-@lumino_mcp.tool(description="Create a private blog draft. This never publishes the post.")
+@lumino_mcp.tool(
+    description=(
+        "Create a blog post. Tokens with auto-publish and blog:publish publish it "
+        "by default; other tokens safely create a private draft."
+    )
+)
 def create_blog_post(
     title: str,
     content: str,
@@ -357,11 +362,25 @@ def create_blog_post(
         "tags": tags,
         "category_id": category_id,
     }
-    return _execute(
+    created = _execute(
         "create_blog_post",
         {key: value for key, value in arguments.items() if value is not None},
         idempotency_key,
     )
+    if not identity.allow_auto_publish:
+        created["notice"] = (
+            "Auto-publish is disabled, so this post was created as a private draft."
+        )
+        return created
+    _require_scope(identity, "blog:publish")
+    published = _execute(
+        "publish_blog_post",
+        {"post_id": created["target_id"]},
+        f"auto-publish:{created['action_id']}",
+    )
+    created["result"] = published["result"]
+    created["publish_action_id"] = published["action_id"]
+    return created
 
 
 @lumino_mcp.tool(
