@@ -279,8 +279,19 @@ def list_entries(
     return list(db.scalars(stmt.order_by(LedgerEntry.occurred_at.desc(), LedgerEntry.id.desc())).all())
 
 
+def get_entry(
+    db: Session, user: User, entry_id: int, *, include_deleted: bool = False
+) -> LedgerEntry:
+    return _get_owned_entry(db, user, entry_id, include_deleted=include_deleted)
+
+
 def update_entry(
-    db: Session, user: User, entry_id: int, payload: LedgerEntryUpdate
+    db: Session,
+    user: User,
+    entry_id: int,
+    payload: LedgerEntryUpdate,
+    *,
+    commit: bool = True,
 ) -> LedgerEntry:
     entry = _get_owned_entry(db, user, entry_id, include_deleted=False)
     data = payload.model_dump(exclude_unset=True)
@@ -305,24 +316,37 @@ def update_entry(
         if field == "note" and value:
             value = value.strip()
         setattr(entry, field, value)
-    db.commit()
-    db.refresh(entry)
+    if commit:
+        db.commit()
+        db.refresh(entry)
+    else:
+        db.flush()
     return entry
 
 
-def soft_delete_entry(db: Session, user: User, entry_id: int) -> LedgerEntry:
+def soft_delete_entry(
+    db: Session, user: User, entry_id: int, *, commit: bool = True
+) -> LedgerEntry:
     entry = _get_owned_entry(db, user, entry_id, include_deleted=False)
     entry.deleted_at = datetime.now(SHANGHAI).replace(tzinfo=None)
-    db.commit()
-    db.refresh(entry)
+    if commit:
+        db.commit()
+        db.refresh(entry)
+    else:
+        db.flush()
     return entry
 
 
-def restore_entry(db: Session, user: User, entry_id: int) -> LedgerEntry:
+def restore_entry(
+    db: Session, user: User, entry_id: int, *, commit: bool = True
+) -> LedgerEntry:
     entry = _get_owned_entry(db, user, entry_id, include_deleted=True)
     entry.deleted_at = None
-    db.commit()
-    db.refresh(entry)
+    if commit:
+        db.commit()
+        db.refresh(entry)
+    else:
+        db.flush()
     return entry
 
 

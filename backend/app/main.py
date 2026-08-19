@@ -7,6 +7,7 @@ from app.config import settings
 from app.mcp_blog import blog_mcp, blog_mcp_asgi
 from app.mcp_library import library_mcp, library_mcp_asgi
 from app.routers import (
+    actions,
     ai,
     admin,
     albums,
@@ -53,6 +54,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(actions.router)
 app.include_router(admin.router)
 app.include_router(site.public_router)
 app.include_router(site.admin_router)
