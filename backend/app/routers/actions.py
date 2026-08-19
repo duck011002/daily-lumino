@@ -14,18 +14,13 @@ from app.schemas.actions import (
 from app.services import action_executor
 from app.services import action_proposals
 from app.services.ai_action_planner import interpret_and_execute
+from app.services.private_agent_router import route_private_agent
 
 router = APIRouter(prefix="/api/ai/actions", tags=["ai-actions"])
 
 
 def _proposal_response(proposal) -> ActionProposalResponse:
-    return ActionProposalResponse(
-        id=proposal.id,
-        tool=proposal.tool,
-        arguments=proposal.arguments_json,
-        status=proposal.status,
-        expires_at=proposal.expires_at,
-    )
+    return action_proposals.serialize_proposal(proposal)
 
 
 def _http_error(exc: action_executor.ActionError) -> HTTPException:
@@ -100,6 +95,31 @@ def interpret(
     current_user: User = Depends(get_current_user),
 ):
     try:
+        if payload.context == "blog":
+            decision = route_private_agent(
+                db,
+                current_user,
+                payload.message,
+                history=[],
+            )
+            if decision.route == "propose_blog" and decision.proposal is not None:
+                proposal = action_proposals.create_proposal(
+                    db,
+                    current_user,
+                    session_id=None,
+                    tool="create_blog_post",
+                    arguments=decision.proposal.model_dump(exclude_none=True),
+                )
+                return InterpretActionResponse(
+                    text="博客内容已生成，请预览后决定是否保存为私密草稿。",
+                    actions=[],
+                    proposals=[action_proposals.serialize_proposal(proposal)],
+                )
+            if decision.route == "clarify":
+                return InterpretActionResponse(
+                    text=decision.question or "请补充博客主题或正文要求。",
+                    actions=[],
+                )
         return interpret_and_execute(
             db,
             current_user,

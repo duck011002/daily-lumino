@@ -30,7 +30,9 @@ def test_blog_proposal_creates_draft_only_after_confirmation(db, user_factory):
         arguments={"title": "私人 Agent", "content": "正文"},
     )
 
-    assert db.scalar(select(func.count(BlogPost.id))) == 0
+    assert db.scalar(
+        select(func.count(BlogPost.id)).where(BlogPost.author_id == author.id)
+    ) == 0
     receipt = confirm_proposal(db, author, proposal.id)
     post = db.get(BlogPost, receipt.target_id)
     assert post is not None
@@ -52,7 +54,9 @@ def test_blog_proposal_confirmation_is_idempotent(db, user_factory):
     second = confirm_proposal(db, author, proposal.id)
 
     assert first.action_id == second.action_id
-    assert db.scalar(select(func.count(BlogPost.id))) == 1
+    assert db.scalar(
+        select(func.count(BlogPost.id)).where(BlogPost.author_id == author.id)
+    ) == 1
 
 
 def test_blog_proposal_is_owner_only(db, user_factory):
@@ -100,4 +104,35 @@ def test_expired_blog_proposal_cannot_be_confirmed(db, user_factory):
 
     with pytest.raises(ProposalExpiredError):
         confirm_proposal(db, author, proposal.id)
-    assert db.scalar(select(func.count(BlogPost.id))) == 0
+    assert db.scalar(
+        select(func.count(BlogPost.id)).where(BlogPost.author_id == author.id)
+    ) == 0
+
+
+def test_blog_quick_action_returns_proposal(client, user_cookies_factory, db, monkeypatch):
+    from app.schemas.private_agent import PrivateAgentDecision
+
+    writer, cookies = user_cookies_factory("proposal-quick-action")
+    writer.can_write_blog = True
+    db.commit()
+    monkeypatch.setattr(
+        "app.routers.actions.route_private_agent",
+        lambda *_, **__: PrivateAgentDecision(
+            route="propose_blog",
+            context="blog",
+            proposal={"title": "网页预览", "content": "正文"},
+        ),
+    )
+
+    response = client.post(
+        "/api/ai/actions/interpret",
+        cookies=cookies,
+        json={"message": "写一篇博客", "context": "blog"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["actions"] == []
+    assert response.json()["proposals"][0]["arguments"]["title"] == "网页预览"
+    assert db.scalar(
+        select(func.count(BlogPost.id)).where(BlogPost.author_id == writer.id)
+    ) == 0

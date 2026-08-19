@@ -11,6 +11,8 @@ from app.models.user import User
 from app.services.auth import hash_password
 from app.schemas.actions import ActionReceipt, InterpretActionResponse
 from app.schemas.private_agent import PrivateAgentDecision
+from app.models.blog import BlogPost
+from sqlalchemy import func, select
 
 
 @pytest.fixture
@@ -289,3 +291,79 @@ def test_chat_stream_clarifies_without_executing(client, auth_headers, monkeypat
     assert "这笔金额是多少" in response.text
     assert '"type": "done"' in response.text
     execute.assert_not_called()
+
+
+def test_chat_blog_generation_emits_proposal_without_writing_post(
+    client, user_cookies_factory, db, monkeypatch
+):
+    writer, cookies = user_cookies_factory("chat-blog-proposal")
+    writer.can_write_blog = True
+    db.commit()
+    created = client.post(
+        "/api/chat/sessions",
+        json={"title": "Blog Proposal", "model": "qwen"},
+        cookies=cookies,
+    )
+    session_id = created.json()["id"]
+    monkeypatch.setattr(
+        "app.routers.chat.route_private_agent",
+        lambda *_, **__: PrivateAgentDecision(
+            route="propose_blog",
+            context="blog",
+            proposal={"title": "Agent", "content": "完整正文"},
+        ),
+    )
+
+    response = client.post(
+        f"/api/chat/sessions/{session_id}/messages",
+        json={"content": "写一篇关于 Agent 的博客"},
+        cookies=cookies,
+    )
+
+    assert response.status_code == 200
+    assert '"type": "action_proposed"' in response.text
+    assert '"title": "Agent"' in response.text
+    assert db.scalar(select(func.count(BlogPost.id))) == 0
+
+
+def test_chat_can_confirm_pending_blog_proposal(
+    client, user_cookies_factory, db, monkeypatch
+):
+    writer, cookies = user_cookies_factory("chat-blog-confirm")
+    writer.can_write_blog = True
+    db.commit()
+    created = client.post(
+        "/api/chat/sessions",
+        json={"title": "Blog Confirm", "model": "qwen"},
+        cookies=cookies,
+    )
+    session_id = created.json()["id"]
+    confirm = MagicMock(
+        return_value=ActionReceipt(
+            action_id=88,
+            tool="create_blog_post",
+            status="succeeded",
+            result={"title": "确认保存"},
+            target_type="blog_post",
+            target_id=9,
+            can_undo=True,
+            created_at=datetime(2026, 8, 19, 12, 0),
+        )
+    )
+    monkeypatch.setattr("app.routers.chat.action_proposals.confirm_proposal", confirm)
+    monkeypatch.setattr(
+        "app.routers.chat.route_private_agent",
+        lambda *_, **__: PrivateAgentDecision(
+            route="confirm_proposal", proposal_id=77
+        ),
+    )
+
+    response = client.post(
+        f"/api/chat/sessions/{session_id}/messages",
+        json={"content": "同意保存"},
+        cookies=cookies,
+    )
+
+    assert response.status_code == 200
+    assert '"type": "action_succeeded"' in response.text
+    confirm.assert_called_once()

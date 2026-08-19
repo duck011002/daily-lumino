@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.ai_action_proposal import AIActionProposal
 from app.models.user import User
 from app.schemas.actions import ActionReceipt, ActionRequest
+from app.schemas.actions import ActionProposalResponse
 from app.services import action_executor
 
 
@@ -21,6 +22,16 @@ class ProposalExpiredError(action_executor.ActionConflictError):
 
 class ProposalConflictError(action_executor.ActionConflictError):
     pass
+
+
+def serialize_proposal(proposal: AIActionProposal) -> ActionProposalResponse:
+    return ActionProposalResponse(
+        id=proposal.id,
+        tool=proposal.tool,
+        arguments=proposal.arguments_json,
+        status=proposal.status,
+        expires_at=proposal.expires_at,
+    )
 
 
 def create_proposal(
@@ -109,4 +120,3 @@ def cancel_proposal(
     db.commit()
     db.refresh(proposal)
     return proposal
-

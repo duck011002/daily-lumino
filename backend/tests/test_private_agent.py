@@ -77,3 +77,24 @@ def test_router_keeps_only_recent_text_history(db, user_factory):
 
     assert len(model.history) == 8
     assert model.history[0]["content"] == "message-4"
+
+
+def test_router_accepts_complete_blog_proposal(db, user_factory):
+    from app.services.private_agent_router import route_private_agent
+
+    writer = user_factory("agent-router-blog")
+    writer.can_write_blog = True
+    model = FakeRouterModel(
+        {
+            "route": "propose_blog",
+            "context": "blog",
+            "proposal": {"title": "私人 Agent", "content": "完整正文"},
+        }
+    )
+
+    decision = route_private_agent(
+        db, writer, "写一篇关于私人 Agent 的博客", history=[], model=model
+    )
+
+    assert decision.route == "propose_blog"
+    assert decision.proposal.title == "私人 Agent"

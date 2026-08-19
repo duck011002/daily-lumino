@@ -21,6 +21,7 @@ from app.schemas.chat import (
 from app.services.llm import stream_chat_completion, resolve_multimodal_support
 from app.services.ai_action_planner import interpret_and_execute
 from app.services.private_agent_router import route_private_agent
+from app.services import action_proposals
 
 def estimate_tokens(text: str) -> int:
     if not text:
@@ -245,6 +246,7 @@ def send_message(
                     local_user,
                     message_in.content,
                     history=route_history,
+                    session_id=session_id,
                 )
 
                 if decision.route == "clarify":
@@ -281,6 +283,66 @@ def send_message(
                     accumulated_text = interpretation.text
                     if accumulated_text:
                         yield f"data: {json.dumps({'type': 'chunk', 'content': accumulated_text}, ensure_ascii=False)}\n\n"
+                    assistant_msg = ChatMessage(
+                        session_id=session_id,
+                        role=ChatRoleType.ASSISTANT,
+                        content=accumulated_text,
+                        attachments=None,
+                        tokens_used=estimate_tokens(accumulated_text),
+                    )
+                    local_db.add(assistant_msg)
+                    local_session.updated_at = datetime.now()
+                    local_db.commit()
+                    yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id}, ensure_ascii=False)}\n\n"
+                    return
+
+                if decision.route == "propose_blog" and decision.proposal is not None:
+                    proposal = action_proposals.create_proposal(
+                        local_db,
+                        local_user,
+                        session_id=session_id,
+                        tool="create_blog_post",
+                        arguments=decision.proposal.model_dump(exclude_none=True),
+                    )
+                    event = {
+                        "type": "action_proposed",
+                        **action_proposals.serialize_proposal(proposal).model_dump(
+                            mode="json"
+                        ),
+                    }
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    accumulated_text = "博客内容已生成，请预览后决定是否保存为私密草稿。"
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': accumulated_text}, ensure_ascii=False)}\n\n"
+                    assistant_msg = ChatMessage(
+                        session_id=session_id,
+                        role=ChatRoleType.ASSISTANT,
+                        content=accumulated_text,
+                        attachments=None,
+                        tokens_used=estimate_tokens(accumulated_text),
+                    )
+                    local_db.add(assistant_msg)
+                    local_session.updated_at = datetime.now()
+                    local_db.commit()
+                    yield f"data: {json.dumps({'type': 'done', 'message_id': assistant_msg.id}, ensure_ascii=False)}\n\n"
+                    return
+
+                if decision.route in {"confirm_proposal", "cancel_proposal"}:
+                    if decision.route == "confirm_proposal":
+                        receipt = action_proposals.confirm_proposal(
+                            local_db, local_user, decision.proposal_id or 0
+                        )
+                        event = {
+                            "type": "action_succeeded",
+                            **receipt.model_dump(mode="json"),
+                        }
+                        accumulated_text = "已按你的确认保存为私密博客草稿。"
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    else:
+                        action_proposals.cancel_proposal(
+                            local_db, local_user, decision.proposal_id or 0
+                        )
+                        accumulated_text = "已取消这份博客提案，没有保存任何内容。"
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': accumulated_text}, ensure_ascii=False)}\n\n"
                     assistant_msg = ChatMessage(
                         session_id=session_id,
                         role=ChatRoleType.ASSISTANT,

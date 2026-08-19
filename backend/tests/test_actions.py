@@ -433,7 +433,11 @@ def test_interpret_rest_endpoint_returns_receipts(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"text": "请补充金额。", "actions": []}
+    assert response.json() == {
+        "text": "请补充金额。",
+        "actions": [],
+        "proposals": [],
+    }
 
 
 def test_blog_update_action_preserves_publication_state(db, user_factory):

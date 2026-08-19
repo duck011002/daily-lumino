@@ -2,8 +2,10 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.ai_action_proposal import AIActionProposal
 from app.models.user import User
 from app.schemas.private_agent import PrivateAgentDecision
 from app.services.ai_action_planner import _default_model_id, _parse_json_object
@@ -68,8 +70,10 @@ class OpenAIPrivateAgentModel:
         allowed = sorted(allowed_contexts)
         system_prompt = (
             "你是 Lumino AI 私人助手的意图路由器。每条消息都必须先由你判断。\n"
-            "只返回 JSON 对象，route 只能是 chat、execute、clarify。\n"
+            "只返回 JSON 对象，route 只能是 chat、execute、clarify、propose_blog、confirm_proposal、cancel_proposal。\n"
             "普通问答和闲聊选择 chat；需要实际创建或修改数据选择 execute，并从允许的 context 中选择。\n"
+            "网页用户要求写新博客时选择 propose_blog，context 为 blog，并在 proposal 中生成可预览的完整 title 和 content；此时绝不直接保存。\n"
+            "如果历史中列出了待确认提案，用户明确同意保存时选择 confirm_proposal，用户取消时选择 cancel_proposal，并原样返回 proposal_id。\n"
             "仅当关键事实无法安全推断时才选择 clarify，并在 question 中给出一句简短追问。\n"
             f"允许的 context：{json.dumps(allowed, ensure_ascii=False)}。\n"
             "不能选择未授权 context，也不能声称已经执行任何操作。\n"
@@ -94,12 +98,41 @@ def route_private_agent(
     *,
     history: list[dict[str, Any]],
     model: AgentRouterModel | None = None,
+    session_id: int | None = None,
 ) -> PrivateAgentDecision:
     contexts = allowed_agent_contexts(user)
     router_model = model or OpenAIPrivateAgentModel.from_db(db)
+    recent_history = _recent_text_history(history)
+    proposal_query = select(AIActionProposal).where(
+        AIActionProposal.user_id == user.id,
+        AIActionProposal.status == "pending",
+        AIActionProposal.expires_at > datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    if session_id is not None:
+        proposal_query = proposal_query.where(AIActionProposal.session_id == session_id)
+    pending = list(
+        db.scalars(proposal_query.order_by(AIActionProposal.created_at.desc()).limit(3))
+    )
+    if pending:
+        recent_history.append(
+            {
+                "role": "system",
+                "content": "当前待确认博客提案："
+                + json.dumps(
+                    [
+                        {
+                            "proposal_id": item.id,
+                            "title": item.arguments_json.get("title"),
+                        }
+                        for item in pending
+                    ],
+                    ensure_ascii=False,
+                ),
+            }
+        )
     raw = router_model.route(
         message=message,
-        history=_recent_text_history(history),
+        history=recent_history,
         allowed_contexts=contexts,
         now=datetime.now(SHANGHAI_TIMEZONE),
     )

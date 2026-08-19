@@ -47,3 +47,4 @@ class InterpretActionRequest(BaseModel):
 class InterpretActionResponse(BaseModel):
     text: str
     actions: list[ActionReceipt]
+    proposals: list[ActionProposalResponse] = Field(default_factory=list)
