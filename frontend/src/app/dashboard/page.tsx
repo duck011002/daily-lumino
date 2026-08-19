@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   UserRound,
+  WalletCards,
 } from 'lucide-react'
 import SiteNav from '@/components/layout/SiteNav'
 import { useAuth } from '@/hooks/useAuth'
@@ -58,6 +59,15 @@ export default function Dashboard() {
   )
 
   const personalTools = [
+    {
+      id: 'btn-ledger',
+      title: '随手记账',
+      description: '记录每一笔收入与支出，按月查看分类汇总；所有账目仅当前账号可见。',
+      href: '/ledger',
+      icon: WalletCards,
+      accent: 'bg-[#e4f0e8] text-[#1d6347] dark:bg-[#1d382c] dark:text-[#86d3ab]',
+      show: true,
+    },
     {
       id: 'btn-todos',
       title: '待办事项',
