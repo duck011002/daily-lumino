@@ -8,8 +8,11 @@ from app.models.chat import ChatMessage, ChatSession
 from app.models.invite_code import InviteCode
 from app.models.invite_request import InviteRequest
 from app.models.location_pin import LocationPin
+from app.models.ledger import LedgerCategory, LedgerEntry
+from app.models.ai_action import AIActionRun
 from app.models.mcp_blog_token import MCPBlogToken
 from app.models.mcp_library_token import MCPLibraryToken
+from app.models.mcp_lumino_token import MCPLuminoToken
 from app.models.note import Note
 from app.models.space import Space, SpaceAnniversary, SpaceInvite, SpaceMember
 from app.models.storage_quota import StorageQuota
@@ -34,8 +37,12 @@ __all__ = [
     "Photo",
     "AIIngestJob",
     "LocationPin",
+    "LedgerCategory",
+    "LedgerEntry",
+    "AIActionRun",
     "MCPBlogToken",
     "MCPLibraryToken",
+    "MCPLuminoToken",
     "Note",
     "BlogPost",
     "BlogCategory",
