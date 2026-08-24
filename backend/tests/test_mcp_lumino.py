@@ -14,9 +14,12 @@ from app.mcp_lumino import (
     upsert_library_media_card,
     current_mcp_lumino_identity,
     list_ledger_entries,
+    list_todos,
     resolve_mcp_lumino_identity,
 )
+from app.models.blog import BlogPost
 from app.models.mcp_lumino_token import MCPLuminoToken
+from app.services.action_executor import ActionConflictError
 
 
 class SessionContext:
@@ -91,6 +94,97 @@ def test_lumino_tools_are_scoped_and_user_private(db, user_factory, monkeypatch)
         current_mcp_lumino_identity.reset(identity_token)
 
 
+def test_unified_mcp_reuses_same_idempotency_key(db, user_factory, monkeypatch):
+    owner = user_factory("lumino-idempotency-owner")
+    monkeypatch.setattr("app.mcp_lumino.SessionLocal", lambda: SessionContext(db))
+    identity_token = current_mcp_lumino_identity.set(
+        MCPLuminoIdentity(
+            user_id=owner.id,
+            scopes=frozenset(
+                {"ledger:read", "ledger:write", "todos:read", "todos:write"}
+            ),
+            allow_auto_publish=False,
+        )
+    )
+    try:
+        first = create_ledger_entry(
+            entry_type="expense",
+            amount="18.00",
+            category_name="餐饮",
+            idempotency_key="unified-same-key",
+        )
+        second = create_ledger_entry(
+            entry_type="expense",
+            amount="18.00",
+            category_name="餐饮",
+            idempotency_key="unified-same-key",
+        )
+
+        assert second["action_id"] == first["action_id"]
+        assert len(list_ledger_entries()) == 1
+        with pytest.raises(ActionConflictError, match="幂等键"):
+            create_todo(title="不应创建", idempotency_key="unified-same-key")
+        assert list_todos() == []
+    finally:
+        current_mcp_lumino_identity.reset(identity_token)
+
+
+def test_unified_mcp_isolates_ledger_and_todos_by_bound_user(
+    db, user_factory, monkeypatch
+):
+    owner = user_factory("lumino-isolation-owner")
+    stranger = user_factory("lumino-isolation-stranger")
+    monkeypatch.setattr("app.mcp_lumino.SessionLocal", lambda: SessionContext(db))
+
+    def identity_for(user_id: int):
+        return MCPLuminoIdentity(
+            user_id=user_id,
+            scopes=frozenset(
+                {"ledger:read", "ledger:write", "todos:read", "todos:write"}
+            ),
+            allow_auto_publish=False,
+        )
+
+    stranger_token = current_mcp_lumino_identity.set(identity_for(stranger.id))
+    try:
+        stranger_entry = create_ledger_entry(
+            entry_type="expense",
+            amount="91.00",
+            category_name="购物",
+            idempotency_key="isolation-stranger-entry",
+        )
+        stranger_todo = create_todo(
+            title="陌生用户待办",
+            idempotency_key="isolation-stranger-todo",
+        )
+    finally:
+        current_mcp_lumino_identity.reset(stranger_token)
+
+    owner_token = current_mcp_lumino_identity.set(identity_for(owner.id))
+    try:
+        owner_entry = create_ledger_entry(
+            entry_type="expense",
+            amount="12.00",
+            category_name="餐饮",
+            idempotency_key="isolation-owner-entry",
+        )
+        owner_todo = create_todo(
+            title="当前用户待办",
+            idempotency_key="isolation-owner-todo",
+        )
+
+        assert {item["id"] for item in list_ledger_entries()} == {
+            owner_entry["target_id"]
+        }
+        assert {item["id"] for item in list_todos()} == {owner_todo["target_id"]}
+        assert stranger_entry["target_id"] not in {
+            item["id"] for item in list_ledger_entries()
+        }
+        assert stranger_todo["target_id"] not in {item["id"] for item in list_todos()}
+    finally:
+        current_mcp_lumino_identity.reset(owner_token)
+
+
 def test_lumino_tool_rejects_missing_scope(db, user_factory, monkeypatch):
     owner = user_factory("lumino-scope-owner")
     monkeypatch.setattr("app.mcp_lumino.SessionLocal", lambda: SessionContext(db))
@@ -130,6 +224,42 @@ def test_root_can_issue_user_bound_lumino_token(client, user_cookies_factory):
     listed = client.get("/api/admin/mcp-lumino/tokens", cookies=root_cookies)
     assert listed.status_code == 200
     assert "token" not in listed.json()[0]
+
+
+def test_lumino_token_disable_takes_effect_on_next_resolution(
+    client, db, user_cookies_factory, monkeypatch
+):
+    _, root_cookies = user_cookies_factory("lumino-disable-root", is_root=True)
+    owner, _ = user_cookies_factory("lumino-disable-owner")
+    owner.can_use_mcp = True
+    db.commit()
+
+    created = client.post(
+        "/api/admin/mcp-lumino/tokens",
+        cookies=root_cookies,
+        json={
+            "label": "Immediate disable",
+            "user_id": owner.id,
+            "scopes": ["ledger:read"],
+        },
+    )
+    assert created.status_code == 201
+    raw_token = created.json()["token"]
+    token_id = created.json()["id"]
+
+    assert resolve_mcp_lumino_identity(db, raw_token, record_usage=False) is not None
+    disabled = client.patch(
+        f"/api/admin/mcp-lumino/tokens/{token_id}",
+        cookies=root_cookies,
+        json={"is_active": False},
+    )
+    assert disabled.status_code == 200
+    assert resolve_mcp_lumino_identity(db, raw_token, record_usage=False) is None
+    monkeypatch.setattr("app.mcp_lumino.SessionLocal", lambda: SessionContext(db))
+    blocked = client.get(
+        "/api/mcp/lumino/", headers={"Authorization": f"Bearer {raw_token}"}
+    )
+    assert blocked.status_code == 401
 
 
 def test_lumino_token_scopes_must_match_bound_user_permissions(
@@ -249,5 +379,34 @@ def test_unified_mcp_blog_create_defaults_to_publish_when_allowed(
         assert created["result"]["is_public"] is True
         assert created["result"]["is_published"] is True
         assert created["publish_action_id"] > 0
+    finally:
+        current_mcp_lumino_identity.reset(token)
+
+
+def test_unified_mcp_blog_create_downgrades_without_publish_scope(
+    db, user_factory, monkeypatch
+):
+    writer = user_factory("lumino-blog-downgrade")
+    writer.can_write_blog = True
+    monkeypatch.setattr("app.mcp_lumino.SessionLocal", lambda: SessionContext(db))
+    token = current_mcp_lumino_identity.set(
+        MCPLuminoIdentity(
+            user_id=writer.id,
+            scopes=frozenset({"blog:write"}),
+            allow_auto_publish=True,
+        )
+    )
+    try:
+        created = create_blog_post(
+            title="安全降级草稿",
+            content="测试正文",
+            idempotency_key="unified-downgrade",
+        )
+        post = db.get(BlogPost, created["target_id"])
+
+        assert post is not None
+        assert post.is_public is False
+        assert post.is_published is False
+        assert "private draft" in created["notice"]
     finally:
         current_mcp_lumino_identity.reset(token)

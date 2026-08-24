@@ -180,7 +180,9 @@ def test_legacy_blog_mcp_defaults_to_publish_when_token_allows(db, user_factory,
         current_mcp_blog_identity.reset(token)
 
 
-def test_private_preview_allows_author_or_root_without_mutating_post(client: TestClient, blog_test_setup, db):
+def test_private_preview_allows_author_or_root_without_mutating_post(
+    client: TestClient, blog_test_setup, db, user_cookies_factory
+):
     writer = db.scalar(select(User).where(User.username == "normaluser"))
     writer.can_write_blog = True
     draft = BlogPost(
@@ -213,6 +215,15 @@ def test_private_preview_allows_author_or_root_without_mutating_post(client: Tes
     )
     assert author_response.status_code == 200
     assert author_response.json()["content"] == "Only the author should see this."
+
+    _, stranger_cookies = user_cookies_factory("preview-stranger")
+    stranger = db.scalar(select(User).where(User.username == "preview-stranger"))
+    stranger.can_write_blog = True
+    db.commit()
+    stranger_response = client.get(
+        f"/api/blog/me/posts/{draft.id}/preview", cookies=stranger_cookies
+    )
+    assert stranger_response.status_code == 403
 
     db.refresh(draft)
     assert draft.is_public is False

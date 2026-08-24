@@ -367,7 +367,11 @@ def create_blog_post(
         {key: value for key, value in arguments.items() if value is not None},
         idempotency_key,
     )
-    if not identity.allow_auto_publish:
+    # Publishing is opt-in only when both the token flag and scope are present.
+    # Keep a malformed or stale identity safe by returning the already-created
+    # post as a private draft instead of leaving an orphaned write before the
+    # scope check fails.
+    if not identity.allow_auto_publish or "blog:publish" not in identity.scopes:
         created["notice"] = (
             "Auto-publish is disabled, so this post was created as a private draft."
         )

@@ -136,3 +136,54 @@ def test_blog_quick_action_returns_proposal(client, user_cookies_factory, db, mo
     assert db.scalar(
         select(func.count(BlogPost.id)).where(BlogPost.author_id == writer.id)
     ) == 0
+
+
+def test_blog_proposal_http_confirm_cancel_are_owner_only(
+    client, user_cookies_factory, db
+):
+    owner, owner_cookies = user_cookies_factory("proposal-http-owner")
+    stranger, stranger_cookies = user_cookies_factory("proposal-http-stranger")
+    owner.can_write_blog = True
+    stranger.can_write_blog = True
+    db.commit()
+
+    confirmable = create_proposal(
+        db,
+        owner,
+        session_id=None,
+        tool="create_blog_post",
+        arguments={"title": "HTTP 确认", "content": "测试正文"},
+    )
+    assert client.post(
+        f"/api/ai/actions/proposals/{confirmable.id}/confirm",
+        cookies=stranger_cookies,
+    ).status_code == 403
+
+    confirmed = client.post(
+        f"/api/ai/actions/proposals/{confirmable.id}/confirm",
+        cookies=owner_cookies,
+    )
+    assert confirmed.status_code == 200
+    assert confirmed.json()["target_id"] is not None
+
+    cancellable = create_proposal(
+        db,
+        owner,
+        session_id=None,
+        tool="create_blog_post",
+        arguments={"title": "HTTP 取消", "content": "测试正文"},
+    )
+    assert client.post(
+        f"/api/ai/actions/proposals/{cancellable.id}/cancel",
+        cookies=stranger_cookies,
+    ).status_code == 403
+
+    cancelled = client.post(
+        f"/api/ai/actions/proposals/{cancellable.id}/cancel",
+        cookies=owner_cookies,
+    )
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+    assert db.scalar(
+        select(func.count(BlogPost.id)).where(BlogPost.author_id == owner.id)
+    ) == 1
