@@ -225,10 +225,9 @@ export default function AdminConsole() {
   const [luminoMcpUserId, setLuminoMcpUserId] = useState('')
   const [luminoMcpScopes, setLuminoMcpScopes] = useState<MCPLuminoScope[]>([
     'ledger:read',
-    'ledger:write',
     'todos:read',
-    'todos:write',
   ])
+  const [luminoMcpAutoPublish, setLuminoMcpAutoPublish] = useState(false)
   const [creatingLuminoMcpToken, setCreatingLuminoMcpToken] = useState(false)
   const [newLuminoMcpToken, setNewLuminoMcpToken] = useState<string | null>(null)
   
@@ -849,7 +848,8 @@ export default function AdminConsole() {
         label: luminoMcpLabel.trim(),
         user_id: Number(luminoMcpUserId),
         scopes: luminoMcpScopes,
-        allow_auto_publish: luminoMcpScopes.includes('blog:publish'),
+        allow_auto_publish:
+          luminoMcpAutoPublish && luminoMcpScopes.includes('blog:publish'),
       })
       setLuminoMcpTokens((prev) => [res.data, ...prev])
       setNewLuminoMcpToken(res.data.token)
@@ -1665,14 +1665,31 @@ export default function AdminConsole() {
                           <input
                             type="checkbox"
                             checked={luminoMcpScopes.includes(scope.value)}
-                            onChange={(event) => setLuminoMcpScopes((prev) => event.target.checked ? [...prev, scope.value] : prev.filter((item) => item !== scope.value))}
+                            onChange={(event) => {
+                              setLuminoMcpScopes((prev) => event.target.checked
+                                ? [...prev, scope.value]
+                                : prev.filter((item) => item !== scope.value))
+                              if (!event.target.checked && scope.value === 'blog:publish') {
+                                setLuminoMcpAutoPublish(false)
+                              }
+                            }}
                             className="rounded text-primary focus:ring-primary"
                           />
                           {scope.label}
                         </label>
                       ))}
                     </div>
-                    <p className="mt-3 text-xs text-onSurface/50 dark:text-foreground/50">“公开发布博客”是高风险权限，只应在明确需要自动发布时开启；普通博客写入默认保持草稿。</p>
+                    <label className="mt-4 flex items-start gap-2 rounded-lg border border-amber-300/70 bg-amber-50/70 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                      <input
+                        type="checkbox"
+                        checked={luminoMcpAutoPublish}
+                        disabled={!luminoMcpScopes.includes('blog:publish')}
+                        onChange={(event) => setLuminoMcpAutoPublish(event.target.checked)}
+                        className="mt-0.5 rounded text-primary focus:ring-primary disabled:cursor-not-allowed"
+                      />
+                      <span>允许该凭据自动公开发布博客（默认关闭；还需勾选“公开发布博客”权限）</span>
+                    </label>
+                    <p className="mt-3 text-xs text-onSurface/50 dark:text-foreground/50">新凭据默认只读。写入和公开发布是高风险权限，应仅在明确需要时单独勾选；普通博客写入默认保持草稿。</p>
                   </div>
                   <div className="mt-5 flex justify-end"><Button size="sm" onClick={handleCreateLuminoMcpToken} isLoading={creatingLuminoMcpToken}><Plus size={14} className="mr-1" />创建统一凭据</Button></div>
                 </div>
