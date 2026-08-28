@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import BackLink from '@/components/ui/BackLink'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 import { useAuth } from '@/hooks/useAuth'
 import api, { getErrorMessage } from '@/lib/api'
 import AIQuickAction from '@/components/ai/AIQuickAction'
@@ -200,7 +201,10 @@ export default function LedgerPage() {
             <WalletCards size={20} className="text-[#1d6347] dark:text-[#f7b84b]" />
             私人账本
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

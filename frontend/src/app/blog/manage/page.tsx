@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import api from '@/lib/api'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 import { useAuth } from '@/hooks/useAuth'
 import BackLink from '@/components/ui/BackLink'
 import AIQuickAction from '@/components/ai/AIQuickAction'
@@ -209,7 +210,10 @@ export default function BlogManagementPage() {
             href={isRoot ? '/admin' : '/blog'}
             label={isRoot ? '返回管理后台' : '返回技术博客'}
           />
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

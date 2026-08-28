@@ -5,7 +5,9 @@ import { usePathname } from 'next/navigation'
 import { DoorOpen, Home, Library, LogOut, Newspaper, UserRound } from 'lucide-react'
 import Logo from '@/components/layout/Logo'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 import { useAuth } from '@/hooks/useAuth'
+import { useLanguage } from '@/hooks/useLanguage'
 
 type NavKey = 'home' | 'library' | 'blog' | 'courtyard'
 
@@ -25,13 +27,14 @@ const isActivePath = (pathname: string, key: NavKey) => {
 export default function SiteNav() {
   const pathname = usePathname()
   const { user, loading, logout } = useAuth()
+  const { t } = useLanguage()
   const courtyardHref = user ? '/dashboard' : '/courtyard'
 
   const navItems = [
-    { key: 'home' as const, label: '前厅', href: '/', icon: Home },
-    { key: 'library' as const, label: '书房', href: '/library', icon: Library },
-    { key: 'blog' as const, label: '博客', href: '/blog', icon: Newspaper },
-    { key: 'courtyard' as const, label: '内院', href: courtyardHref, icon: DoorOpen },
+    { key: 'home' as const, label: t.nav.home, title: t.nav.homeTitle, href: '/', icon: Home },
+    { key: 'library' as const, label: t.nav.library, title: t.nav.libraryTitle, href: '/library', icon: Library },
+    { key: 'blog' as const, label: t.nav.blog, title: t.nav.blogTitle, href: '/blog', icon: Newspaper },
+    { key: 'courtyard' as const, label: t.nav.courtyard, title: t.nav.courtyardTitle, href: courtyardHref, icon: DoorOpen },
   ]
 
   return (
@@ -48,15 +51,7 @@ export default function SiteNav() {
               <Link
                 key={item.key}
                 href={item.href}
-                title={`${item.label}${
-                  item.key === 'home'
-                    ? '：网站主页'
-                    : item.key === 'library'
-                      ? '：关于我与收藏'
-                      : item.key === 'blog'
-                        ? '：公开文章'
-                        : '：私人空间'
-                }`}
+                title={item.title}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-sm font-semibold transition sm:flex-none sm:px-3 ${
                   active
                     ? 'bg-[#163a2b] text-white shadow-sm'
@@ -70,7 +65,8 @@ export default function SiteNav() {
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <LanguageToggle />
           <ThemeToggle />
           {!loading && user ? (
             <>
@@ -84,7 +80,7 @@ export default function SiteNav() {
               <button
                 type="button"
                 onClick={logout}
-                title="退出登录"
+                title={t.nav.logout}
                 className="grid h-9 w-9 place-items-center rounded-full text-[#17211d]/45 transition hover:bg-red-50 hover:text-red-500 dark:text-foreground/45 dark:hover:bg-red-500/10"
               >
                 <LogOut size={15} />
@@ -96,13 +92,13 @@ export default function SiteNav() {
                 href="/login"
                 className="rounded-full px-3 py-2 text-xs font-semibold text-[#17211d]/65 hover:text-[#163a2b] dark:text-foreground/65"
               >
-                登录
+                {t.nav.login}
               </Link>
               <Link
                 href="/register"
                 className="hidden rounded-full bg-[#163a2b] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#24553f] sm:block"
               >
-                注册
+                {t.nav.register}
               </Link>
             </>
           ) : null}

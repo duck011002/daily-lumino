@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -20,6 +20,7 @@ import {
 import SiteNav from '@/components/layout/SiteNav'
 import api from '@/lib/api'
 import { defaultSiteProfile, SiteMediaCard, SiteProfile } from '@/lib/siteProfile'
+import { useLanguage } from '@/hooks/useLanguage'
 
 interface FeaturedPost {
   id: number
@@ -32,45 +33,16 @@ interface FeaturedPost {
   category: { name: string } | null
 }
 
-const formatDate = (value: string | null) =>
-  value
-    ? new Intl.DateTimeFormat('zh-CN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      }).format(new Date(value))
-    : '近期发布'
-
-const mediaMeta = {
-  book: { label: '书籍', icon: BookOpen },
-  movie: { label: '影视', icon: Clapperboard },
-  music: { label: '音乐', icon: Headphones },
-  status: { label: '生活收藏', icon: Sparkles },
-  other: { label: '其他收藏', icon: Sparkles },
+const mediaMetaIcons = {
+  book: BookOpen,
+  movie: Clapperboard,
+  music: Headphones,
+  status: Sparkles,
+  other: Sparkles,
 }
 
-const destinations = [
-  {
-    label: '书房',
-    meaning: '关于我与收藏',
-    href: '/library',
-    icon: Library,
-  },
-  {
-    label: '博客',
-    meaning: '文章与技术实践',
-    href: '/blog',
-    icon: Newspaper,
-  },
-  {
-    label: '内院',
-    meaning: '登录后的私人空间',
-    href: '/courtyard',
-    icon: DoorOpen,
-  },
-]
-
 export default function Home() {
+  const { t, formatDate } = useLanguage()
   const [profile, setProfile] = useState<SiteProfile>(defaultSiteProfile)
   const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([])
 
@@ -83,14 +55,40 @@ export default function Home() {
     )
   }, [])
 
+  const destinations = useMemo(
+    () => [
+      {
+        label: t.home.destinations.library.label,
+        meaning: t.home.destinations.library.meaning,
+        href: '/library',
+        icon: Library,
+      },
+      {
+        label: t.home.destinations.blog.label,
+        meaning: t.home.destinations.blog.meaning,
+        href: '/blog',
+        icon: Newspaper,
+      },
+      {
+        label: t.home.destinations.courtyard.label,
+        meaning: t.home.destinations.courtyard.meaning,
+        href: '/courtyard',
+        icon: DoorOpen,
+      },
+    ],
+    [t]
+  )
+
   const heroPost = featuredPosts[0]
   const secondaryPosts = featuredPosts.slice(1, 4)
   const explicitlyFeatured = profile.media_cards.filter((item) => item.is_featured)
-  const favoritePreview = explicitlyFeatured.length > 0
-    ? explicitlyFeatured
-    : (['book', 'movie', 'music'] as const)
-        .map((category) => profile.media_cards.find((item) => item.category === category))
-        .filter(Boolean) as SiteMediaCard[]
+  const favoritePreview =
+    explicitlyFeatured.length > 0
+      ? explicitlyFeatured
+      : ((['book', 'movie', 'music'] as const)
+          .map((category) => profile.media_cards.find((item) => item.category === category))
+          .filter(Boolean) as SiteMediaCard[])
+
   const publicLinks = [
     profile.github_url
       ? { id: 'github', label: 'GitHub', url: profile.github_url, icon: Github }
@@ -135,10 +133,10 @@ export default function Home() {
             <div className="relative flex h-full flex-col">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#f7b84b]">
-                  Welcome to my digital garden
+                  {t.home.welcomeTag}
                 </p>
                 <span className="hidden rounded-full border border-white/14 bg-white/[0.06] px-3 py-1.5 text-[10px] font-bold tracking-[0.12em] text-white/58 sm:block">
-                  前厅 · 网站主页
+                  {t.home.welcomeEyebrow}
                 </span>
               </div>
 
@@ -156,7 +154,7 @@ export default function Home() {
                     )}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-white/55">你好，我是</p>
+                    <p className="text-sm font-semibold text-white/55">{t.home.greeting}</p>
                     <h1 className="mt-1 font-display text-4xl font-bold leading-none xl:text-[2.7rem]">
                       {profile.display_name}
                     </h1>
@@ -174,7 +172,7 @@ export default function Home() {
 
                 <div className="mt-4 border-t border-white/15 pt-3">
                   <p className="text-[11px] font-semibold text-white/48">
-                    从前厅继续认识这座庭院
+                    {t.home.continueExplore}
                   </p>
                   <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
                     {destinations.map((item) => (
@@ -207,14 +205,14 @@ export default function Home() {
               <div className="absolute -right-14 -top-16 h-40 w-40 rounded-full border-[24px] border-[#1d6347]/[0.055]" />
               <div className="relative">
                 <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#9b611f]">
-                  01 / About this place
+                  {t.home.aboutSection.eyebrow}
                 </p>
               </div>
               <h2 className="relative mt-3 max-w-[15rem] font-display text-2xl font-bold leading-tight">
-                一座开放的前厅
+                {t.home.aboutSection.title}
               </h2>
               <p className="relative mt-2.5 text-sm leading-6 text-[#17211d]/62 dark:text-foreground/58">
-                更完整的个人介绍与收藏在书房，公开文章在博客；登录之后，内院才会为你打开。
+                {t.home.aboutSection.description}
               </p>
               {profile.status_text && profile.status_public && (
                 <p className="relative mt-4 border-l-2 border-[#d49a3c] py-1 pl-4 font-display text-sm font-semibold leading-6">
@@ -225,7 +223,7 @@ export default function Home() {
 
             <div className="rounded-[2rem] border border-[#7b6747]/30 bg-[#ece6d8]/60 p-5 shadow-[0_22px_60px_-48px_rgba(23,33,29,0.72)] dark:border-darkBorder dark:bg-darkCard/70">
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#9b611f]">
-                02 / Find me
+                {t.home.findMeSection.eyebrow}
               </p>
               {publicLinks.length > 0 ? (
                 <div className="mt-3 divide-y divide-[#244a38]/10 border-y border-[#244a38]/10">
@@ -252,7 +250,7 @@ export default function Home() {
                 </div>
               ) : (
                 <p className="mt-3 text-sm leading-6 text-[#17211d]/45 dark:text-foreground/45">
-                  联系方式正在整理，稍后再来看看。
+                  {t.home.findMeSection.empty}
                 </p>
               )}
             </div>
@@ -261,10 +259,10 @@ export default function Home() {
 
         <section className="mt-14">
           <SectionHeading
-            eyebrow="Selected writing"
-            title="博客精选"
-            description="从不同技术分区中挑出的近期文章。"
-            action={{ label: '查看全部文章', href: '/blog' }}
+            eyebrow={t.home.blogSection.eyebrow}
+            title={t.home.blogSection.title}
+            description={t.home.blogSection.description}
+            action={{ label: t.home.blogSection.viewAll, href: '/blog' }}
           />
 
           {featuredPosts.length > 0 ? (
@@ -287,17 +285,17 @@ export default function Home() {
                   <div className="relative mt-auto max-w-2xl">
                     <div className="flex flex-wrap items-center gap-2 text-xs font-bold">
                       <span className="rounded-full bg-[#f7b84b] px-3 py-1 text-[#17211d]">
-                        精选阅读
+                        {t.home.blogSection.featuredBadge}
                       </span>
                       <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1 text-white/85">
-                        {heroPost.category?.name || '技术实践'}
+                        {heroPost.category?.name || t.home.blogSection.defaultCategory}
                       </span>
                     </div>
                     <h3 className="mt-4 font-display text-2xl font-bold leading-tight md:text-3xl">
                       {heroPost.title}
                     </h3>
                     <p className="mt-3 line-clamp-2 text-sm leading-6 text-white/68">
-                      {heroPost.excerpt || '打开文章，查看完整的实践记录与实现细节。'}
+                      {heroPost.excerpt || t.home.blogSection.defaultExcerpt}
                     </p>
                     <div className="mt-5 flex items-center justify-between text-xs font-semibold text-white/65">
                       <span className="flex items-center gap-1.5">
@@ -305,7 +303,7 @@ export default function Home() {
                         {formatDate(heroPost.published_at)}
                       </span>
                       <span className="flex items-center gap-1 text-[#f7b84b]">
-                        阅读全文 <ArrowUpRight size={16} />
+                        {t.home.blogSection.readFull} <ArrowUpRight size={16} />
                       </span>
                     </div>
                   </div>
@@ -329,7 +327,7 @@ export default function Home() {
                     <div className="relative flex items-center justify-between gap-2">
                       <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#b56b19]">
                         {String(index + 2).padStart(2, '0')} ·{' '}
-                        {post.category?.name || '技术实践'}
+                        {post.category?.name || t.home.blogSection.defaultCategory}
                       </span>
                       <ArrowUpRight size={14} className="text-[#1d6347]" />
                     </div>
@@ -342,9 +340,9 @@ export default function Home() {
             </div>
           ) : (
             <div className="mt-6 rounded-3xl border border-dashed border-[#17211d]/15 bg-white/45 px-6 py-10 text-center dark:border-darkBorder dark:bg-darkCard/30">
-              <p className="font-display text-lg font-bold">精选内容正在整理</p>
+              <p className="font-display text-lg font-bold">{t.home.blogSection.emptyTitle}</p>
               <p className="mt-2 text-sm text-[#17211d]/50 dark:text-foreground/50">
-                新的技术实践会在完成整理后出现在这里。
+                {t.home.blogSection.emptyDesc}
               </p>
             </div>
           )}
@@ -353,10 +351,10 @@ export default function Home() {
         {favoritePreview.length > 0 && (
           <section className="mt-14">
             <SectionHeading
-              eyebrow="From my shelves"
-              title="最近想与你分享"
-              description="精选收藏会沿着这一层书架展开，左右滑动可以继续浏览。"
-              action={{ label: '进入书房', href: '/library' }}
+              eyebrow={t.home.shelvesSection.eyebrow}
+              title={t.home.shelvesSection.title}
+              description={t.home.shelvesSection.description}
+              action={{ label: t.home.shelvesSection.enterLibrary, href: '/library' }}
             />
             <div className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-4">
               {favoritePreview.map((item) => (
@@ -368,7 +366,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-[#17211d]/10 py-8 text-center text-xs text-[#17211d]/42 dark:border-darkBorder dark:text-foreground/42">
-        © {new Date().getFullYear()} Lumino · 一座持续生长的个人数字庭院
+        © {new Date().getFullYear()} Lumino · {t.brand.footerCopy}
       </footer>
     </div>
   )
@@ -410,7 +408,9 @@ function SectionHeading({
 }
 
 function FavoritePreviewCard({ item }: { item: SiteMediaCard }) {
-  const meta = mediaMeta[item.category]
+  const { t } = useLanguage()
+  const Icon = mediaMetaIcons[item.category] || Sparkles
+  const categoryLabel = t.home.categories[item.category] || item.category
   const creator = item.creator || item.subtitle
   const byline = [creator, item.year].filter(Boolean).join(' · ')
 
@@ -425,14 +425,14 @@ function FavoritePreviewCard({ item }: { item: SiteMediaCard }) {
           />
         ) : (
           <div className="grid h-full place-items-center">
-            <meta.icon size={25} className="text-[#b56b19]" />
+            <Icon size={25} className="text-[#b56b19]" />
           </div>
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col py-1">
         <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#b56b19]">
-          <meta.icon size={11} />
-          {item.badge || meta.label}
+          <Icon size={11} />
+          {item.badge || categoryLabel}
         </p>
         <h3 className="mt-3 line-clamp-2 font-display text-lg font-bold leading-snug">
           {item.title}

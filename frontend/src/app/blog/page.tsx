@@ -21,6 +21,7 @@ import {
 import SiteNav from '@/components/layout/SiteNav'
 import api from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
+import { useLanguage } from '@/hooks/useLanguage'
 
 interface BlogCategory {
   id: number
@@ -59,15 +60,6 @@ const emptyPage: BlogPageResponse = {
   pages: 1,
 }
 
-const formatDate = (value: string | null) =>
-  value
-    ? new Intl.DateTimeFormat('zh-CN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      }).format(new Date(value))
-    : '近期发布'
-
 export default function PublicBlogListPage() {
   return (
     <Suspense
@@ -86,6 +78,7 @@ function PublicBlogList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
+  const { t, formatDate } = useLanguage()
   const activeCategory = searchParams.get('category') || 'all'
   const query = (searchParams.get('q') || '').trim()
   const rawPage = Number.parseInt(searchParams.get('page') || '1', 10)
@@ -98,17 +91,11 @@ function PublicBlogList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const [dailyDigest, setDailyDigest] = useState<any>(null)
-
   useEffect(() => {
     api
       .get('/blog/categories')
       .then((response) => setCategories(response.data))
       .catch(() => setCategories([]))
-    api
-      .get('/site/daily-digest')
-      .then((res) => setDailyDigest(res.data))
-      .catch(() => null)
   }, [])
 
   useEffect(() => {
@@ -135,7 +122,7 @@ function PublicBlogList() {
       .catch((requestError: any) => {
         if (!cancelled) {
           setPageData(emptyPage)
-          setError(requestError.response?.data?.detail || '加载博客文章失败，请稍后重试。')
+          setError(requestError.response?.data?.detail || t.common.loadFailed)
         }
       })
       .finally(() => {
@@ -145,7 +132,7 @@ function PublicBlogList() {
     return () => {
       cancelled = true
     }
-  }, [activeCategory, currentPage, query])
+  }, [activeCategory, currentPage, query, t.common.loadFailed])
 
   useEffect(() => {
     let cancelled = false
@@ -170,8 +157,8 @@ function PublicBlogList() {
 
   const categoryName =
     activeCategory === 'all'
-      ? '全部文章'
-      : categories.find((item) => item.slug === activeCategory)?.name || '当前分区'
+      ? t.blog.allPosts
+      : categories.find((item) => item.slug === activeCategory)?.name || activeCategory
   const canWrite = Boolean(user?.is_root || user?.can_write_blog)
   const heroPost = featuredPosts[0]
   const secondaryFeaturedPosts = featuredPosts.slice(1, 4)
@@ -214,13 +201,13 @@ function PublicBlogList() {
           <div className="relative flex flex-col gap-7 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.26em] text-[#f7b84b]">
-                The journal · 博客
+                {t.blog.heroBadge}
               </p>
               <h1 className="mt-4 font-display text-4xl font-bold md:text-5xl">
-                把实践沉淀成可阅读的能力。
+                {t.blog.heroTitle}
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/66">
-                公开文章无需登录。按技术分区浏览，也可以只在当前分区中检索。
+                {t.blog.heroDesc}
               </p>
             </div>
             {canWrite && (
@@ -229,7 +216,7 @@ function PublicBlogList() {
                 className="inline-flex w-fit items-center gap-2 rounded-full bg-[#f7b84b] px-4 py-2.5 text-sm font-bold text-[#17211d] transition hover:bg-[#ffc963]"
               >
                 <Settings2 size={15} />
-                文章管理
+                {t.blog.manageArticles}
               </Link>
             )}
           </div>
@@ -246,7 +233,7 @@ function PublicBlogList() {
                   : 'border border-[#17211d]/12 bg-[#fffdf8] text-[#17211d]/65 hover:border-[#163a2b]/40 dark:border-darkBorder dark:bg-darkBg dark:text-foreground/65'
               }`}
             >
-              全部文章
+              {t.blog.allPosts}
             </button>
             {categories.map((category) => (
               <button
@@ -275,8 +262,8 @@ function PublicBlogList() {
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder={
                   activeCategory === 'all'
-                    ? '检索全部公开文章'
-                    : `只在「${categoryName}」中检索`
+                    ? t.blog.searchAll
+                    : t.blog.searchInTopic.replace('{topic}', categoryName)
                 }
                 className="w-full rounded-full border border-[#17211d]/12 bg-[#fffdf8] py-3 pl-11 pr-11 text-sm outline-none transition focus:border-[#1d6347]/50 focus:ring-2 focus:ring-[#1d6347]/10 dark:border-darkBorder dark:bg-darkBg"
               />
@@ -288,7 +275,7 @@ function PublicBlogList() {
                     if (query) updateRoute(activeCategory, '', 1)
                   }}
                   className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-[#17211d]/35 hover:bg-[#17211d]/5 hover:text-[#17211d] dark:text-foreground/35"
-                  title="清除检索"
+                  title={t.blog.clearSearch}
                 >
                   <X size={14} />
                 </button>
@@ -298,12 +285,13 @@ function PublicBlogList() {
               type="submit"
               className="rounded-full bg-[#163a2b] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#24553f]"
             >
-              检索
+              {t.blog.searchBtn}
             </button>
           </form>
           <p className="mt-3 text-xs text-[#17211d]/42 dark:text-foreground/42">
-            当前范围：{categoryName}
-            {query ? ` · 关键词「${query}」` : ' · 按发布时间倒序'}
+            {t.blog.currentScope}
+            {categoryName}
+            {query ? t.blog.keyword.replace('{kw}', query) : t.blog.byDate}
           </p>
         </section>
 
@@ -312,12 +300,12 @@ function PublicBlogList() {
             <div className="flex items-end justify-between border-b border-[#17211d]/10 pb-4 dark:border-darkBorder">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b56b19]">
-                  Featured shelf
+                  {t.blog.featuredShelf}
                 </p>
-                <h2 className="mt-1 font-display text-2xl font-bold">精选书架</h2>
+                <h2 className="mt-1 font-display text-2xl font-bold">{t.blog.featuredShelfTitle}</h2>
               </div>
               <span className="text-xs text-[#17211d]/42 dark:text-foreground/42">
-                最多4篇
+                {t.blog.maxPosts}
               </span>
             </div>
 
@@ -337,19 +325,19 @@ function PublicBlogList() {
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,#f7b84b_0,transparent_27%),linear-gradient(135deg,#1e513b,#0b2118)]" />
                   )}
                   <span className="absolute bottom-5 left-5 rounded-full bg-[#f7b84b] px-3 py-1 text-xs font-bold text-[#17211d]">
-                    精选阅读
+                    {t.blog.featuredBadge}
                   </span>
                 </div>
                 <div className="flex flex-col justify-between p-7">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#b56b19]">
-                      {heroPost.category?.name || '未分类'}
+                      {heroPost.category?.name || t.blog.uncategorized}
                     </p>
                     <h3 className="mt-4 font-display text-2xl font-bold leading-tight group-hover:text-[#1d6347] dark:group-hover:text-[#f7b84b]">
                       {heroPost.title}
                     </h3>
                     <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#17211d]/58 dark:text-foreground/58">
-                      {heroPost.excerpt || '打开文章，查看完整的实践记录与结论。'}
+                      {heroPost.excerpt || t.blog.defaultExcerpt}
                     </p>
                   </div>
                   <div className="mt-6 flex items-center justify-between text-xs font-semibold text-[#17211d]/45 dark:text-foreground/45">
@@ -379,17 +367,17 @@ function PublicBlogList() {
               </p>
               <h2 className="mt-1 font-display text-2xl font-bold">
                 {query
-                  ? `「${query}」的检索结果`
+                  ? t.blog.searchResultsTitle.replace('{query}', query)
                   : activeCategory === 'all'
-                    ? '最新文章'
-                    : `${categoryName} · 全部文章`}
+                    ? t.blog.latestWriting
+                    : `${categoryName} · ${t.blog.allPosts}`}
               </h2>
             </div>
             {!loading && (
               <p className="text-sm text-[#17211d]/45 dark:text-foreground/45">
                 {featuredPosts.length && !query
-                  ? `精选之外还有 ${pageData.total} 篇`
-                  : `找到 ${pageData.total} 篇`}
+                  ? t.blog.extraCount.replace('{count}', String(pageData.total))
+                  : t.blog.foundCount.replace('{count}', String(pageData.total))}
               </p>
             )}
           </div>
@@ -406,12 +394,10 @@ function PublicBlogList() {
             <div className="mt-6 rounded-[2rem] border border-dashed border-[#17211d]/18 bg-white/45 px-6 py-16 text-center dark:border-darkBorder dark:bg-darkCard/30">
               <BookOpen className="mx-auto h-8 w-8 text-[#b56b19]" />
               <h3 className="mt-4 font-display text-xl font-bold">
-                {query ? '没有找到匹配的文章' : '这个分区正在整理中'}
+                {query ? t.blog.emptySearchTitle : t.blog.emptyCategoryTitle}
               </h3>
               <p className="mx-auto mt-2 max-w-md text-sm text-[#17211d]/50 dark:text-foreground/50">
-                {query
-                  ? '可以缩短关键词，或者切换到“全部文章”继续检索。'
-                  : '新的实践文章会持续补充。'}
+                {query ? t.blog.emptySearchDesc : t.blog.emptyCategoryDesc}
               </p>
             </div>
           ) : (
@@ -431,7 +417,7 @@ function PublicBlogList() {
                 className="inline-flex h-10 items-center gap-1 rounded-full border border-[#17211d]/12 bg-[#fffdf8] px-4 text-sm font-semibold transition hover:border-[#163a2b]/35 disabled:cursor-not-allowed disabled:opacity-35 dark:border-darkBorder dark:bg-darkCard"
               >
                 <ChevronLeft size={15} />
-                上一页
+                {t.blog.prevPage}
               </button>
               {pageItems.map((item, index) =>
                 item === 'ellipsis' ? (
@@ -460,7 +446,7 @@ function PublicBlogList() {
                 disabled={currentPage >= pageData.pages}
                 className="inline-flex h-10 items-center gap-1 rounded-full border border-[#17211d]/12 bg-[#fffdf8] px-4 text-sm font-semibold transition hover:border-[#163a2b]/35 disabled:cursor-not-allowed disabled:opacity-35 dark:border-darkBorder dark:bg-darkCard"
               >
-                下一页
+                {t.blog.nextPage}
                 <ChevronRight size={15} />
               </button>
             </nav>
@@ -484,6 +470,7 @@ function buildPageItems(page: number, pages: number): Array<number | 'ellipsis'>
 }
 
 function FeaturedMiniCard({ post, rank }: { post: BlogPost; rank: number }) {
+  const { t } = useLanguage()
   return (
     <Link
       href={`/blog/${post.slug}`}
@@ -499,7 +486,7 @@ function FeaturedMiniCard({ post, rank }: { post: BlogPost; rank: number }) {
       <div className="relative flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#b56b19]">
           <Sparkles size={12} />
-          精选 {String(rank).padStart(2, '0')}
+          {t.blog.featuredRank.replace('{rank}', String(rank).padStart(2, '0'))}
         </span>
         <ArrowUpRight size={14} className="text-[#1d6347] dark:text-[#f7b84b]" />
       </div>
@@ -511,6 +498,7 @@ function FeaturedMiniCard({ post, rank }: { post: BlogPost; rank: number }) {
 }
 
 function ArticleCard({ post }: { post: BlogPost }) {
+  const { t } = useLanguage()
   return (
     <Link
       href={`/blog/${post.slug}`}
@@ -518,7 +506,7 @@ function ArticleCard({ post }: { post: BlogPost }) {
     >
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-[0.13em] text-[#b56b19]">
-          {post.category?.name || '未分类'}
+          {post.category?.name || t.blog.uncategorized}
         </span>
         <ChevronRight
           size={18}
@@ -529,7 +517,7 @@ function ArticleCard({ post }: { post: BlogPost }) {
         {post.title}
       </h3>
       <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#17211d]/58 dark:text-foreground/58">
-        {post.excerpt || '打开文章查看完整内容。'}
+        {post.excerpt || t.blog.openToRead}
       </p>
       <div className="mt-auto pt-6">
         <div className="flex flex-wrap gap-1.5">
@@ -546,7 +534,7 @@ function ArticleCard({ post }: { post: BlogPost }) {
         <div className="mt-4 flex items-center justify-between text-xs text-[#17211d]/42 dark:text-foreground/42">
           <span className="flex items-center gap-1">
             <User size={12} />
-            Lumino 编辑部
+            {t.blog.editorialTeam}
           </span>
           <span className="flex items-center gap-1">
             <Eye size={12} />

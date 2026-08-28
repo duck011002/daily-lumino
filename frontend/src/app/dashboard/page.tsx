@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -18,16 +19,60 @@ import {
 } from 'lucide-react'
 import SiteNav from '@/components/layout/SiteNav'
 import { useAuth } from '@/hooks/useAuth'
+import { useLanguage } from '@/hooks/useLanguage'
 
 export default function Dashboard() {
   const { user, loading } = useAuth()
+  const { t } = useLanguage()
+
+  const personalTools = useMemo(
+    () => [
+      {
+        id: 'btn-ledger',
+        title: t.dashboard.tools.ledger.title,
+        description: t.dashboard.tools.ledger.description,
+        href: '/ledger',
+        icon: WalletCards,
+        accent: 'bg-[#e4f0e8] text-[#1d6347] dark:bg-[#1d382c] dark:text-[#86d3ab]',
+        show: true,
+      },
+      {
+        id: 'btn-todos',
+        title: t.dashboard.tools.todos.title,
+        description: t.dashboard.tools.todos.description,
+        href: '/todos',
+        icon: CheckSquare,
+        accent: 'bg-[#f7edd9] text-[#b56b19] dark:bg-[#3d311b] dark:text-[#f7b84b]',
+        show: true,
+      },
+      {
+        id: 'btn-ai-chat',
+        title: t.dashboard.tools.chat.title,
+        description: t.dashboard.tools.chat.description,
+        href: '/chat',
+        icon: MessageCircleHeart,
+        accent: 'bg-[#e8e7f7] text-[#5b57a6] dark:bg-[#29264d] dark:text-[#b9b4ff]',
+        show: true,
+      },
+      {
+        id: 'btn-discipline',
+        title: t.dashboard.tools.discipline.title,
+        description: t.dashboard.tools.discipline.description,
+        href: '/discipline',
+        icon: HeartPulse,
+        accent: 'bg-[#fae8e5] text-[#b9554f] dark:bg-[#4a2525] dark:text-[#ffaaa2]',
+        show: Boolean(user?.is_root || user?.is_discipline_authorized),
+      },
+    ].filter((item) => item.show),
+    [t, user]
+  )
 
   if (loading) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#f2f0e9] text-[#1d6347] dark:bg-darkBg dark:text-[#f7b84b]">
         <div className="text-center">
           <Sparkles className="mx-auto h-7 w-7 animate-pulse" />
-          <p className="mt-3 text-sm font-semibold">正在为你打开内院…</p>
+          <p className="mt-3 text-sm font-semibold">{t.courtyard.redirecting}</p>
         </div>
       </div>
     )
@@ -49,7 +94,7 @@ export default function Dashboard() {
         )}
       </div>
       <div className="min-w-0 pr-7">
-        <p className="text-xs text-white/45">当前账号</p>
+        <p className="text-xs text-white/45">{t.dashboard.currentAccount}</p>
         <p className="mt-1 truncate text-sm font-bold">
           {user.display_name || user.username}
         </p>
@@ -57,45 +102,6 @@ export default function Dashboard() {
       </div>
     </>
   )
-
-  const personalTools = [
-    {
-      id: 'btn-ledger',
-      title: '随手记账',
-      description: '记录每一笔收入与支出，按月查看分类汇总；所有账目仅当前账号可见。',
-      href: '/ledger',
-      icon: WalletCards,
-      accent: 'bg-[#e4f0e8] text-[#1d6347] dark:bg-[#1d382c] dark:text-[#86d3ab]',
-      show: true,
-    },
-    {
-      id: 'btn-todos',
-      title: '待办事项',
-      description: '记录灵感、待读文章与个人计划，仅对当前账号生效与提醒。',
-      href: '/todos',
-      icon: CheckSquare,
-      accent: 'bg-[#f7edd9] text-[#b56b19] dark:bg-[#3d311b] dark:text-[#f7b84b]',
-      show: true,
-    },
-    {
-      id: 'btn-ai-chat',
-      title: 'AI 私人助手',
-      description: '保存只属于当前账号的对话，在需要梳理想法、倾诉或获得帮助时随时回来。',
-      href: '/chat',
-      icon: MessageCircleHeart,
-      accent: 'bg-[#e8e7f7] text-[#5b57a6] dark:bg-[#29264d] dark:text-[#b9b4ff]',
-      show: true,
-    },
-    {
-      id: 'btn-discipline',
-      title: '健康与自律',
-      description: '记录饮食、运动和个人节奏，让长期变化有迹可循。',
-      href: '/discipline',
-      icon: HeartPulse,
-      accent: 'bg-[#fae8e5] text-[#b9554f] dark:bg-[#4a2525] dark:text-[#ffaaa2]',
-      show: user.is_root || user.is_discipline_authorized,
-    },
-  ].filter((item) => item.show)
 
   return (
     <div className="min-h-screen bg-[#f2f0e9] text-[#17211d] transition-colors dark:bg-darkBg dark:text-foreground">
@@ -109,13 +115,13 @@ export default function Dashboard() {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/[0.07] px-3 py-1.5 text-xs font-semibold text-white/62">
                 <LockKeyhole size={13} className="text-[#f7b84b]" />
-                Private courtyard · 私人内院
+                {t.dashboard.badge}
               </div>
               <h1 className="mt-6 font-display text-4xl font-bold md:text-5xl">
-                欢迎回来，{user.display_name || user.username}
+                {t.dashboard.welcomeUser.replace('{name}', user.display_name || user.username)}
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/62 md:text-base">
-                这里不是公开展示区。你的对话、记录和共同空间都按账号权限隔离，只为真正需要的人打开。
+                {t.dashboard.introDesc}
               </p>
             </div>
 
@@ -123,7 +129,7 @@ export default function Dashboard() {
               <Link
                 id="btn-admin-panel"
                 href="/admin"
-                aria-label="进入庭院管理后台"
+                aria-label={t.dashboard.adminPanelAria}
                 className="group relative flex items-center gap-4 rounded-[1.6rem] border border-white/16 bg-[#0b2118]/50 p-4 pr-5 backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-[#f7b84b]/55 hover:bg-[#0b2118]/72 focus:outline-none focus:ring-2 focus:ring-[#f7b84b]/45"
               >
                 {accountCardContent}
@@ -141,9 +147,9 @@ export default function Dashboard() {
 
         <section className="mt-12">
           <SectionHeading
-            eyebrow="For yourself"
-            title="与你自己相处"
-            description="对话、记录和长期照顾自己的工具"
+            eyebrow={t.dashboard.forYourselfEyebrow}
+            title={t.dashboard.forYourselfTitle}
+            description={t.dashboard.forYourselfDesc}
           />
           <div
             className={`mt-6 grid gap-5 ${
@@ -151,16 +157,16 @@ export default function Dashboard() {
             }`}
           >
             {personalTools.map((item) => (
-              <ToolCard key={item.id} item={item} />
+              <ToolCard key={item.id} item={item} openLabel={t.dashboard.openBtn} />
             ))}
           </div>
         </section>
 
         <section className="mt-12">
           <SectionHeading
-            eyebrow="Shared memories"
-            title="与你重要的人一起"
-            description="共同空间会继续承载相册、笔记与真实生活"
+            eyebrow={t.dashboard.sharedMemoriesEyebrow}
+            title={t.dashboard.sharedMemoriesTitle}
+            description={t.dashboard.sharedMemoriesDesc}
           />
           <Link
             id="btn-spaces"
@@ -173,12 +179,12 @@ export default function Dashboard() {
                 <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-[#f7b84b]">
                   <FolderHeart size={23} />
                 </span>
-                <h3 className="mt-7 font-display text-3xl font-bold">共同空间</h3>
+                <h3 className="mt-7 font-display text-3xl font-bold">{t.dashboard.sharedSpacesTitle}</h3>
                 <p className="mt-3 max-w-sm text-sm leading-7 text-white/62">
-                  为情侣、家人或挚友建立只对成员开放的生活空间。
+                  {t.dashboard.sharedSpacesDesc}
                 </p>
                 <span className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-[#f7b84b]">
-                  查看我的空间
+                  {t.dashboard.viewMySpaces}
                   <ArrowRight
                     size={15}
                     className="transition group-hover:translate-x-1"
@@ -190,28 +196,27 @@ export default function Dashboard() {
             <div className="grid gap-4 p-6 sm:grid-cols-2 md:p-8">
               <Feature
                 icon={Images}
-                title="时光相册"
-                description="把照片收进所属空间，与成员共同整理生活片段。"
+                title={t.dashboard.spaceFeatures.album.title}
+                description={t.dashboard.spaceFeatures.album.description}
               />
               <Feature
                 icon={NotebookPen}
-                title="协同笔记"
-                description="共同记录计划、纪念日，以及值得长期保存的文字。"
+                title={t.dashboard.spaceFeatures.notes.title}
+                description={t.dashboard.spaceFeatures.notes.description}
               />
               <Feature
                 icon={ShieldCheck}
-                title="成员权限"
-                description="只有受邀成员可以访问，对外绝不展示真实内容。"
+                title={t.dashboard.spaceFeatures.permissions.title}
+                description={t.dashboard.spaceFeatures.permissions.description}
               />
               <Feature
                 icon={Sparkles}
-                title="持续生长"
-                description="以后新增的共同能力，也会统一从空间中进入。"
+                title={t.dashboard.spaceFeatures.growth.title}
+                description={t.dashboard.spaceFeatures.growth.description}
               />
             </div>
           </Link>
         </section>
-
       </main>
     </div>
   )
@@ -239,6 +244,7 @@ function SectionHeading({
 
 function ToolCard({
   item,
+  openLabel,
 }: {
   item: {
     id: string
@@ -248,6 +254,7 @@ function ToolCard({
     icon: typeof Sparkles
     accent: string
   }
+  openLabel: string
 }) {
   return (
     <Link
@@ -263,7 +270,7 @@ function ToolCard({
         {item.description}
       </p>
       <span className="mt-auto inline-flex items-center gap-2 pt-5 text-sm font-bold text-[#1d6347] dark:text-[#f7b84b]">
-        打开
+        {openLabel}
         <ArrowRight size={15} className="transition group-hover:translate-x-1" />
       </span>
     </Link>

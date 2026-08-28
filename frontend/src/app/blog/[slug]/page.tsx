@@ -19,6 +19,7 @@ import dynamic from 'next/dynamic'
 import api from '@/lib/api'
 import SiteNav from '@/components/layout/SiteNav'
 import { useTheme } from '@/hooks/useTheme'
+import { useLanguage } from '@/hooks/useLanguage'
 
 const MDPreview = dynamic(
   () => import('@uiw/react-markdown-preview').then((mod) => mod.default),
@@ -45,16 +46,11 @@ interface BlogPost {
   author: UserResponse | null
 }
 
-const publicAuthorName = (author: UserResponse | null) => {
-  const name = author?.display_name || author?.username
-  const isAdmin = author?.is_root || name === '超级管理员' || name?.toLowerCase() === 'admin'
-  return isAdmin ? 'Lumino 编辑部' : name || 'Lumino 编辑部'
-}
-
 export default function BlogPostDetail() {
   const params = useParams()
   const slug = params.slug as string
   const { isDark } = useTheme()
+  const { t, formatDate } = useLanguage()
 
   const [post, setPost] = useState<BlogPost | null>(null)
   const [loading, setLoading] = useState(true)
@@ -64,13 +60,14 @@ export default function BlogPostDetail() {
   useEffect(() => {
     if (!slug) return
 
-    api.get(`/blog/posts/${slug}`)
+    api
+      .get(`/blog/posts/${slug}`)
       .then((response) => setPost(response.data))
       .catch((requestError: any) => {
-        setError(requestError.response?.data?.detail || '无法获取文章内容或文章不存在。')
+        setError(requestError.response?.data?.detail || t.blog.postNotFound)
       })
       .finally(() => setLoading(false))
-  }, [slug])
+  }, [slug, t.blog.postNotFound])
 
   const copyShareUrl = async (url: string) => {
     if (navigator.clipboard?.writeText) {
@@ -97,7 +94,7 @@ export default function BlogPostDetail() {
       if (navigator.share) {
         await navigator.share({
           title: post.title,
-          text: post.excerpt || '来 Lumino 阅读这篇技术文章。',
+          text: post.excerpt || t.blog.shareText,
           url,
         })
         return
@@ -114,6 +111,12 @@ export default function BlogPostDetail() {
     }
   }
 
+  const publicAuthorName = (author: UserResponse | null) => {
+    const name = author?.display_name || author?.username
+    const isAdmin = author?.is_root || name === '超级管理员' || name?.toLowerCase() === 'admin'
+    return isAdmin ? t.blog.authorDefault : name || t.blog.authorDefault
+  }
+
   if (loading) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#eef1eb] dark:bg-darkBg">
@@ -125,25 +128,17 @@ export default function BlogPostDetail() {
   if (error || !post) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-[#eef1eb] px-6 text-center dark:bg-darkBg">
-        <p className="max-w-md text-lg font-semibold text-red-500">{error || '文章未找到'}</p>
+        <p className="max-w-md text-lg font-semibold text-red-500">{error || t.blog.emptyTitle}</p>
         <Link
           href="/blog"
           className="inline-flex items-center gap-2 rounded-full bg-[#163a2b] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#24553f]"
         >
           <ArrowLeft size={15} />
-          返回文章列表
+          {t.blog.backToList}
         </Link>
       </div>
     )
   }
-
-  const publishedLabel = post.published_at
-    ? new Intl.DateTimeFormat('zh-CN', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }).format(new Date(post.published_at))
-    : '近期发布'
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#eef1eb] text-[#17211d] dark:bg-darkBg dark:text-foreground">
@@ -165,7 +160,7 @@ export default function BlogPostDetail() {
           className="mx-auto mb-3 flex max-w-4xl items-center gap-2 text-sm font-semibold text-[#1d6347] transition hover:text-[#b56b19] dark:text-[#f7b84b]"
         >
           <ArrowLeft size={16} />
-          返回博客
+          {t.blog.backToBlog}
         </Link>
         <article className="mx-auto max-w-4xl overflow-hidden rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] shadow-[0_32px_90px_-48px_rgba(23,33,29,0.6)] dark:border-darkBorder dark:bg-darkCard">
           {post.cover_url && (
@@ -201,15 +196,15 @@ export default function BlogPostDetail() {
               </span>
               <span className="flex items-center gap-1.5">
                 <Calendar size={14} />
-                {publishedLabel}
+                {formatDate(post.published_at)}
               </span>
               <span className="flex items-center gap-1.5">
                 <Eye size={14} />
-                {post.view_count} 次阅读
+                {t.blog.viewsWithCount.replace('{count}', String(post.view_count))}
               </span>
               <span className="flex items-center gap-1.5">
                 <Clock3 size={14} />
-                技术随笔
+                {t.blog.techEssay}
               </span>
               <button
                 type="button"
@@ -218,13 +213,17 @@ export default function BlogPostDetail() {
                 aria-live="polite"
               >
                 {shareStatus === 'copied' ? <Check size={14} /> : <Share2 size={14} />}
-                {shareStatus === 'copied' ? '链接已复制' : shareStatus === 'error' ? '复制失败' : '分享文章'}
+                {shareStatus === 'copied'
+                  ? t.blog.shareCopied
+                  : shareStatus === 'error'
+                    ? t.common.copyFailed
+                    : t.blog.shareArticle}
               </button>
             </div>
 
             {post.excerpt && (
               <aside className="mt-7 rounded-2xl border border-[#b56b19]/20 bg-[#fdf5e7] px-5 py-4 text-sm leading-7 text-[#5e482c] dark:bg-[#2e2518] dark:text-[#f7dfb8]">
-                <strong className="mr-2">摘要</strong>
+                <strong className="mr-2">{t.blog.abstract}</strong>
                 {post.excerpt}
               </aside>
             )}
@@ -244,7 +243,7 @@ export default function BlogPostDetail() {
       <footer className="relative border-t border-[#17211d]/10 bg-[#eef1eb]/70 py-8 text-center dark:border-darkBorder dark:bg-darkBg/70">
         <p className="flex items-center justify-center gap-1 text-xs text-[#17211d]/45 dark:text-foreground/45">
           <BookOpen size={12} className="text-[#b56b19]" />
-          Lumino 编辑部 · 技术实践与思考
+          {t.blog.footerPost}
         </p>
       </footer>
     </div>

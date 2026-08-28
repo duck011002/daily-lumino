@@ -10,6 +10,7 @@ import {
 import api from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 import BackLink from '@/components/ui/BackLink'
 import Button from '@/components/ui/Button'
 import { copyText } from '@/lib/utils'
@@ -846,7 +847,8 @@ export default function DisciplinePage() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
+            <LanguageToggle />
             <ThemeToggle />
           </div>
         </div>

@@ -16,6 +16,7 @@ import {
 import Link from 'next/link'
 import SiteNav from '@/components/layout/SiteNav'
 import { useAuth } from '@/hooks/useAuth'
+import { useLanguage } from '@/hooks/useLanguage'
 import api from '@/lib/api'
 import {
   defaultSiteProfile,
@@ -26,48 +27,17 @@ import {
 
 type ShelfFilter = 'all' | MediaCategory
 
-const categoryMeta: Record<
-  MediaCategory,
-  { label: string; description: string; icon: typeof BookOpen }
-> = {
-  book: {
-    label: '书籍',
-    description: '读过以后，仍然留在我身上的文字',
-    icon: BookOpen,
-  },
-  movie: {
-    label: '影视',
-    description: '喜欢的电影、剧集与影像作品',
-    icon: Clapperboard,
-  },
-  music: {
-    label: '音乐',
-    description: '专辑、歌单与反复循环的声音',
-    icon: Headphones,
-  },
-  status: {
-    label: '生活片段',
-    description: '最近喜欢的事物与生活切片',
-    icon: Sparkles,
-  },
-  other: {
-    label: '其他收藏',
-    description: '暂时放不进固定分类的喜欢',
-    icon: Library,
-  },
+const categoryIcons: Record<MediaCategory, typeof BookOpen> = {
+  book: BookOpen,
+  movie: Clapperboard,
+  music: Headphones,
+  status: Sparkles,
+  other: Library,
 }
-
-const filters: Array<{ value: ShelfFilter; label: string }> = [
-  { value: 'all', label: '全部收藏' },
-  { value: 'book', label: '书籍' },
-  { value: 'movie', label: '影视' },
-  { value: 'music', label: '音乐 / 歌单' },
-  { value: 'status', label: '生活片段' },
-  { value: 'other', label: '其他' },
-]
 
 export default function LibraryPage() {
   const { user } = useAuth()
+  const { t } = useLanguage()
   const [profile, setProfile] = useState<SiteProfile>(defaultSiteProfile)
   const [activeFilter, setActiveFilter] = useState<ShelfFilter>('all')
   const [loading, setLoading] = useState(true)
@@ -78,6 +48,18 @@ export default function LibraryPage() {
       .then((response) => setProfile(response.data))
       .finally(() => setLoading(false))
   }, [])
+
+  const filters: Array<{ value: ShelfFilter; label: string }> = useMemo(
+    () => [
+      { value: 'all', label: t.library.filters.all },
+      { value: 'book', label: t.library.filters.book },
+      { value: 'movie', label: t.library.filters.movie },
+      { value: 'music', label: t.library.filters.music },
+      { value: 'status', label: t.library.filters.status },
+      { value: 'other', label: t.library.filters.other },
+    ],
+    [t]
+  )
 
   const visibleMedia = useMemo(
     () =>
@@ -137,16 +119,14 @@ export default function LibraryPage() {
                   <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#f7b84b]">
                     The study
                   </p>
-                  <p className="mt-1 text-xs text-white/48">书房 · 关于我与收藏</p>
+                  <p className="mt-1 text-xs text-white/48">{t.library.studySubtitle}</p>
                 </div>
               </div>
-              <h1 className="mt-8 max-w-4xl font-display text-4xl font-bold leading-tight md:text-6xl">
-                这里放着我的自我介绍，
-                <br className="hidden sm:block" />
-                也放着我喜欢的作品。
+              <h1 className="mt-8 max-w-4xl whitespace-pre-line font-display text-4xl font-bold leading-tight md:text-6xl">
+                {t.library.heroTitle}
               </h1>
               <p className="mt-6 max-w-2xl text-sm leading-7 text-white/65 md:text-base">
-                不为每一本书、每一部电影或每一张歌单单独建档，只留下作品、作者和一句真实的推荐理由。
+                {t.library.heroDesc}
               </p>
             </div>
 
@@ -164,7 +144,7 @@ export default function LibraryPage() {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-white/48">书房主人</p>
+                  <p className="text-xs font-semibold text-white/48">{t.library.host}</p>
                   <h2 className="mt-1 truncate font-display text-2xl font-bold">
                     {profile.display_name}
                   </h2>
@@ -179,7 +159,7 @@ export default function LibraryPage() {
                   className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-[#f7b84b]"
                 >
                   <Settings2 size={13} />
-                  编辑书房内容
+                  {t.library.editContent}
                 </Link>
               )}
             </div>
@@ -191,7 +171,7 @@ export default function LibraryPage() {
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b56b19]">
               About me
             </p>
-            <h2 className="mt-3 font-display text-3xl font-bold">关于我</h2>
+            <h2 className="mt-3 font-display text-3xl font-bold">{t.library.aboutMe}</h2>
             <p className="mt-5 whitespace-pre-line text-sm leading-8 text-[#17211d]/65 dark:text-foreground/65 md:text-base">
               {profile.bio}
             </p>
@@ -215,7 +195,7 @@ export default function LibraryPage() {
               <div className="rounded-[2rem] border-2 border-[#244a38]/25 bg-[#e6ebe3] p-7 shadow-[0_18px_50px_-42px_rgba(23,33,29,0.72)] dark:border-[#f7b84b]/25 dark:bg-[#20392f]">
                 <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#1d6347] dark:text-[#f7b84b]">
                   <Sparkles size={14} />
-                  此刻
+                  {t.library.now}
                 </p>
                 <p className="mt-3 border-l-2 border-[#c98b30] pl-4 font-display text-sm font-semibold leading-7">
                   {profile.status_text}
@@ -225,7 +205,7 @@ export default function LibraryPage() {
 
             <div className="rounded-[2rem] border-2 border-[#7b6747]/25 bg-[#eee8dc]/72 p-7 shadow-[0_18px_48px_-44px_rgba(74,58,38,0.7)] dark:border-darkBorder dark:bg-darkCard/65">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b56b19]">
-                Say hello
+                {t.library.sayHello}
               </p>
               {publicLinks.length > 0 ? (
                 <div className="mt-4 divide-y divide-[#244a38]/20 border-y border-[#244a38]/20">
@@ -250,7 +230,7 @@ export default function LibraryPage() {
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-[#17211d]/45 dark:text-foreground/45">
-                  暂时没有公开联系方式。
+                  {t.library.noContact}
                 </p>
               )}
             </div>
@@ -263,11 +243,13 @@ export default function LibraryPage() {
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#b56b19]">
                 Personal recommendations
               </p>
-              <h2 className="mt-2 font-display text-3xl font-bold">我的推荐清单</h2>
+              <h2 className="mt-2 font-display text-3xl font-bold">
+                {t.library.recommendationsTitle}
+              </h2>
               <p className="mt-2 text-sm text-[#17211d]/48 dark:text-foreground/48">
                 {profile.media_cards.length > 0
-                  ? `目前公开分享 ${profile.media_cards.length} 件喜欢的作品。`
-                  : '书房的收藏架还在慢慢整理。'}
+                  ? t.library.recommendationsCount.replace('{count}', String(profile.media_cards.length))
+                  : t.library.recommendationsEmpty}
               </p>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -314,10 +296,10 @@ export default function LibraryPage() {
             <div className="mt-6 rounded-[2rem] border border-dashed border-[#17211d]/14 bg-white/35 px-6 py-14 text-center dark:border-darkBorder dark:bg-darkCard/25">
               <Library className="mx-auto h-8 w-8 text-[#b56b19]/60" />
               <p className="mt-4 font-display text-xl font-bold">
-                {activeFilter === 'all' ? '收藏架还在慢慢整理' : '这个分类暂时没有公开内容'}
+                {activeFilter === 'all' ? t.library.emptyAll : t.library.emptyCategory}
               </p>
               <p className="mt-2 text-sm text-[#17211d]/45 dark:text-foreground/45">
-                喜欢的东西值得慢慢收集，不需要为了填满页面而匆忙添加。
+                {t.library.emptyTip}
               </p>
             </div>
           )}
@@ -325,14 +307,16 @@ export default function LibraryPage() {
       </main>
 
       <footer className="border-t border-[#17211d]/10 py-8 text-center text-xs text-[#17211d]/42 dark:border-darkBorder dark:text-foreground/42">
-        Lumino · 书房里的每一件收藏都由本人挑选
+        {t.library.footer}
       </footer>
     </div>
   )
 }
 
 function RecommendationCard({ item }: { item: SiteMediaCard }) {
-  const meta = categoryMeta[item.category]
+  const { t } = useLanguage()
+  const Icon = categoryIcons[item.category] || Library
+  const metaLabel = t.library.categoryMeta[item.category]?.label || item.category
   const creator = item.creator || item.subtitle
   const byline = [creator, item.year].filter(Boolean).join(' · ')
 
@@ -347,18 +331,18 @@ function RecommendationCard({ item }: { item: SiteMediaCard }) {
           />
         ) : (
           <div className="grid h-full place-items-center">
-            <meta.icon size={42} className="text-[#b56b19]/60" />
+            <Icon size={42} className="text-[#b56b19]/60" />
           </div>
         )}
         <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-[#fffdf8]/90 px-3 py-1.5 text-[10px] font-bold text-[#17211d] shadow-sm backdrop-blur dark:bg-darkBg/85 dark:text-foreground">
-          <meta.icon size={11} className="text-[#b56b19]" />
-          {item.badge || meta.label}
+          <Icon size={11} className="text-[#b56b19]" />
+          {item.badge || metaLabel}
         </div>
       </div>
 
       <div className="flex min-h-52 flex-col p-6">
         <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#b56b19]">
-          {meta.label}
+          {metaLabel}
         </p>
         <h3 className="mt-2 font-display text-2xl font-bold leading-tight">{item.title}</h3>
         {byline && (
@@ -378,7 +362,7 @@ function RecommendationCard({ item }: { item: SiteMediaCard }) {
             rel="noreferrer"
             className="group/link mt-auto inline-flex w-fit items-center gap-2 pt-5 text-xs font-bold text-[#1d6347] dark:text-[#f7b84b]"
           >
-            查看外部介绍
+            {t.library.viewExternal}
             <ArrowUpRight
               size={14}
               className="transition group-hover/link:-translate-y-0.5 group-hover/link:translate-x-0.5"
@@ -386,7 +370,7 @@ function RecommendationCard({ item }: { item: SiteMediaCard }) {
           </a>
         ) : (
           <p className="mt-auto pt-5 text-[11px] text-[#17211d]/32 dark:text-foreground/32">
-            仅作个人推荐，不设站内详情页
+            {t.library.personalOnly}
           </p>
         )}
       </div>

@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 import BackLink from '@/components/ui/BackLink'
 
 interface SpaceSummary {
@@ -145,6 +146,7 @@ export default function SpacesPage() {
             <h1 className="text-lg font-bold text-onSurface dark:text-foreground">我的私密空间</h1>
           </div>
           <div className="flex items-center space-x-3">
+            <LanguageToggle />
             <ThemeToggle />
           </div>
         </div>

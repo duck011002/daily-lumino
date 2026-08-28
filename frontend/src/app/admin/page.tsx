@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/useTheme'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 import { copyText } from '@/lib/utils'
 import BackLink from '@/components/ui/BackLink'
 
@@ -1004,7 +1005,8 @@ export default function AdminConsole() {
               <Settings size={18} /> Lumino 系统超管后台
             </span>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
+            <LanguageToggle />
             <ThemeToggle />
           </div>
         </div>

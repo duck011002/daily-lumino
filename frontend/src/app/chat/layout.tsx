@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth'
 import api from '@/lib/api'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 
 interface Session {
   id: number
@@ -297,7 +298,10 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
                 </p>
               </div>
             </div>
-            <ThemeToggle />
+            <div className="flex items-center gap-1">
+              <LanguageToggle />
+              <ThemeToggle />
+            </div>
           </div>
         </aside>
 

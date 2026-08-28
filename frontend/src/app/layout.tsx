@@ -4,6 +4,7 @@ import { Outfit, Playfair_Display } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 import { AuthProvider } from '@/hooks/useAuth'
 import VisitTracker from '@/components/analytics/VisitTracker'
+import { LanguageProvider } from '@/hooks/useLanguage'
 import './globals.css'
 
 const outfit = Outfit({ subsets: ['latin'], variable: '--font-outfit' })
@@ -39,10 +40,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-CN" suppressHydrationWarning>
       <body className={`${outfit.variable} ${playfair.variable} font-sans min-h-screen flex flex-col`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          <AuthProvider>
-            <VisitTracker />
-            {children}
-          </AuthProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <VisitTracker />
+              {children}
+            </AuthProvider>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -17,6 +17,7 @@ import api, { getErrorMessage } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import BackLink from '@/components/ui/BackLink'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 import AIQuickAction from '@/components/ai/AIQuickAction'
 
 interface TodoItem {
@@ -125,7 +126,10 @@ export default function TodosPage() {
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4 sm:px-6">
           <BackLink href="/" label="返回首页" />
           <h1 className="font-serif text-lg font-bold">待办与灵感清单</h1>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

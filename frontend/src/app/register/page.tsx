@@ -4,12 +4,15 @@ import React, { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 import Logo from '@/components/layout/Logo'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
+import { useLanguage } from '@/hooks/useLanguage'
 
 function RegisterForm() {
   const searchParams = useSearchParams()
+  const { t } = useLanguage()
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -43,22 +46,22 @@ function RegisterForm() {
       !confirmPassword.trim() ||
       !inviteCode.trim()
     ) {
-      setErrorMsg('请填写所有必填字段。')
+      setErrorMsg(t.auth.fillRequired)
       return
     }
 
     if (username.trim().length < 3) {
-      setErrorMsg('用户名长度不能少于 3 个字符。')
+      setErrorMsg(t.auth.errUsernameLen)
       return
     }
 
     if (password.length < 8) {
-      setErrorMsg('密码长度不能少于 8 位。')
+      setErrorMsg(t.auth.errPasswordLen)
       return
     }
 
     if (password !== confirmPassword) {
-      setErrorMsg('两次输入的密码不一致。')
+      setErrorMsg(t.auth.errPasswordMatch)
       return
     }
 
@@ -72,7 +75,7 @@ function RegisterForm() {
         invite_code: inviteCode.trim(),
       })
     } catch (err: any) {
-      setErrorMsg(err.message || '注册失败，请检查填写内容后重试。')
+      setErrorMsg(err.message || t.auth.registerFailed)
       setIsLoading(false)
     }
   }
@@ -82,7 +85,8 @@ function RegisterForm() {
       <div className="absolute top-[10%] left-[20%] w-[35%] h-[35%] bg-primary/10 rounded-full blur-[80px] pointer-events-none" />
       <div className="absolute bottom-[10%] right-[20%] w-[35%] h-[35%] bg-primary/5 rounded-full blur-[80px] pointer-events-none" />
 
-      <div className="absolute top-6 right-6 z-20">
+      <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
+        <LanguageToggle />
         <ThemeToggle />
       </div>
 
@@ -93,10 +97,10 @@ function RegisterForm() {
               <Logo size={36} textSize="text-3xl" />
             </Link>
             <h2 className="text-xl font-bold text-onSurface dark:text-foreground mt-4">
-              开启私密生活
+              {t.auth.openPrivateLife}
             </h2>
             <p className="text-xs text-onSurface/60 dark:text-foreground/60 mt-1">
-              创建您的专属加密避风港账号
+              {t.auth.openPrivateLifeDesc}
             </p>
           </div>
 
@@ -112,14 +116,14 @@ function RegisterForm() {
                 htmlFor="input-username"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                用户名 <span className="text-red-500">*</span>
+                {t.auth.username} <span className="text-red-500">*</span>
               </label>
               <input
                 id="input-username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="请输入用户名（用于登录）"
+                placeholder={t.auth.usernameTip}
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                 required
               />
@@ -130,14 +134,14 @@ function RegisterForm() {
                 htmlFor="input-email"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                邮箱地址 <span className="text-red-500">*</span>
+                {t.auth.email} <span className="text-red-500">*</span>
               </label>
               <input
                 id="input-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="请输入您的邮箱地址"
+                placeholder={t.auth.emailTip}
                 readOnly={Boolean(presetEmail)}
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200 read-only:opacity-80"
                 required
@@ -149,14 +153,14 @@ function RegisterForm() {
                 htmlFor="input-displayname"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                显示名称（可选）
+                {t.auth.displayNameLabel}
               </label>
               <input
                 id="input-displayname"
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="空间中显示的名字"
+                placeholder={t.auth.displayNameTip}
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
               />
             </div>
@@ -166,14 +170,14 @@ function RegisterForm() {
                 htmlFor="input-password"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                密码 <span className="text-red-500">*</span>
+                {t.auth.password} <span className="text-red-500">*</span>
               </label>
               <input
                 id="input-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="至少 8 位安全密码"
+                placeholder={t.auth.passwordTip}
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                 required
               />
@@ -184,14 +188,14 @@ function RegisterForm() {
                 htmlFor="input-confirm-password"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                确认密码 <span className="text-red-500">*</span>
+                {t.auth.confirmPassword} <span className="text-red-500">*</span>
               </label>
               <input
                 id="input-confirm-password"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="请再次输入您的密码"
+                placeholder={t.auth.confirmPasswordTip}
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                 required
               />
@@ -202,39 +206,39 @@ function RegisterForm() {
                 htmlFor="input-invitecode"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                邀请码 <span className="text-red-500">*</span>
+                {t.auth.inviteCode} <span className="text-red-500">*</span>
               </label>
               <input
                 id="input-invitecode"
                 type="text"
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="请输入注册邀请码"
+                placeholder={t.auth.inviteCodePlaceholder}
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                 required
               />
               <p className="mt-2 text-xs text-onSurface/60 dark:text-foreground/60">
-                没有邀请码？
+                {t.auth.noInviteCode}
                 <Link href="/invite-request" className="text-primary hover:underline ml-1">
-                  去申请 ~
+                  {t.auth.applyNow}
                 </Link>
               </p>
             </div>
 
             <Button id="btn-register-submit" type="submit" isLoading={isLoading} className="w-full py-3">
-              注册
+              {isLoading ? t.auth.registering : t.auth.registerBtn}
             </Button>
           </form>
 
           <div className="text-center mt-6">
             <p className="text-sm text-onSurface/60 dark:text-foreground/60">
-              已有账户？
+              {t.auth.hasAccount}
               <Link href="/login" passHref>
                 <span
                   id="link-to-login"
                   className="text-primary hover:underline font-semibold cursor-pointer ml-1"
                 >
-                  前往登录
+                  {t.auth.goToLogin}
                 </span>
               </Link>
             </p>

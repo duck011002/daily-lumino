@@ -4,8 +4,10 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useLanguage } from '@/hooks/useLanguage'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 import Logo from '@/components/layout/Logo'
 
 export default function Login() {
@@ -14,13 +16,14 @@ export default function Login() {
   const [errorMsg, setErrorMsg] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const { login } = useAuth()
+  const { t } = useLanguage()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMsg('')
     if (!usernameOrEmail.trim() || !password.trim()) {
-      setErrorMsg('请填写所有必填字段。')
+      setErrorMsg(t.auth.fillRequired)
       return
     }
 
@@ -28,7 +31,7 @@ export default function Login() {
     try {
       await login(usernameOrEmail, password)
     } catch (err: any) {
-      setErrorMsg(err.message || '登录失败，请重试。')
+      setErrorMsg(err.message || t.auth.loginFailed)
       setIsLoading(false)
     }
   }
@@ -39,7 +42,8 @@ export default function Login() {
       <div className="absolute top-[10%] left-[20%] w-[35%] h-[35%] bg-primary/10 rounded-full blur-[80px] pointer-events-none" />
       <div className="absolute bottom-[10%] right-[20%] w-[35%] h-[35%] bg-primary/5 rounded-full blur-[80px] pointer-events-none" />
 
-      <div className="absolute top-6 right-6 z-20">
+      <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
+        <LanguageToggle />
         <ThemeToggle />
       </div>
 
@@ -50,10 +54,10 @@ export default function Login() {
               <Logo size={36} textSize="text-3xl" />
             </Link>
             <h2 className="text-xl font-bold text-onSurface dark:text-foreground mt-4">
-              欢迎回来
+              {t.auth.loginTitle}
             </h2>
             <p className="text-xs text-onSurface/60 dark:text-foreground/60 mt-1">
-              请登录您的私密空间账户
+              {t.auth.loginSubtitle}
             </p>
           </div>
 
@@ -69,14 +73,14 @@ export default function Login() {
                 htmlFor="input-username"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                用户名或邮箱地址
+                {t.auth.usernameOrEmail}
               </label>
               <input
                 id="input-username"
                 type="text"
                 value={usernameOrEmail}
                 onChange={(e) => setUsernameOrEmail(e.target.value)}
-                placeholder="请输入用户名或邮箱"
+                placeholder={t.auth.usernamePlaceholder}
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                 required
               />
@@ -87,14 +91,14 @@ export default function Login() {
                 htmlFor="input-password"
                 className="block text-xs font-semibold text-onSurface/70 dark:text-foreground/70 uppercase tracking-wider mb-2"
               >
-                密码
+                {t.auth.password}
               </label>
               <input
                 id="input-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="请输入密码"
+                placeholder={t.auth.passwordPlaceholder}
                 className="w-full px-4 py-3 rounded-xl border border-secondary dark:border-darkBorder bg-white/50 dark:bg-darkCard/50 text-onSurface dark:text-foreground placeholder-onSurface/40 dark:placeholder-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
                 required
               />
@@ -106,19 +110,19 @@ export default function Login() {
               isLoading={isLoading}
               className="w-full py-3"
             >
-              登录
+              {isLoading ? t.auth.loggingIn : t.auth.loginBtn}
             </Button>
           </form>
 
           <div className="text-center mt-6 space-y-3">
             <p className="text-sm text-onSurface/60 dark:text-foreground/60">
-              还没有账户？{' '}
+              {t.auth.noAccount}{' '}
               <Link href="/register" passHref>
                 <span
                   id="link-to-register"
                   className="text-primary hover:underline font-semibold cursor-pointer"
                 >
-                  立即注册
+                  {t.auth.signUpNow}
                 </span>
               </Link>
             </p>
@@ -128,7 +132,7 @@ export default function Login() {
                   id="link-to-blog-visitor"
                   className="text-sm text-primary hover:underline font-medium cursor-pointer inline-flex items-center gap-1 transition-colors"
                 >
-                  游客模式：以游客身份浏览公开博客 →
+                  {t.auth.visitorBlog}
                 </span>
               </Link>
             </div>

@@ -20,6 +20,7 @@ import api, { getErrorMessage } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import BackLink from '@/components/ui/BackLink'
 import ThemeToggle from '@/components/layout/ThemeToggle'
+import LanguageToggle from '@/components/layout/LanguageToggle'
 
 interface Overview {
   today_views: number
@@ -221,7 +222,10 @@ export default function VisitAnalyticsPage() {
             <span className="hidden h-5 w-px bg-stone-300 sm:block dark:bg-stone-700" />
             <span className="hidden items-center gap-2 font-display font-bold text-emerald-950 sm:flex dark:text-stone-100"><BarChart3 size={18} />访问洞察</span>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
