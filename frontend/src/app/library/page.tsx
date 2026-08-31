@@ -17,7 +17,7 @@ import Link from 'next/link'
 import SiteNav from '@/components/layout/SiteNav'
 import { useAuth } from '@/hooks/useAuth'
 import { useLanguage } from '@/hooks/useLanguage'
-import api from '@/lib/api'
+import { loadSiteProfile } from '@/lib/publicData'
 import {
   defaultSiteProfile,
   MediaCategory,
@@ -43,9 +43,8 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api
-      .get<SiteProfile>('/site/profile')
-      .then((response) => setProfile(response.data))
+    loadSiteProfile()
+      .then((response) => setProfile(response))
       .finally(() => setLoading(false))
   }, [])
 
@@ -99,6 +98,8 @@ export default function LibraryPage() {
             <img
               src={profile.cover_url}
               alt=""
+              fetchPriority="high"
+              decoding="async"
               className="absolute inset-0 h-full w-full object-cover opacity-25"
             />
           ) : (
@@ -137,6 +138,7 @@ export default function LibraryPage() {
                     <img
                       src={profile.avatar_url}
                       alt={profile.display_name}
+                      decoding="async"
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -327,6 +329,8 @@ function RecommendationCard({ item }: { item: SiteMediaCard }) {
           <img
             src={item.image_url}
             alt={item.title}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
           />
         ) : (

@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import SiteNav from '@/components/layout/SiteNav'
-import api from '@/lib/api'
+import { publicApi } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import { useLanguage } from '@/hooks/useLanguage'
 
@@ -92,10 +92,14 @@ function PublicBlogList() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api
-      .get('/blog/categories')
+    const controller = new AbortController()
+    publicApi
+      .get('/blog/categories', { signal: controller.signal })
       .then((response) => setCategories(response.data))
-      .catch(() => setCategories([]))
+      .catch((error) => {
+        if (error.code !== 'ERR_CANCELED') setCategories([])
+      })
+    return () => controller.abort()
   }, [])
 
   useEffect(() => {
@@ -103,12 +107,13 @@ function PublicBlogList() {
   }, [query])
 
   useEffect(() => {
-    let cancelled = false
+    const controller = new AbortController()
     setLoading(true)
     setError('')
 
-    api
+    publicApi
       .get('/blog/posts-page', {
+        signal: controller.signal,
         params: {
           category: activeCategory === 'all' ? undefined : activeCategory,
           q: query || undefined,
@@ -117,42 +122,37 @@ function PublicBlogList() {
         },
       })
       .then((response) => {
-        if (!cancelled) setPageData(response.data)
+        setPageData(response.data)
       })
       .catch((requestError: any) => {
-        if (!cancelled) {
-          setPageData(emptyPage)
-          setError(requestError.response?.data?.detail || t.common.loadFailed)
-        }
+        if (requestError.code === 'ERR_CANCELED') return
+        setPageData(emptyPage)
+        setError(requestError.response?.data?.detail || t.common.loadFailed)
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       })
 
-    return () => {
-      cancelled = true
-    }
+    return () => controller.abort()
   }, [activeCategory, currentPage, query, t.common.loadFailed])
 
   useEffect(() => {
-    let cancelled = false
+    const controller = new AbortController()
     if (query || currentPage !== 1) {
       setFeaturedPosts([])
       return
     }
     const categoryQuery =
       activeCategory === 'all' ? '' : `?category=${encodeURIComponent(activeCategory)}`
-    api
-      .get(`/blog/featured${categoryQuery}`)
+    publicApi
+      .get(`/blog/featured${categoryQuery}`, { signal: controller.signal })
       .then((response) => {
-        if (!cancelled) setFeaturedPosts(response.data)
+        setFeaturedPosts(response.data)
       })
-      .catch(() => {
-        if (!cancelled) setFeaturedPosts([])
+      .catch((error) => {
+        if (error.code !== 'ERR_CANCELED') setFeaturedPosts([])
       })
-    return () => {
-      cancelled = true
-    }
+    return () => controller.abort()
   }, [activeCategory, currentPage, query])
 
   const categoryName =
@@ -319,6 +319,8 @@ function PublicBlogList() {
                     <img
                       src={heroPost.cover_url}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
                     />
                   ) : (
@@ -480,6 +482,8 @@ function FeaturedMiniCard({ post, rank }: { post: BlogPost; rank: number }) {
         <img
           src={post.cover_url}
           alt=""
+          loading="lazy"
+          decoding="async"
           className="absolute inset-0 h-full w-full object-cover opacity-[0.05] transition duration-500 group-hover:scale-105 group-hover:opacity-[0.1]"
         />
       )}

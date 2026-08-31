@@ -14,6 +14,7 @@ from app.schemas.site import SiteProfile
 PROFILE_CONFIG_KEY = "public_site_profile"
 
 public_router = APIRouter(prefix="/api/site", tags=["site"])
+public_cache_router = APIRouter(prefix="/api/public", tags=["public-site"])
 admin_router = APIRouter(
     prefix="/api/admin",
     tags=["admin-site"],
@@ -90,6 +91,7 @@ def public_site_profile(profile: SiteProfile) -> SiteProfile:
 
 
 @public_router.get("/profile", response_model=SiteProfile)
+@public_cache_router.get("/site-profile", response_model=SiteProfile)
 def get_public_site_profile(db: Session = Depends(get_db)):
     return public_site_profile(load_site_profile(db))
 

@@ -22,6 +22,7 @@ from app.schemas.blog import (
     BlogCategoryResponse,
     BlogCategoryUpdate,
     BlogPostCreate,
+    BlogPostListItemResponse,
     BlogPostPageResponse,
     BlogPostResponse,
     BlogPostUpdate,
@@ -145,6 +146,7 @@ def build_post(
 # ========== PUBLIC ROUTE ==========
 
 @router.get("/api/blog/categories", response_model=List[BlogCategoryResponse])
+@router.get("/api/public/blog/categories", response_model=List[BlogCategoryResponse])
 def list_public_categories(db: Session = Depends(get_db)):
     return db.scalars(select(BlogCategory).order_by(BlogCategory.sort_order, BlogCategory.name)).all()
 
@@ -164,6 +166,7 @@ def list_public_posts(category: str | None = Query(None), db: Session = Depends(
 
 
 @router.get("/api/blog/featured", response_model=List[BlogPostResponse])
+@router.get("/api/public/blog/featured", response_model=List[BlogPostListItemResponse])
 def list_featured_posts(
     category: str | None = Query(None),
     db: Session = Depends(get_db),
@@ -191,6 +194,7 @@ def list_featured_posts(
 
 
 @router.get("/api/blog/posts-page", response_model=BlogPostPageResponse)
+@router.get("/api/public/blog/posts-page", response_model=BlogPostPageResponse)
 def list_public_posts_page(
     category: str | None = Query(None),
     q: str | None = Query(None, max_length=100),

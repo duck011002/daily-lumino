@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from starlette.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -47,6 +48,21 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Lumino API", version="1.1.0", lifespan=lifespan)
 
+
+@app.middleware("http")
+async def public_cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    if (
+        request.method in {"GET", "HEAD"}
+        and request.url.path.startswith("/api/public/")
+        and response.status_code < 400
+    ):
+        response.headers["Cache-Control"] = "public, max-age=0, s-maxage=60, stale-while-revalidate=120"
+        response.headers["Vary"] = "Accept-Encoding"
+        if "set-cookie" in response.headers:
+            del response.headers["set-cookie"]
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -59,6 +75,7 @@ app.include_router(auth.router)
 app.include_router(actions.router)
 app.include_router(admin.router)
 app.include_router(site.public_router)
+app.include_router(site.public_cache_router)
 app.include_router(site.admin_router)
 app.include_router(chat.router)
 app.include_router(spaces.router)

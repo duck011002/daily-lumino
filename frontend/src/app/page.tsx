@@ -18,7 +18,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 import SiteNav from '@/components/layout/SiteNav'
-import api from '@/lib/api'
+import { publicApi } from '@/lib/api'
+import { loadSiteProfile } from '@/lib/publicData'
 import { defaultSiteProfile, SiteMediaCard, SiteProfile } from '@/lib/siteProfile'
 import { useLanguage } from '@/hooks/useLanguage'
 
@@ -47,9 +48,9 @@ export default function Home() {
   const [featuredPosts, setFeaturedPosts] = useState<FeaturedPost[]>([])
 
   useEffect(() => {
-    Promise.allSettled([api.get('/site/profile'), api.get('/blog/featured')]).then(
+    Promise.allSettled([loadSiteProfile(), publicApi.get('/blog/featured')]).then(
       ([profileResult, featuredResult]) => {
-        if (profileResult.status === 'fulfilled') setProfile(profileResult.value.data)
+        if (profileResult.status === 'fulfilled') setProfile(profileResult.value)
         if (featuredResult.status === 'fulfilled') setFeaturedPosts(featuredResult.value.data)
       }
     )
@@ -120,6 +121,8 @@ export default function Home() {
               <img
                 src={profile.cover_url}
                 alt=""
+                fetchPriority="high"
+                decoding="async"
                 className="absolute inset-0 h-full w-full object-cover opacity-35"
               />
             ) : (
@@ -147,6 +150,7 @@ export default function Home() {
                       <img
                         src={profile.avatar_url}
                         alt={profile.display_name}
+                        decoding="async"
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -276,6 +280,8 @@ export default function Home() {
                     <img
                       src={heroPost.cover_url}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
                     />
                   ) : (
@@ -321,6 +327,8 @@ export default function Home() {
                       <img
                         src={post.cover_url}
                         alt=""
+                        loading="lazy"
+                        decoding="async"
                         className="absolute inset-0 h-full w-full object-cover opacity-[0.075] transition duration-500 group-hover:scale-105 group-hover:opacity-[0.13]"
                       />
                     )}
@@ -421,6 +429,8 @@ function FavoritePreviewCard({ item }: { item: SiteMediaCard }) {
           <img
             src={item.image_url}
             alt={item.title}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
         ) : (

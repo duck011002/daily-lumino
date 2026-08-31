@@ -6,6 +6,12 @@ const api = axios.create({
   timeout: 30000,
 })
 
+export const publicApi = axios.create({
+  baseURL: `${process.env.NEXT_PUBLIC_API_BASE || '/api'}/public`,
+  withCredentials: false,
+  timeout: 15000,
+})
+
 api.interceptors.response.use(
   (res) => res,
   async (err) => {

@@ -583,6 +583,44 @@ def test_global_featured_prefers_categories_then_fills_by_recency(db):
     ]
 
 
+def test_public_featured_endpoint_uses_slim_contract(client: TestClient, db):
+    author = User(
+        username="public-cache-writer",
+        email="public-cache-writer@example.com",
+        password=hash_password("password123"),
+        display_name="Public Cache Writer",
+        is_active=True,
+    )
+    category = BlogCategory(name="Public Cache", slug="public-cache")
+    db.add_all([author, category])
+    db.flush()
+    db.add(
+        BlogPost(
+            title="Slim public card",
+            slug="slim-public-card",
+            content="This body must not be returned by the card endpoint.",
+            excerpt="Card excerpt",
+            author_id=author.id,
+            category_id=category.id,
+            is_public=True,
+            is_published=True,
+            is_featured=True,
+            published_at=datetime.now(UTC).replace(tzinfo=None),
+        )
+    )
+    db.commit()
+
+    response = client.get("/api/public/blog/featured")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == (
+        "public, max-age=0, s-maxage=60, stale-while-revalidate=120"
+    )
+    assert "set-cookie" not in response.headers
+    assert [item["slug"] for item in response.json()] == ["slim-public-card"]
+    assert "content" not in response.json()[0]
+
+
 from unittest.mock import patch
 
 def test_parse_markdown_endpoints(client: TestClient, blog_test_setup):

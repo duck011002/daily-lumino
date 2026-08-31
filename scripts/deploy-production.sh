@@ -75,15 +75,15 @@ fi
 
 if (( frontend_changed )); then
   cd "$repo_dir/frontend"
-  if grep -Eq '^frontend/(package.json|package-lock.json)$' <<<"$changed_files" || [[ ! -d node_modules ]]; then
-    nice -n 10 npm ci --no-audit --no-fund
+  if grep -q '^frontend/package-lock.json$' <<<"$changed_files" || [[ ! -f node_modules/.package-lock.json ]]; then
+    nice -n 15 ionice -c3 npm ci --prefer-offline --no-audit --no-fund
   else
     echo "Frontend dependencies unchanged; skipping npm ci."
   fi
 
   export NEXT_TELEMETRY_DISABLED=1
-  export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1280}"
-  nice -n 10 npm run build
+  export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}"
+  nice -n 15 ionice -c3 npm run build
 else
   echo "Frontend unchanged; skipping frontend install, build, and restart."
 fi
@@ -110,6 +110,10 @@ done
 if (( ! healthy )); then
   echo "Deployment completed, but the local health check did not recover in time." >&2
   exit 1
+fi
+
+if grep -Eq '^scripts/(apply-nginx-performance.py|configure-nginx-performance.sh)$' <<<"$changed_files"; then
+  "$repo_dir/scripts/configure-nginx-performance.sh"
 fi
 
 git status --short --branch

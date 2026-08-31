@@ -11,7 +11,7 @@ from app.schemas.site import SiteMediaCard, SiteProfile, SiteProfileLink
 from app.services.auth import hash_password
 
 
-def test_site_profile_persists_utf8_and_filters_private_items(db):
+def test_site_profile_persists_utf8_and_filters_private_items(client, db):
     root = User(
         username="profile-root",
         email="profile-root@example.com",
@@ -92,3 +92,12 @@ def test_site_profile_persists_utf8_and_filters_private_items(db):
     assert public_profile.media_cards[0].year == "2026"
     assert public_profile.media_cards[0].badge == "反复重读"
     assert public_profile.media_cards[0].is_featured is True
+
+    response = client.get("/api/public/site-profile")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == (
+        "public, max-age=0, s-maxage=60, stale-while-revalidate=120"
+    )
+    assert "set-cookie" not in response.headers
+    assert response.json()["email"] is None
+    assert [item["id"] for item in response.json()["media_cards"]] == ["public-book"]
