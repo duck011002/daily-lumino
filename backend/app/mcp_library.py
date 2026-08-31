@@ -17,13 +17,13 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import settings
 from app.database import SessionLocal
+from app.mcp_compat import MCPDiscoveryFallbackMiddleware
 from app.models.mcp_library_token import MCPLibraryToken
 from app.models.user import User
 from app.routers.site import load_site_profile, save_site_profile
 from app.schemas.site import SiteMediaCard, SiteProfile, SiteProfileLink
 from app.services import library_actions
 from app.services.upload import upload_file_to_lsky
-
 
 library_mcp = FastMCP(
     "Lumino Library",
@@ -249,4 +249,6 @@ class MCPLibraryTokenMiddleware:
             current_mcp_library_identity.reset(context_token)
 
 
-library_mcp_asgi = MCPLibraryTokenMiddleware(library_mcp.streamable_http_app())
+library_mcp_asgi = MCPLibraryTokenMiddleware(
+    MCPDiscoveryFallbackMiddleware(library_mcp.streamable_http_app())
+)

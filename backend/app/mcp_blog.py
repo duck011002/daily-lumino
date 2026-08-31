@@ -18,6 +18,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import settings
 from app.database import SessionLocal
+from app.mcp_compat import MCPDiscoveryFallbackMiddleware
 from app.models.blog import BlogCategory, BlogPost
 from app.models.mcp_blog_token import MCPBlogToken
 from app.models.user import User
@@ -379,4 +380,6 @@ class MCPBlogTokenMiddleware:
             current_mcp_blog_identity.reset(context_token)
 
 
-blog_mcp_asgi = MCPBlogTokenMiddleware(blog_mcp.streamable_http_app())
+blog_mcp_asgi = MCPBlogTokenMiddleware(
+    MCPDiscoveryFallbackMiddleware(blog_mcp.streamable_http_app())
+)

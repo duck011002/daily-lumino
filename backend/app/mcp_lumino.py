@@ -13,16 +13,17 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.database import SessionLocal
+from app.mcp_compat import MCPDiscoveryFallbackMiddleware
+from app.models.blog import BlogPost
 from app.models.mcp_lumino_token import MCPLuminoToken
 from app.models.user import User
-from app.models.blog import BlogPost
+from app.routers.site import load_site_profile
 from app.schemas.actions import ActionRequest
 from app.schemas.ledger import LedgerCategoryOut, LedgerEntryOut
 from app.schemas.todo import TodoOut
-from app.services import action_executor, ledger as ledger_service, todos as todo_service
-from app.services import blog_actions, library_actions
-from app.routers.site import load_site_profile
-
+from app.services import action_executor, blog_actions, library_actions
+from app.services import ledger as ledger_service
+from app.services import todos as todo_service
 
 lumino_mcp = FastMCP(
     "Lumino",
@@ -546,4 +547,6 @@ class MCPLuminoTokenMiddleware:
             current_mcp_lumino_identity.reset(context_token)
 
 
-lumino_mcp_asgi = MCPLuminoTokenMiddleware(lumino_mcp.streamable_http_app())
+lumino_mcp_asgi = MCPLuminoTokenMiddleware(
+    MCPDiscoveryFallbackMiddleware(lumino_mcp.streamable_http_app())
+)
