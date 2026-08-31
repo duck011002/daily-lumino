@@ -1,4 +1,14 @@
+---
+id: operations/production-deployment
+type: runbook
+status: implemented
+source_of_truth: docs/operations/current.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino Production Deployment Runbook
+
+> This is the authoritative runbook for production code deployment. Dated release notes and historical plans do not override it.
 
 Use this checklist after code has passed local tests and has been pushed to
 `master`. Do not place passwords, API tokens, or database

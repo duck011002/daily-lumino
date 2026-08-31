@@ -1,4 +1,14 @@
+---
+id: legacy/implementation-v1-1
+type: historical-implementation-plan
+status: superseded
+source_of_truth: docs/README.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino · 实施文档 v1.1（Codex 可执行版）
+
+> **历史基线：** 本文是早期从零搭建阶段的 Codex 执行计划。当前代码结构、发布方式、功能状态和待验证项以 `docs/project-state.yaml`、`docs/catalog.yaml` 及各目录 `current.md` 为准；不要把本文的阶段复选框当作当前待办。
 
 > 基于设计文档 v0.1 与实施文档 v1.0 调整。  
 > 数据库：`114.55.55.110:13306`  

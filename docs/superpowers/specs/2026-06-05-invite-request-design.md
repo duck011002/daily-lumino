@@ -1,4 +1,14 @@
+---
+id: design/invite-request-20260605
+type: historical-design-reference
+status: superseded
+source_of_truth: docs/features/auth-invite/implement.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino 邀请码注册与申请链路设计
+
+> **历史设计参考：** 本文保留当时的设计取舍，不能代替当前实现说明。请先阅读 `docs/features/auth-invite/current.md` 与 `implement.md`。
 
 日期：2026-06-05
 

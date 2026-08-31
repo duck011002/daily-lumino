@@ -1,0 +1,134 @@
+version: 1
+updated_at: 2026-08-28
+source_of_truth: docs/project-state.yaml
+
+features:
+  - id: feature/front-hall
+    title: 前厅（首页）
+    status: implemented
+    current: docs/features/front-hall/current.md
+    implement: docs/features/front-hall/implement.md
+    walkthrough: docs/features/front-hall/walkthrough.md
+  - id: feature/library
+    title: 书房（Library）
+    status: implemented
+    current: docs/features/library/current.md
+    implement: docs/features/library/implement.md
+    walkthrough: docs/features/library/walkthrough.md
+  - id: feature/blog
+    title: 博客
+    status: implemented
+    current: docs/features/blog/current.md
+    implement: docs/features/blog/implement.md
+    walkthrough: docs/features/blog/walkthrough.md
+  - id: feature/courtyard
+    title: 内院与空间
+    status: implemented
+    current: docs/features/courtyard/current.md
+    implement: docs/features/courtyard/implement.md
+    walkthrough: docs/features/courtyard/walkthrough.md
+  - id: feature/chat-ai
+    title: 站内聊天与私有 Agent
+    status: implemented
+    current: docs/features/chat-ai/current.md
+    implement: docs/features/chat-ai/implement.md
+    walkthrough: docs/features/chat-ai/walkthrough.md
+  - id: feature/discipline
+    title: 健康与自律
+    status: implemented
+    current: docs/features/discipline/current.md
+    implement: docs/features/discipline/implement.md
+    walkthrough: docs/features/discipline/walkthrough.md
+  - id: feature/ledger-todos
+    title: 账本与待办
+    status: verified
+    current: docs/features/ledger-todos/current.md
+    implement: docs/features/ledger-todos/implement.md
+    walkthrough: docs/features/ledger-todos/walkthrough.md
+  - id: feature/auth-invite
+    title: 认证与邀请申请
+    status: implemented
+    current: docs/features/auth-invite/current.md
+    implement: docs/features/auth-invite/implement.md
+    walkthrough: docs/features/auth-invite/walkthrough.md
+  - id: feature/bilingual-i18n
+    title: 全站中英文切换
+    status: implemented
+    current: docs/features/bilingual-i18n/current.md
+    implement: docs/features/bilingual-i18n/implement.md
+    walkthrough: docs/features/bilingual-i18n/walkthrough.md
+  - id: feature/mobile-app
+    title: Android 移动端
+    status: implemented
+    current: docs/features/mobile-app/current.md
+    implement: docs/features/mobile-app/implement.md
+    walkthrough: docs/features/mobile-app/walkthrough.md
+
+integrations:
+  - id: integration/esa
+    title: 阿里云 ESA
+    status: verified
+    current: docs/integrations/esa/current.md
+    implement: docs/integrations/esa/implement.md
+    walkthrough: docs/integrations/esa/walkthrough.md
+    verify_command: bash ./scripts/verify-esa.sh
+    performance_command: bash ./scripts/measure-public-performance.sh
+  - id: integration/mcp
+    title: Lumino MCP（项目内）
+    status: implemented
+    current: docs/integrations/mcp/current.md
+    implement: docs/integrations/mcp/implement.md
+    walkthrough: docs/integrations/mcp/walkthrough.md
+    codex_plugin_status: not_installed
+
+operations:
+  - id: operations/production
+    title: 生产部署与回滚
+    status: implemented
+    current: docs/operations/current.md
+    runbook: docs/operations/production-deployment-runbook.md
+  - id: operations/documentation
+    title: 文档与验证门禁
+    status: in_progress
+    current: docs/operations/current.md
+    audit: docs/operations/2026-08-28-documentation-audit.md
+
+milestones:
+  - id: milestone/2026-08-28-current-release
+    title: 2026-08-28 当前发布节点
+    status: partially_verified
+    path: docs/milestones/2026-08-28-current-release.md
+
+legacy_documents:
+  - path: README.md
+    status: superseded
+    current: docs/README.md
+    note: v1.0 阶段功能演示与早期测试说明
+  - path: TODO.md
+    status: superseded
+    current: docs/features/auth-invite/current.md
+    note: 邀请申请流的早期规划，不能作为当前待办
+  - path: lumino_实施文档_v1.1_Codex版.md
+    status: superseded
+    current: docs/README.md
+    note: 从零搭建阶段的旧 Codex 执行计划
+  - path: Lumino_安全与性能UI评审报告.md
+    status: superseded
+    current: docs/project-state.yaml
+    note: 2026-06-05 设计层评审，不能代表当前实现
+  - path: docs/ops/esa-rollout-20260731.md
+    status: superseded
+    current: docs/integrations/esa/current.md
+    note: 包含切换前基线和中途操作记录，仅作历史证据
+  - path: docs/superpowers/plans/2026-06-05-invite-request-flow.md
+    status: superseded
+    current: docs/features/auth-invite/current.md
+  - path: docs/superpowers/plans/2026-08-19-private-agent-routing.md
+    status: superseded
+    current: docs/features/chat-ai/current.md
+  - path: docs/superpowers/plans/2026-08-19-unified-ai-ledger-mcp.md
+    status: superseded
+    current: docs/features/ledger-todos/current.md
+  - path: docs/mobile-app-design.md
+    status: superseded
+    current: docs/features/mobile-app/current.md

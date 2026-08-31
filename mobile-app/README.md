@@ -1,5 +1,7 @@
 # Lumino Mobile Android 客户端
 
+> 本 README 描述移动端源码当前覆盖范围，不等同于发布验收证明。实现状态与待补验证项以 [`docs/features/mobile-app/current.md`](../docs/features/mobile-app/current.md) 和 [`walkthrough.md`](../docs/features/mobile-app/walkthrough.md) 为准。
+
 这是独立于现有 Next.js 前端的 uni-app Vue 3 原型，可直接作为后续 HBuilderX Android 项目的起点。
 
 项目根目录包含 HBuilderX Vue 3/Vite 所需的 `index.html` 入口文件。

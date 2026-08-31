@@ -1,4 +1,14 @@
+---
+id: design/private-agent-routing-20260819
+type: historical-design-reference
+status: superseded
+source_of_truth: docs/features/chat-ai/implement.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino AI 私人 Agent 路由与确认设计
+
+> **历史设计参考：** 本文记录 2026-08-19 的目标与取舍；当前实现边界和验证状态以 `docs/features/chat-ai/` 与 `docs/integrations/mcp/` 为准。
 
 ## 背景
 

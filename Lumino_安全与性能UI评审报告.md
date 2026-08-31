@@ -1,4 +1,14 @@
+---
+id: legacy/security-performance-review-20260605
+type: historical-review
+status: superseded
+source_of_truth: docs/project-state.yaml
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino 安全 / 性能 / UI 评审报告
+
+> **历史评审：** 本文评审的是 2026-06-05 的设计层和空骨架，不能代表当前代码或线上安全状态。当前问题与证据以 `docs/project-state.yaml`、`docs/catalog.yaml` 和对应功能文档为准。
 
 > 评审对象：`lumino_实施文档_v1.1_Codex版.md`（实施文档 v1.1）+ `backend/` 现有骨架
 > 评审日期：2026-06-05

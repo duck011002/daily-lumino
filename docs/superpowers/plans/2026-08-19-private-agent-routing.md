@@ -1,4 +1,14 @@
+---
+id: plan/private-agent-routing-20260819
+type: historical-implementation-plan
+status: superseded
+source_of_truth: docs/features/chat-ai/current.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino Private Agent Routing Implementation Plan
+
+> **历史计划：** 下方复选框是原实施过程记录，不是当前任务队列。修改 AI 路由或 MCP 前，先阅读 `docs/features/chat-ai/current.md`、`walkthrough.md` 与 `docs/integrations/mcp/current.md`。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

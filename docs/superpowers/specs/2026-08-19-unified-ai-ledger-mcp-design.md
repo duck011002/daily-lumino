@@ -1,4 +1,14 @@
+---
+id: design/unified-ai-ledger-mcp-20260819
+type: historical-design-reference
+status: superseded
+source_of_truth: docs/features/ledger-todos/implement.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino 统一 AI、记账与 MCP 设计
+
+> **历史设计参考：** 本文保留原始设计决策。当前能力、偏差和验证结果以 `docs/features/ledger-todos/`、`docs/features/chat-ai/` 与 `docs/integrations/mcp/` 为准。
 
 日期：2026-08-19
 

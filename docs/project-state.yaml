@@ -1,0 +1,24 @@
+version: 1
+project: Lumino
+updated_at: 2026-08-28
+source_commit: 8519dc653b8c12d21a9920bc1fb35a427a6620cd
+environment:
+  production_domain: lovestory1314.fun
+  origin: ECS 114.55.55.110
+  edge: 阿里云 ESA
+  frontend: Next.js 14 App Router
+  backend: FastAPI + SQLAlchemy + MySQL
+  process_manager: PM2
+
+status_notes:
+  - 线上根域名当前由 ESA 返回；动态 HTML、API 和私有页面保持 DYNAMIC/no-store。
+  - /icons、/_next/static 及明确公开图片路径使用边缘长缓存。
+  - 项目内 Lumino MCP 已实现并有独立 HTTP 端点；尚未作为 Codex 插件安装。
+  - 公开页面已接入中英文切换；动态用户内容翻译不属于当前已验证范围。
+  - 本文件是状态摘要，详细事实以各目录 current.md 和 walkthrough.md 为准。
+
+required_next_checks:
+  - 为 docs/catalog.yaml 中的每个 implemented 条目补齐一次可复现 walkthrough。
+  - 建立 scripts/lumino、scripts/verify-docs.sh、scripts/verify-esa.sh 和 scripts/smoke-production.sh。
+  - 更新 ESA 历史 rollout 文档的状态，避免切换前基线被误认为当前状态。
+  - 决定是否把 Lumino MCP 安装为 Codex 可调用连接，并记录安装结果。

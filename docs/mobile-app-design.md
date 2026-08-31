@@ -1,6 +1,16 @@
+---
+id: feature/mobile-app-design
+type: design-reference
+status: superseded
+source_of_truth: docs/features/mobile-app/current.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino Android App 功能迁移设计（审核稿）
 
-状态：待用户审核
+状态：历史审核稿（实现已存在，本文不作为当前状态）
+
+> **边界说明：** 本文是早期待审核设计，保留用于解释产品取舍；`mobile-app/` 已有源码和构建产物，但是否可发布仍以 `docs/features/mobile-app/current.md` 与 `walkthrough.md` 的验证证据为准。
 
 本文只设计独立 Android 客户端。允许为 AI、MCP 和文档解析增加后端/数据库能力，但必须保持现有 Web 页面、既有 API 行为和线上部署稳定。Android 客户端位于 `mobile-app`，使用 uni-app Vue 3，由 HBuilderX 打包。
 

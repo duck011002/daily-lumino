@@ -1,4 +1,14 @@
+---
+id: release/2026-07-27-blog-mcp-domain
+type: historical-release
+status: superseded
+source_of_truth: docs/operations/current.md
+last_reviewed_at: 2026-08-28
+---
+
 # 2026-07-27 Blog, MCP, And Domain Operations
+
+> Historical release evidence only. Current blog, MCP, domain, ESA, and deployment state must be read from `docs/catalog.yaml` and the linked `current.md` files. Unfinished checklist items below are not the active project backlog.
 
 ## Purpose
 

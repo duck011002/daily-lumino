@@ -1,4 +1,14 @@
+---
+id: plan/invite-request-flow-20260605
+type: historical-implementation-plan
+status: superseded
+source_of_truth: docs/features/auth-invite/current.md
+last_reviewed_at: 2026-08-28
+---
+
 # Invite Request Flow Implementation Plan
+
+> **Historical plan:** The checkbox state below was used during the original implementation and is not an active task queue. Read `docs/features/auth-invite/current.md` and `walkthrough.md` before changing this feature.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

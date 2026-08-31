@@ -1,5 +1,7 @@
 # Lumino v1.0 细节优化与全流程测试指南
 
+> **文档入口提示：** 本文是 v1.0 阶段的功能演示与早期测试说明，不是当前线上状态的唯一依据。Agent 和开发者应先阅读 [`docs/README.md`](docs/README.md)、[`docs/project-state.yaml`](docs/project-state.yaml) 与 [`docs/catalog.yaml`](docs/catalog.yaml)；生产发布只以 [`docs/operations/production-deployment-runbook.md`](docs/operations/production-deployment-runbook.md) 为准。
+
 > 当前发布流程以 [`docs/operations/production-deployment-runbook.md`](docs/operations/production-deployment-runbook.md) 为准。统一 AI、个人账本与 Lumino MCP 的发布验收见 [`docs/operations/2026-08-19-unified-ai-ledger-mcp-release.md`](docs/operations/2026-08-19-unified-ai-ledger-mcp-release.md)。仓库文档不得保存生产密码、API Key 或 MCP Token。
 
 本仓库已完成 Lumino v1.0 核心功能的全部细节优化与功能补全。为确保系统稳定并便于测试，我们进行了全流程的联调测试与功能截图。
@@ -192,4 +194,3 @@ cd /opt/lumino
    ```bash
    pm2 restart all
    ```
-

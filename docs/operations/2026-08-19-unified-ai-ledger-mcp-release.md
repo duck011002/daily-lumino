@@ -1,4 +1,14 @@
+---
+id: release/2026-08-19-unified-ai-ledger-mcp
+type: release-walkthrough
+status: verified
+source_of_truth: docs/milestones/2026-08-28-current-release.md
+last_reviewed_at: 2026-08-28
+---
+
 # 统一 AI、个人账本与 Lumino MCP 发布验收
+
+> 本文是 2026-08-19 发布节点的验收与复核清单，不是持续更新的项目总状态。当前能力与待办以 `docs/catalog.yaml` 及相应 `current.md` 为准。
 
 本文是本次实施的发布门禁和上线后检查清单。不得在命令输出、截图、仓库或日志中记录密码、API Key、Cookie、Bearer Token 或真实私密内容。
 

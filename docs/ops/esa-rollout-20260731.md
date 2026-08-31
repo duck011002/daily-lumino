@@ -1,4 +1,14 @@
+---
+id: integration/esa-rollout-20260731
+type: historical-rollout
+status: superseded
+source_of_truth: docs/integrations/esa/current.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino ESA 接入与回滚记录
+
+> **历史记录：** 本文同时包含切换前基线、试验域操作和阶段性验证，表格中的“当前”仅代表 2026-07-31 当时。根域名现在是否经过 ESA、缓存规则是否生效，必须以 `docs/integrations/esa/current.md` 与 `walkthrough.md` 为准。
 
 记录日期：2026-07-31  
 目标域名：`lovestory1314.fun`  

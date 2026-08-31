@@ -1,4 +1,14 @@
+---
+id: integration/esa-visit-analytics
+type: implementation-reference
+status: implemented
+source_of_truth: docs/integrations/esa/current.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino 访问洞察
+
+> 本文描述访问分析的数据规则与 ESA 回源头要求；ESA 是否已接入及最近验证结果以 `docs/integrations/esa/current.md` 和 `walkthrough.md` 为准。
 
 ## 数据最小化
 

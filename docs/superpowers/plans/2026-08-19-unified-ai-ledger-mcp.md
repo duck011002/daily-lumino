@@ -1,4 +1,14 @@
+---
+id: plan/unified-ai-ledger-mcp-20260819
+type: historical-implementation-plan
+status: superseded
+source_of_truth: docs/features/ledger-todos/current.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino Unified AI Ledger and MCP Implementation Plan
+
+> **历史计划：** 下方复选框是原实施过程记录，不是当前任务队列。账本、待办与 MCP 的现状分别以 `docs/features/ledger-todos/current.md` 和 `docs/integrations/mcp/current.md` 为准。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

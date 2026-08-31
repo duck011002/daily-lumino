@@ -1,4 +1,14 @@
+---
+id: legacy/invite-request-todo
+type: historical-plan
+status: superseded
+source_of_truth: docs/features/auth-invite/current.md
+last_reviewed_at: 2026-08-28
+---
+
 # Lumino 邀请码申请流方案规划 (待办事项 / TODO)
+
+> **历史待办：** 邀请申请链路已经有实现与独立文档；本文保留原始规划，不是当前任务队列。当前状态和剩余验证以 `docs/features/auth-invite/` 为准。
 
 本项目计划在未来引入完整的“邀请码申请与审核流 (Invite Request Flow)”。以下为详细规划方案及开发规程：
 
