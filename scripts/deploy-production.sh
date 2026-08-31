@@ -42,6 +42,7 @@ fi
 changed_files="$(git diff --name-only "$old_head" "$new_head")"
 backend_changed=0
 frontend_changed=0
+frontend_swapped=0
 
 if grep -q '^ops/logrotate/lumino-pm2$' <<<"$changed_files" || [[ ! -f /etc/logrotate.d/lumino-pm2 ]]; then
   install -m 0644 "$repo_dir/ops/logrotate/lumino-pm2" /etc/logrotate.d/lumino-pm2
@@ -83,7 +84,30 @@ if (( frontend_changed )); then
 
   export NEXT_TELEMETRY_DISABLED=1
   export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}"
-  nice -n 15 ionice -c3 npm run build
+  frontend_dir="$(pwd -P)"
+  next_build_dir="$frontend_dir/.next-build"
+  next_live_dir="$frontend_dir/.next"
+  next_previous_dir="$frontend_dir/.next-previous"
+  for managed_dir in "$next_build_dir" "$next_live_dir" "$next_previous_dir"; do
+    case "$managed_dir" in
+      "$frontend_dir"/.next*) ;;
+      *)
+        echo "Refusing deployment: unsafe Next.js directory $managed_dir" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  rm -rf -- "$next_build_dir"
+  NEXT_DIST_DIR=.next-build nice -n 15 ionice -c3 npm run build
+
+  pm2 stop lumino-frontend
+  rm -rf -- "$next_previous_dir"
+  if [[ -d "$next_live_dir" ]]; then
+    mv -- "$next_live_dir" "$next_previous_dir"
+  fi
+  mv -- "$next_build_dir" "$next_live_dir"
+  frontend_swapped=1
 else
   echo "Frontend unchanged; skipping frontend install, build, and restart."
 fi
@@ -108,6 +132,15 @@ for _ in {1..12}; do
 done
 
 if (( ! healthy )); then
+  if (( frontend_swapped )) && [[ -d "$next_previous_dir" ]]; then
+    echo "Frontend health check failed; restoring the previous Next.js build." >&2
+    pm2 stop lumino-frontend || true
+    failed_dir="$frontend_dir/.next-failed-$new_head"
+    rm -rf -- "$failed_dir"
+    mv -- "$next_live_dir" "$failed_dir"
+    mv -- "$next_previous_dir" "$next_live_dir"
+    pm2 restart lumino-frontend --update-env
+  fi
   echo "Deployment completed, but the local health check did not recover in time." >&2
   exit 1
 fi

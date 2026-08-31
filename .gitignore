@@ -9,6 +9,9 @@ __pycache__/
 # Node
 node_modules/
 .next/
+.next-build/
+.next-previous/
+.next-failed-*/
 dist/
 out/
 build/
