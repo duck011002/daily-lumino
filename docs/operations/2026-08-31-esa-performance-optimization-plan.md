@@ -1,9 +1,9 @@
 ---
 id: operations/esa-performance-optimization-20260831
 type: implementation-plan
-status: in_progress
-last_inspected_at: 2026-08-31
-last_verified_at: null
+status: verified
+last_inspected_at: 2026-09-01
+last_verified_at: 2026-09-01
 ---
 
 # ESA 接入后的访问与刷新性能优化计划
@@ -263,9 +263,9 @@ venv/Scripts/python.exe -m pytest -q tests/test_blog.py tests/test_blog_paginati
 
 第一批只做“阶段 0 + 阶段 1A”：建立基线脚本、修正 Service Worker、迁移删除旧缓存。它不改变数据库、API 响应或 ESA 控制台规则，却能先解决刷新陈旧和私人数据落入浏览器缓存的风险，也为后续所有性能数字提供可信测量基础。
 
-## 7. 第一批实施记录（2026-08-31）
+## 7. 第一批实施记录（2026-08-31，历史中间状态）
 
-当前状态：阶段 0 与阶段 1A 已在本地实现并完成构建验证，尚未发布到生产环境。因此下面的 ESA 数据是修改前的生产基线，不能当作修改后的线上结果。
+本节保留 2026-08-31 当时的中间状态；下面的 ESA 数据是修改前生产基线，不能当作最终线上结果。最终结果见第 8 节。
 
 已完成：
 
@@ -300,8 +300,43 @@ bash -n scripts/*.sh         passed
 bash scripts/verify-esa.sh   passed（生产只读核验）
 ```
 
-尚未完成：
+当时尚未完成（现状见第 8 节）：
 
 - 在测试域或本地 Chromium 中验证从旧 Service Worker 升级、普通刷新、断网和用户退出后的 Cache Storage 行为。
 - 按正式部署 Runbook 发布本批次；发布后重新执行相同基线脚本，并保存修改后的生产证据。
 - 阶段 1B 及后续压缩、响应瘦身和匿名公共数据缓存尚未开始。
+
+## 8. 最终实施与验证记录（2026-09-01）
+
+已发布的优化：
+
+- Service Worker：导航、API、RSC 和 Next data 全部网络直通，仅缓存带 hash 的 Next 静态资源，并清理旧运行时缓存。
+- 部署：前端在 `.next-build` 完成构建后原子替换 `.next`；失败构建不会覆盖当前线上版本。
+- Nginx：文本 gzip、`gzip_vary`、SSE 禁止压缩；移除重复手写 `Vary`。
+- API：新增 `/api/public/**` 匿名只读接口，精选与列表使用无正文的轻量响应。
+- ESA：在 5/5 规则限制内合并静态资源与公共 API 放行，保持 Cookie/Authorization、HTML、私有 API 和默认请求绕过。
+- 博客详情：GET 只读并可边缘缓存，浏览量改为显式 POST，浏览器按文章 30 分钟去重。
+
+量化证据：
+
+| 项目 | 修改前 | 修改后 |
+| --- | --- | --- |
+| 精选接口压缩响应样本 | 约 14,425 B | 约 1,940 B，下降约 86.6% |
+| 公共 API 边缘状态 | `DYNAMIC` | 首次 `MISS`、重复 `HIT`，TTL 60 秒 |
+| 文章详情读取 | GET 同步写数据库 | GET 只读；POST 单独计数 |
+| `Vary: Accept-Encoding` | 多层重复风险 | 线上实测仅 1 个 |
+| 前端失败构建影响 | 可能污染 `.next` | 临时目录构建成功后原子切换 |
+
+生产证据：
+
+```text
+commit: cf963b187df21b64f763530dfb6bf3822390d395
+PM2: lumino-backend online, lumino-frontend online
+health: backend 200, frontend 200
+article detail: MISS -> HIT, Cache-Control s-maxage=60, gzip
+cookie/query isolation: scripts/verify-esa.sh passed
+```
+
+本地验证：后端全量 `150 passed`；TypeScript、ESLint、PWA 测试与前端生产构建通过；Alembic 为单一 head。全仓 Ruff 仍有历史规则债务，本轮未把无关的大范围格式修复混入性能发布。
+
+后续可选项：Core Web Vitals 多次采样、分类切换请求计数、上传期缩略图、主动 purge 和聚合接口。这些不是本轮已验证结果。

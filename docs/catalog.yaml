@@ -1,5 +1,5 @@
 version: 1
-updated_at: 2026-08-28
+updated_at: 2026-09-01
 source_of_truth: docs/project-state.yaml
 
 features:
@@ -17,7 +17,7 @@ features:
     walkthrough: docs/features/library/walkthrough.md
   - id: feature/blog
     title: 博客
-    status: implemented
+    status: verified
     current: docs/features/blog/current.md
     implement: docs/features/blog/implement.md
     walkthrough: docs/features/blog/walkthrough.md
@@ -84,7 +84,7 @@ integrations:
 operations:
   - id: operations/production
     title: 生产部署与回滚
-    status: implemented
+    status: verified
     current: docs/operations/current.md
     runbook: docs/operations/production-deployment-runbook.md
   - id: operations/documentation

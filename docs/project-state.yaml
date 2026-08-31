@@ -1,7 +1,7 @@
 version: 1
 project: Lumino
-updated_at: 2026-08-28
-source_commit: 8519dc653b8c12d21a9920bc1fb35a427a6620cd
+updated_at: 2026-09-01
+source_commit: cf963b187df21b64f763530dfb6bf3822390d395
 environment:
   production_domain: lovestory1314.fun
   origin: ECS 114.55.55.110
@@ -11,14 +11,17 @@ environment:
   process_manager: PM2
 
 status_notes:
-  - 线上根域名当前由 ESA 返回；动态 HTML、API 和私有页面保持 DYNAMIC/no-store。
-  - /icons、/_next/static 及明确公开图片路径使用边缘长缓存。
+  - 线上根域名当前由 ESA 返回；动态 HTML、私有 API 和私有页面保持 DYNAMIC/no-store。
+  - 匿名 /api/public/** 只读接口使用 60 秒边缘缓存；Cookie 或 Authorization 请求仍绕过缓存。
+  - /icons、/_next/static、Workbox 及明确公开图片路径使用边缘缓存。
+  - 页面导航、RSC、API 和用户数据不会写入 Service Worker Cache Storage。
+  - 前端构建使用临时目录并在成功后原子切换，避免失败构建覆盖线上版本。
   - 项目内 Lumino MCP 已实现并有独立 HTTP 端点；尚未作为 Codex 插件安装。
   - 公开页面已接入中英文切换；动态用户内容翻译不属于当前已验证范围。
   - 本文件是状态摘要，详细事实以各目录 current.md 和 walkthrough.md 为准。
 
 required_next_checks:
   - 为 docs/catalog.yaml 中的每个 implemented 条目补齐一次可复现 walkthrough。
-  - 建立 scripts/lumino、scripts/verify-docs.sh、scripts/verify-esa.sh 和 scripts/smoke-production.sh。
-  - 更新 ESA 历史 rollout 文档的状态，避免切换前基线被误认为当前状态。
+  - 建立 scripts/lumino、scripts/verify-docs.sh 和 scripts/smoke-production.sh；ESA 已有独立验证脚本。
+  - 把生产发布后的验证结果接入统一发布报告，而不是依赖人工复制终端输出。
   - 决定是否把 Lumino MCP 安装为 Codex 可调用连接，并记录安装结果。
