@@ -25,6 +25,7 @@ header_value() {
 fetch_headers() {
   local path="$1"
   local output="$2"
+  shift 2
   curl \
     --silent \
     --show-error \
@@ -33,6 +34,7 @@ fetch_headers() {
     --max-time 30 \
     --output /dev/null \
     --dump-header "$output" \
+    "$@" \
     "${base_url}${path}"
 }
 
@@ -93,6 +95,50 @@ verify_eventual_static_hit() {
   echo "PASS static ${path}"
 }
 
+verify_public_api_cache() {
+  local probe="esa-verify-$(date +%s)-$$"
+  local path="/api/public/site-profile?esa_probe=${probe}"
+  local first_headers="$work_dir/public-first"
+  local hit_headers="$work_dir/public-hit"
+  local separate_headers="$work_dir/public-separate"
+  local cookie_headers="$work_dir/public-cookie"
+
+  fetch_headers "$path" "$first_headers"
+  local first_status
+  first_status="$(header_value "$first_headers" "X-Site-Cache-Status")"
+  assert_contains "$first_status" "MISS" "${path} first ESA status"
+
+  local hit_status=""
+  for _ in 1 2 3 4; do
+    fetch_headers "$path" "$hit_headers"
+    hit_status="$(header_value "$hit_headers" "X-Site-Cache-Status")"
+    if [[ "${hit_status^^}" == *"HIT"* ]]; then
+      break
+    fi
+  done
+
+  local cache_control cache_time
+  cache_control="$(header_value "$hit_headers" "Cache-Control")"
+  cache_time="$(header_value "$hit_headers" "X-Swift-CacheTime")"
+  assert_contains "$cache_control" "s-maxage=60" "${path} cache-control"
+  assert_contains "$hit_status" "HIT" "${path} repeated ESA status"
+  assert_contains "$cache_time" "60" "${path} edge TTL"
+
+  fetch_headers "/api/public/site-profile?esa_probe=${probe}-separate" "$separate_headers"
+  assert_contains \
+    "$(header_value "$separate_headers" "X-Site-Cache-Status")" \
+    "MISS" \
+    "public API query-string isolation"
+
+  fetch_headers "$path" "$cookie_headers" --header "Cookie: esa_verify=fake"
+  assert_contains \
+    "$(header_value "$cookie_headers" "X-Site-Cache-Status")" \
+    "DYNAMIC" \
+    "public API cookie isolation"
+
+  echo "PASS public API MISS-to-HIT, TTL, query and cookie isolation"
+}
+
 for path in / /library /blog /sw.js; do
   verify_dynamic_path "$path"
 done
@@ -111,5 +157,6 @@ if [[ -z "$next_static_path" ]]; then
   exit 1
 fi
 verify_eventual_static_hit "$next_static_path" "31536000"
+verify_public_api_cache
 
 echo "ESA verification passed for ${base_url}"

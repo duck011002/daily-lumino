@@ -46,6 +46,7 @@ async def lifespan(_: FastAPI):
                     stop_visit_analytics_worker()
                     stop_invite_request_worker()
 
+
 app = FastAPI(title="Lumino API", version="1.1.0", lifespan=lifespan)
 
 
@@ -57,11 +58,13 @@ async def public_cache_headers(request: Request, call_next):
         and request.url.path.startswith("/api/public/")
         and response.status_code < 400
     ):
-        response.headers["Cache-Control"] = "public, max-age=0, s-maxage=60, stale-while-revalidate=120"
-        response.headers["Vary"] = "Accept-Encoding"
+        response.headers["Cache-Control"] = (
+            "public, max-age=0, s-maxage=60, stale-while-revalidate=120"
+        )
         if "set-cookie" in response.headers:
             del response.headers["set-cookie"]
     return response
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -92,6 +95,7 @@ app.include_router(ai.router)
 app.mount("/api/mcp/blog", blog_mcp_asgi)
 app.mount("/api/mcp/library", library_mcp_asgi)
 app.mount("/api/mcp/lumino", lumino_mcp_asgi)
+
 
 @app.get("/api/health")
 def health():

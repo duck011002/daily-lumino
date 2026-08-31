@@ -16,7 +16,7 @@ import {
   User,
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import api from '@/lib/api'
+import api, { publicApi } from '@/lib/api'
 import SiteNav from '@/components/layout/SiteNav'
 import { useTheme } from '@/hooks/useTheme'
 import { useLanguage } from '@/hooks/useLanguage'
@@ -46,6 +46,20 @@ interface BlogPost {
   author: UserResponse | null
 }
 
+const VIEW_DEDUPE_MS = 30 * 60 * 1000
+
+const reservePostView = (slug: string) => {
+  const key = `lumino:blog-view:${slug}`
+  try {
+    const viewedAt = Number(window.localStorage.getItem(key) || 0)
+    if (Date.now() - viewedAt < VIEW_DEDUPE_MS) return null
+    window.localStorage.setItem(key, String(Date.now()))
+    return key
+  } catch {
+    return key
+  }
+}
+
 export default function BlogPostDetail() {
   const params = useParams()
   const slug = params.slug as string
@@ -60,13 +74,39 @@ export default function BlogPostDetail() {
   useEffect(() => {
     if (!slug) return
 
-    api
-      .get(`/blog/posts/${slug}`)
-      .then((response) => setPost(response.data))
+    let active = true
+    const controller = new AbortController()
+    const encodedSlug = encodeURIComponent(slug)
+
+    publicApi
+      .get(`/blog/posts/${encodedSlug}`, { signal: controller.signal })
+      .then((response) => {
+        if (!active) return
+        setPost(response.data)
+
+        const reservedKey = reservePostView(slug)
+        if (reservedKey) {
+          api.post(`/blog/posts/${encodedSlug}/view`).catch(() => {
+            try {
+              window.localStorage.removeItem(reservedKey)
+            } catch {
+              // Storage can be unavailable in privacy modes; a later visit may retry.
+            }
+          })
+        }
+      })
       .catch((requestError: any) => {
+        if (!active || requestError?.code === 'ERR_CANCELED') return
         setError(requestError.response?.data?.detail || t.blog.postNotFound)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+      controller.abort()
+    }
   }, [slug, t.blog.postNotFound])
 
   const copyShareUrl = async (url: string) => {

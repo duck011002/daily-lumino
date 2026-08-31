@@ -33,7 +33,6 @@ PUBLIC_API_BLOCK = """    # LUMINO PUBLIC API BEGIN
         proxy_hide_header  Set-Cookie;
         proxy_hide_header  Cache-Control;
         add_header         Cache-Control "public, max-age=0, s-maxage=60, stale-while-revalidate=120";
-        add_header         Vary "Accept-Encoding";
     }
     # LUMINO PUBLIC API END
 

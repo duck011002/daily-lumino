@@ -8,8 +8,17 @@ import zipfile
 from datetime import UTC, datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from sqlalchemy import func, or_, select
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -67,13 +76,16 @@ def ensure_featured_capacity(db: Session, post: BlogPost) -> None:
         if post.category_id is None
         else BlogPost.category_id == post.category_id
     )
-    featured_count = db.scalar(
-        select(func.count(BlogPost.id)).where(
-            BlogPost.is_featured == True,
-            BlogPost.id != post.id,
-            category_filter,
+    featured_count = (
+        db.scalar(
+            select(func.count(BlogPost.id)).where(
+                BlogPost.is_featured == True,
+                BlogPost.id != post.id,
+                category_filter,
+            )
         )
-    ) or 0
+        or 0
+    )
     if featured_count >= MAX_FEATURED_POSTS_PER_CATEGORY:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -105,13 +117,17 @@ def build_category_slug(db: Session, name: str, supplied_slug: str | None) -> st
 
 def ensure_post_manager(post: BlogPost, current_user: User) -> None:
     if not current_user.is_root and post.author_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只能管理自己的博客文章。")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="只能管理自己的博客文章。"
+        )
 
 
 def ensure_private_preview_owner(post: BlogPost, current_user: User) -> None:
     """Allow the author, or a root user, to read a private preview."""
     if not current_user.is_root and post.author_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只能预览自己创作的博客文章。")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="只能预览自己创作的博客文章。"
+        )
 
 
 def build_post(
@@ -143,12 +159,30 @@ def build_post(
     )
 
 
+def get_published_post_or_404(slug: str, db: Session) -> BlogPost:
+    post = db.scalar(
+        select(BlogPost)
+        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
+        .where(
+            BlogPost.slug == slug,
+            BlogPost.is_public.is_(True),
+            BlogPost.is_published.is_(True),
+        )
+    )
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章未找到或未公开。")
+    return post
+
+
 # ========== PUBLIC ROUTE ==========
+
 
 @router.get("/api/blog/categories", response_model=List[BlogCategoryResponse])
 @router.get("/api/public/blog/categories", response_model=List[BlogCategoryResponse])
 def list_public_categories(db: Session = Depends(get_db)):
-    return db.scalars(select(BlogCategory).order_by(BlogCategory.sort_order, BlogCategory.name)).all()
+    return db.scalars(
+        select(BlogCategory).order_by(BlogCategory.sort_order, BlogCategory.name)
+    ).all()
 
 
 @router.get("/api/blog/posts", response_model=List[BlogPostResponse])
@@ -176,8 +210,8 @@ def list_featured_posts(
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
         .where(
             BlogPost.is_featured == True,
-            BlogPost.is_public == True,
-            BlogPost.is_published == True,
+            BlogPost.is_public.is_(True),
+            BlogPost.is_published.is_(True),
         )
         .order_by(BlogPost.published_at.desc(), BlogPost.id.desc())
     )
@@ -231,15 +265,12 @@ def list_public_posts_page(
         count_statement = count_statement.join(BlogPost.category).where(
             BlogCategory.slug == category
         )
-        item_statement = item_statement.join(BlogPost.category).where(
-            BlogCategory.slug == category
-        )
+        item_statement = item_statement.join(BlogPost.category).where(BlogCategory.slug == category)
 
     total = db.scalar(count_statement) or 0
     pages = max(1, (total + page_size - 1) // page_size)
     items = db.scalars(
-        item_statement
-        .order_by(BlogPost.published_at.desc(), BlogPost.id.desc())
+        item_statement.order_by(BlogPost.published_at.desc(), BlogPost.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
@@ -252,27 +283,42 @@ def list_public_posts_page(
     )
 
 
+@router.get("/api/public/blog/posts/{slug}", response_model=BlogPostResponse)
+def get_cacheable_public_post_by_slug(slug: str, db: Session = Depends(get_db)):
+    """Read a published article without mutating state so ESA can cache it."""
+    return get_published_post_or_404(slug, db)
+
+
 @router.get("/api/blog/posts/{slug}", response_model=BlogPostResponse)
 def get_public_post_by_slug(slug: str, db: Session = Depends(get_db)):
-    post = db.scalar(
-        select(BlogPost)
-        .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
-        .where(BlogPost.slug == slug, BlogPost.is_public == True, BlogPost.is_published == True)
-    )
-    if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="文章未找到或未公开。"
-        )
-
-    # Increment view count
+    """Backward-compatible detail endpoint that retains the legacy view increment."""
+    post = get_published_post_or_404(slug, db)
     post.view_count += 1
     db.commit()
     db.refresh(post)
-
     return post
 
 
+@router.post("/api/blog/posts/{slug}/view", status_code=status.HTTP_204_NO_CONTENT)
+def record_public_post_view(slug: str, db: Session = Depends(get_db)):
+    """Increment views explicitly without coupling a database write to article reads."""
+    result = db.execute(
+        update(BlogPost)
+        .where(
+            BlogPost.slug == slug,
+            BlogPost.is_public == True,
+            BlogPost.is_published == True,
+        )
+        .values(view_count=BlogPost.view_count + 1)
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章未找到或未公开。")
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 # ========== BLOG WRITER ROUTES ==========
+
 
 @router.get("/api/blog/me/posts", response_model=List[BlogPostResponse])
 def list_my_posts(
@@ -307,7 +353,9 @@ def preview_my_post(
     return post
 
 
-@router.post("/api/blog/me/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/api/blog/me/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED
+)
 def create_my_post(
     post_in: BlogPostCreate,
     current_user: User = Depends(require_blog_writer),
@@ -339,7 +387,9 @@ def update_my_post(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
     ensure_post_manager(post, current_user)
     if "is_featured" in post_in.model_fields_set and not current_user.is_root:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="只有超级管理员可以设置精选文章。")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="只有超级管理员可以设置精选文章。"
+        )
     return apply_post_update(post, post_in, db)
 
 
@@ -360,14 +410,21 @@ def delete_my_post(
 
 # ========== ADMIN ROUTE ==========
 
+
 @router.get("/api/admin/blog/categories", response_model=List[BlogCategoryResponse])
 def list_admin_categories(
     db: Session = Depends(get_db), current_user: User = Depends(require_root)
 ):
-    return db.scalars(select(BlogCategory).order_by(BlogCategory.sort_order, BlogCategory.name)).all()
+    return db.scalars(
+        select(BlogCategory).order_by(BlogCategory.sort_order, BlogCategory.name)
+    ).all()
 
 
-@router.post("/api/admin/blog/categories", response_model=BlogCategoryResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/api/admin/blog/categories",
+    response_model=BlogCategoryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_category(
     category_in: BlogCategoryCreate,
     db: Session = Depends(get_db),
@@ -408,7 +465,9 @@ def update_category(
             )
         )
         if existing:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分区名称或标识已存在。")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="分区名称或标识已存在。"
+            )
     for key, value in changes.items():
         setattr(category, key, value)
     db.commit()
@@ -432,7 +491,11 @@ def delete_category(
     return {"status": "ok", "message": "博客分区已删除，原文章已归入未分类。"}
 
 
-@router.get("/api/admin/blog/posts", response_model=List[BlogPostResponse], dependencies=[Depends(require_root)])
+@router.get(
+    "/api/admin/blog/posts",
+    response_model=List[BlogPostResponse],
+    dependencies=[Depends(require_root)],
+)
 def list_admin_posts(db: Session = Depends(get_db)):
     posts = db.scalars(
         select(BlogPost)
@@ -442,7 +505,9 @@ def list_admin_posts(db: Session = Depends(get_db)):
     return posts
 
 
-@router.post("/api/admin/blog/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/api/admin/blog/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED
+)
 def create_admin_post(
     post_in: BlogPostCreate,
     db: Session = Depends(get_db),
@@ -469,14 +534,10 @@ def update_admin_post(
     current_user: User = Depends(require_root),
 ):
     post = db.scalar(
-        select(BlogPost)
-        .options(joinedload(BlogPost.author))
-        .where(BlogPost.id == post_id)
+        select(BlogPost).options(joinedload(BlogPost.author)).where(BlogPost.id == post_id)
     )
     if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
 
     return apply_post_update(post, post_in, db)
 
@@ -545,9 +606,7 @@ def delete_admin_post(
 ):
     post = db.scalar(select(BlogPost).where(BlogPost.id == post_id))
     if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
 
     db.delete(post)
     db.commit()
@@ -561,14 +620,18 @@ async def parse_markdown_blog(
     current_user: User = Depends(require_blog_writer),
 ):
     filename_lower = file.filename.lower()
-    if not filename_lower.endswith(".md") and not filename_lower.endswith(".markdown") and not filename_lower.endswith(".zip"):
+    if (
+        not filename_lower.endswith(".md")
+        and not filename_lower.endswith(".markdown")
+        and not filename_lower.endswith(".zip")
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="只能上传 Markdown (.md) 格式或包含 Markdown 的 .zip 压缩包。"
+            detail="只能上传 Markdown (.md) 格式或包含 Markdown 的 .zip 压缩包。",
         )
-    
+
     content_str = ""
-    
+
     if filename_lower.endswith(".zip"):
         temp_dir = tempfile.mkdtemp()
         zip_path = os.path.join(temp_dir, "temp.zip")
@@ -577,11 +640,11 @@ async def parse_markdown_blog(
             contents = await file.read()
             with open(zip_path, "wb") as f:
                 f.write(contents)
-                
+
             # Extract
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(temp_dir)
-                
+
             # Find markdown file
             md_file_path = None
             for root, dirs, files_in_dir in os.walk(temp_dir):
@@ -591,17 +654,17 @@ async def parse_markdown_blog(
                         break
                 if md_file_path:
                     break
-                    
+
             if not md_file_path:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="未在 ZIP 压缩包中找到任何 Markdown (.md) 文件。"
+                    detail="未在 ZIP 压缩包中找到任何 Markdown (.md) 文件。",
                 )
-                
+
             # Read markdown
             with open(md_file_path, "rb") as f:
                 md_contents = f.read()
-                
+
             try:
                 content_str = md_contents.decode("utf-8")
             except UnicodeDecodeError:
@@ -610,46 +673,50 @@ async def parse_markdown_blog(
                 except UnicodeDecodeError:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="无法解析 Markdown 文件编码，请确保文件保存为 UTF-8 编码。"
+                        detail="无法解析 Markdown 文件编码，请确保文件保存为 UTF-8 编码。",
                     )
-            
+
             # Find all image links: ![alt](path)
             img_pattern = r"!\[(.*?)\]\((.*?)\)"
             matches = re.findall(img_pattern, content_str)
-            
+
             md_dir = os.path.dirname(md_file_path)
             replacements = {}
-            
+
             for alt_text, img_path in matches:
                 img_path_clean = img_path.strip()
                 if img_path_clean.startswith(("http://", "https://", "data:")):
                     continue
-                
+
                 # Resolve relative path inside zip structure
                 resolved_img_path = os.path.normpath(os.path.join(md_dir, img_path_clean))
                 # Ensure safety (stay within temp_dir)
-                if resolved_img_path.startswith(temp_dir) and os.path.exists(resolved_img_path) and os.path.isfile(resolved_img_path):
+                if (
+                    resolved_img_path.startswith(temp_dir)
+                    and os.path.exists(resolved_img_path)
+                    and os.path.isfile(resolved_img_path)
+                ):
                     mime_type, _ = mimetypes.guess_type(resolved_img_path)
                     if not mime_type:
                         mime_type = "image/png"
-                        
+
                     with open(resolved_img_path, "rb") as img_file:
                         img_bytes = img_file.read()
-                        
+
                     img_name = os.path.basename(resolved_img_path)
                     try:
                         url = await upload_file_to_lsky(img_name, img_bytes, mime_type, db)
                         replacements[img_path] = url
                     except Exception as e:
                         print(f"Failed to upload image {img_name} in zip: {e}")
-            
+
             # Replace local links
             for local_path, remote_url in replacements.items():
                 content_str = content_str.replace(f"({local_path})", f"({remote_url})")
-                
+
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
-            
+
     else:
         contents = await file.read()
         try:
@@ -660,26 +727,20 @@ async def parse_markdown_blog(
             except UnicodeDecodeError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="无法解析文件编码，请确保文件保存为 UTF-8 编码。"
+                    detail="无法解析文件编码，请确保文件保存为 UTF-8 编码。",
                 )
-            
+
     # 默认值
-    meta = {
-        "title": "",
-        "slug": "",
-        "cover_url": None,
-        "excerpt": None,
-        "tags": None
-    }
+    meta = {"title": "", "slug": "", "cover_url": None, "excerpt": None, "tags": None}
     body = content_str
-    
+
     # 检查是否以 --- 开头
     pattern = r"^\s*---\s*\n(.*?)\n\s*---\s*\n(.*)"
     match = re.match(pattern, content_str, re.DOTALL)
     if match:
         front_matter = match.group(1)
         body = match.group(2)
-        
+
         for line in front_matter.split("\n"):
             line = line.strip()
             if not line or line.startswith("#"):
@@ -688,10 +749,12 @@ async def parse_markdown_blog(
                 key, val = line.split(":", 1)
                 key = key.strip().lower()
                 val = val.strip()
-                
-                if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+
+                if (val.startswith('"') and val.endswith('"')) or (
+                    val.startswith("'") and val.endswith("'")
+                ):
                     val = val[1:-1]
-                
+
                 if key == "title":
                     meta["title"] = val
                 elif key == "slug":
@@ -714,9 +777,5 @@ async def parse_markdown_blog(
             else:
                 meta["title"] = first_line
             meta["slug"] = f"post-{uuid.uuid4().hex[:8]}"
-            
-    return {
-        "meta": meta,
-        "content": body
-    }
 
+    return {"meta": meta, "content": body}
