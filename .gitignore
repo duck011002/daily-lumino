@@ -27,6 +27,7 @@ backend/.env.pre-*
 .esa-staging/
 .playwright-mcp/
 .qoder/
+.markdown-collab/
 tmp/
 
 # OS & IDE files
@@ -39,3 +40,4 @@ backend/test_*.py
 frontend/tsconfig.tsbuildinfo
 frontend/public/sw.js
 frontend/public/workbox-*.js
+frontend/public/worker-*.js

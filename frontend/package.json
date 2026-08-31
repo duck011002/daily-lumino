@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:pwa": "node --test tests/pwa-cache-policy.test.cjs",
+    "test:pwa:generated": "node --test tests/generated-sw.test.cjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",

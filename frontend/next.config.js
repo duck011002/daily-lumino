@@ -1,6 +1,19 @@
+const {
+  buildExcludes,
+  publicExcludes,
+  runtimeCaching,
+} = require('./pwa-cache-policy')
+
 const withPWA = require('next-pwa')({
   dest: 'public',
   disable: process.env.NODE_ENV === 'development',
+  cacheStartUrl: false,
+  dynamicStartUrl: false,
+  cacheOnFrontEndNav: false,
+  reloadOnOnline: false,
+  runtimeCaching,
+  buildExcludes,
+  publicExcludes,
 })
 
 const apiOrigin = process.env.LUMINO_API_ORIGIN || 'http://127.0.0.1:8000'
