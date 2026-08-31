@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
 import argparse
 from pathlib import Path
 
@@ -83,7 +81,7 @@ def main() -> None:
     args = parser.parse_args()
 
     rendered = render(args.source.read_text(encoding="utf-8"))
-    args.destination.write_text(rendered, encoding="utf-8", newline="\n")
+    args.destination.write_text(rendered, encoding="utf-8")
 
 
 if __name__ == "__main__":
