@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import BlogPostClient, { BlogPost, getEnhancedAlt } from './BlogPostClient'
+import BlogPostClient from './BlogPostClient'
+import { BlogPost, getEnhancedAlt } from './utils'
 
 async function getPost(slug: string): Promise<BlogPost | null> {
   try {
