@@ -27,6 +27,15 @@ frontend: npx tsc --noEmit, npm run lint, npm run build -> passed
 edge: bash scripts/verify-esa.sh -> passed
 ```
 
-软删除生产验收将在迁移部署后补记：只允许 ID 12、25 进入回收状态，ID 26 与其余文章/草稿必须继续有效。ESA 的公共 API 最长可能保留 60 秒旧缓存，验收使用唯一查询参数穿透既有缓存，再复核无参数请求的最终状态。
+## 生产软删除验收（2026-09-01）
+
+- 部署提交：`51863c7f8e1754fde5541b2b7105bc682050fcba`；Alembic：`e3b7c1d9a204 (head)`。
+- dry-run：有效文章总数 22，精确目标只有 ID 12、25，ID 与 slug 均匹配。
+- apply：只为 ID 12、25 写入 `deleted_at`，有效文章总数由 22 变为 20；没有执行物理删除。
+- Lumino MCP 回读：20 篇有效文章，ID 12、25 不再返回，ID 26 与其余 19 篇仍在。
+- ESA 公网回归：ID 12、25 的公共详情返回 404；新文 ID 26 以及随机抽查的旧文 ID 23、24 返回 200。
+- 服务回归：`/api/health` 返回 `status=ok`；前后端 PM2 均为 `online`；`scripts/verify-esa.sh` 全部通过。
+
+ESA 的公共 API 最长可能保留 60 秒旧缓存，因此上述详情验收使用唯一查询参数绕开已存在的缓存对象；后续无参数请求会在 TTL 到期后与源站状态一致。
 
 待后续量化：分类快速切换时的取消请求数、相同网络下 LCP/CLS 多次采样，以及发布后主动 purge。短 TTL 已保证没有 purge 时的最终一致性。
