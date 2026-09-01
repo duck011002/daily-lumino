@@ -105,9 +105,9 @@ legacy_documents:
     current: docs/README.md
     note: v1.0 阶段功能演示与早期测试说明
   - path: TODO.md
-    status: superseded
+    status: mixed
     current: docs/features/auth-invite/current.md
-    note: 邀请申请流的早期规划，不能作为当前待办
+    note: 顶部是当前冻结性能待办；邀请码主体是早期规划，不能作为当前状态
   - path: lumino_实施文档_v1.1_Codex版.md
     status: superseded
     current: docs/README.md

@@ -13,6 +13,7 @@ environment:
 status_notes:
   - 线上根域名当前由 ESA 返回；动态 HTML、私有 API 和私有页面保持 DYNAMIC/no-store。
   - 匿名 /api/public/** 只读接口使用 60 秒边缘缓存；Cookie 或 Authorization 请求仍绕过缓存。
+  - 用户确认 ESA 已配置单 IP 200 次/10 秒的边缘限流；未进行生产突发压测，执行动作与命中日志仍以控制台为准。
   - /icons、/_next/static、Workbox 及明确公开图片路径使用边缘缓存。
   - 页面导航、RSC、API 和用户数据不会写入 Service Worker Cache Storage。
   - 前端构建使用临时目录并在成功后原子切换，避免失败构建覆盖线上版本。
@@ -25,3 +26,4 @@ required_next_checks:
   - 建立 scripts/lumino、scripts/verify-docs.sh 和 scripts/smoke-production.sh；ESA 已有独立验证脚本。
   - 把生产发布后的验证结果接入统一发布报告，而不是依赖人工复制终端输出。
   - 决定是否把 Lumino MCP 安装为 Codex 可调用连接，并记录安装结果。
+  - TODO.md 顶部 8 项性能待办默认冻结，只有用户明确点名时才能实施。

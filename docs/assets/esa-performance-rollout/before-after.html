@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lumino 优化前后</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0e1420; color: #f4f7fb; font-family: "Microsoft YaHei", sans-serif; }
+    main { width: 1600px; height: 900px; padding: 52px 70px; }
+    h1 { margin: 0 0 34px; font-size: 43px; }
+    .rows { display: grid; gap: 18px; }
+    .row { display: grid; grid-template-columns: 230px 1fr 70px 1fr; align-items: stretch; gap: 18px; }
+    .label, .box { border-radius: 16px; padding: 22px 25px; }
+    .label { display: flex; align-items: center; background: #1c2637; color: #aebed4; font-size: 20px; font-weight: 700; }
+    .box { min-height: 125px; background: #171f2e; border: 1px solid #344157; }
+    .before { border-left: 6px solid #ef6674; }
+    .after { border-left: 6px solid #4bd795; }
+    .box small { display: block; color: #7f91aa; font-size: 15px; margin-bottom: 10px; }
+    .box strong { font-size: 28px; }
+    .box p { margin: 8px 0 0; color: #b7c4d6; font-size: 17px; }
+    .arrow { display: flex; align-items: center; justify-content: center; color: #647895; font-size: 38px; }
+    .headline { display: flex; justify-content: space-between; margin-bottom: 24px; color: #8092aa; padding-left: 250px; padding-right: 70px; font-size: 18px; }
+    .badge { margin-top: 25px; display: inline-block; padding: 15px 24px; border-radius: 999px; color: #072014; background: #63e6a7; font-size: 21px; font-weight: 800; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>从源站硬扛，到边缘优先：四组可验证变化</h1>
+  <div class="headline"><span>优化前</span><span>优化后</span></div>
+  <section class="rows">
+    <div class="row"><div class="label">精选接口体积</div><div class="box before"><small>压缩传输样本</small><strong>约 14.4 KB</strong><p>列表携带完整 Markdown 正文</p></div><div class="arrow">→</div><div class="box after"><small>压缩传输样本</small><strong>约 1.94 KB</strong><p>只返回卡片字段，下降约 86.5%</p></div></div>
+    <div class="row"><div class="label">公共 API</div><div class="box before"><small>ESA 状态</small><strong>DYNAMIC</strong><p>每次请求都回到 2C2G 源站</p></div><div class="arrow">→</div><div class="box after"><small>ESA 状态</small><strong>MISS → HIT</strong><p>匿名只读接口边缘缓存 60 秒</p></div></div>
+    <div class="row"><div class="label">文章详情</div><div class="box before"><small>GET 行为</small><strong>读取 + 写浏览量</strong><p>破坏幂等性并产生数据库写事务</p></div><div class="arrow">→</div><div class="box after"><small>GET / POST</small><strong>读写分离</strong><p>GET 可缓存，POST 轻量计数</p></div></div>
+    <div class="row"><div class="label">生产构建</div><div class="box before"><small>.next 目录</small><strong>边构建边覆盖</strong><p>失败可能留下半成品资源</p></div><div class="arrow">→</div><div class="box after"><small>.next-build 目录</small><strong>成功后原子切换</strong><p>低配服务器重试期间旧版本继续服务</p></div></div>
+  </section>
+  <span class="badge">公共流量前移到 ESA，私有边界没有放宽</span>
+</main>
+</body>
+</html>

@@ -3,7 +3,7 @@ id: integration/mcp
 type: current
 status: implemented
 last_verified_at: 2026-08-19
-codex_plugin_status: not_installed
+codex_plugin_status: installed
 ---
 
 # Lumino MCP 当前状态
@@ -16,5 +16,8 @@ codex_plugin_status: not_installed
 - Token：后端只保存哈希，按用户绑定和最小权限范围签发。
 - 安全：普通用户不能获取 Library 作用域；博客自动发布受权限和开关控制。
 - Codex 状态：尚未安装进 Codex，因此当前不能把“项目内 MCP 已实现”描述成“Codex 已可调用”。
+
+- Codex 当前已配置 `lumino`、`lumino-blog` 和 `lumino-library` 三个 Streamable HTTP 连接；令牌只从环境变量读取。
+- 可重复调用脚本：`scripts/lumino-mcp-call.py`，参数从 UTF-8 JSON 文件读取，不在命令行或输出中暴露令牌。
 
 详细接入说明：`docs/lumino-mcp-chatgpt.md`。

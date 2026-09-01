@@ -1,14 +1,31 @@
 ---
-id: legacy/invite-request-todo
-type: historical-plan
-status: superseded
+id: project/todo
+type: mixed-backlog
+status: active
 source_of_truth: docs/features/auth-invite/current.md
-last_reviewed_at: 2026-08-28
+last_reviewed_at: 2026-09-01
+---
+
+# 当前冻结待办
+
+以下 8 项来自 ESA 接入后的性能优化方案。它们不是近期计划，默认保持冻结；除非用户明确要求，否则 Codex/Agent 不得主动实施、拆分、排期或借其他任务顺带修改。
+
+- [ ] 旧 Service Worker 升级、离线退出及 Cache Storage 用户隔离的浏览器验证。
+- [ ] LCP、CLS、INP 在相同设备与网络条件下的多轮采样。
+- [ ] 图片懒加载效果、首屏图片请求数与布局稳定性验证。
+- [ ] 博客分类快速切换时取消旧请求及后端完成请求数的量化验证。
+- [ ] ESA 主动 Purge 及发布后缓存失效自动化。
+- [ ] 在图片上传阶段生成并管理缩略图。
+- [ ] 聚合博客首页的分类、分页与精选接口。
+- [ ] 评估公开页面 ISR/Server Component 与多进程短缓存；只有量化收益明确时才实施。
+
+冻结规则：`仅在用户明确点名某一项时解冻；普通性能优化、重构或文档整理不构成授权。`
+
 ---
 
 # Lumino 邀请码申请流方案规划 (待办事项 / TODO)
 
-> **历史待办：** 邀请申请链路已经有实现与独立文档；本文保留原始规划，不是当前任务队列。当前状态和剩余验证以 `docs/features/auth-invite/` 为准。
+> **历史待办：** 从本段开始的邀请码申请链路已经有实现与独立文档；以下内容仅保留原始规划，不是当前任务队列。当前状态和剩余验证以 `docs/features/auth-invite/` 为准。
 
 本项目计划在未来引入完整的“邀请码申请与审核流 (Invite Request Flow)”。以下为详细规划方案及开发规程：
 

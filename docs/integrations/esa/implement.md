@@ -20,5 +20,6 @@ last_verified_at: 2026-09-01
 - 页面导航、RSC、API 和私有数据在 Service Worker 中使用 `NetworkOnly`；只有带 hash 的 Next 静态资源使用 `CacheFirst`。
 - Nginx 对文本启用 gzip，由 `gzip_vary` 生成唯一的 `Vary: Accept-Encoding`，SSE 不压缩。
 - 生产前端在 `.next-build` 构建，成功后才替换 `.next`；构建失败时继续保留旧版本。
+- 异常访问频率优先由 ESA 按客户端 IP 在边缘控制；当前阈值为用户配置的 200 次/10 秒。生产验证只做低频正常请求，避免为了证明限流而主动触发封禁。
 
 可重复核验入口：`bash scripts/verify-esa.sh`。
