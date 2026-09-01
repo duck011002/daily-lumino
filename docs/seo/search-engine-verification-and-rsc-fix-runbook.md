@@ -13,7 +13,7 @@
 | 搜索引擎平台 | 验证方式 | 验证配置与线上入口 | 验证状态 |
 | :--- | :--- | :--- | :--- |
 | **Google Search Console** | DNS TXT 记录<br>+ HTML Meta 标签 | 1. DNS TXT: `@` ➔ `google-site-verification=4ai4RYBmYNsPic-w7fXcn3dy8cEGaaTT8pLsuoN7NGg`<br>2. HTML Meta: `<meta name="google-site-verification" content="..." />` | ✅ **已验证通过** |
-| **百度搜索资源平台** | HTML 文件验证 | 1. 验证文件: `https://lovestory1314.fun/baidu_verify_codeva-MhqkeGOXWM.html`<br>2. 文件内容: `d5d8529c0a373bc78b5848ca6515f257` | ✅ **已验证通过** |
+| **百度搜索资源平台** | HTML 文件验证<br>+ **API 快速准入推送** | 1. 验证文件: `https://lovestory1314.fun/baidu_verify_codeva-MhqkeGOXWM.html`<br>2. 文件内容: `d5d8529c0a373bc78b5848ca6515f257`<br>3. **API 推送密钥**: `token=KwAZCpnLPpbLlOQj`<br>4. **首日推送状态**: 首页、博客、知识库及首批核心技术文章共 10 条 URL **已全部成功推送到百度（HTTP 200, success: 10）** | ✅ **已验证通过并完成全量推送** |
 | **微软 Bing 站长工具** | GSC 一键免验证导入<br>+ DNS CNAME 记录<br>+ XML 文件验证<br>+ HTML Meta 标签 | 1. **GSC 一键导入**: 授权已验证的 Google 账号一键秒级同步<br>2. DNS CNAME: `C379B238A4E9DDB373B45B0DBBC72AEE` ➔ `verify.bing.com`<br>3. XML 文件: `https://lovestory1314.fun/BingSiteAuth.xml`<br>4. HTML Meta: `<meta name="msvalidate.01" content="C379B238A4E9DDB373B45B0DBBC72AEE" />` | ✅ **已验证通过** |
 
 ---
