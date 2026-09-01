@@ -318,7 +318,7 @@ function PublicBlogList() {
                   {heroPost.cover_url ? (
                     <img
                       src={heroPost.cover_url}
-                      alt=""
+                      alt={heroPost.title ? `${heroPost.title} - 精选博文封面` : '精选博文封面'}
                       loading="lazy"
                       decoding="async"
                       className="h-full w-full object-cover transition duration-700 group-hover:scale-105"
@@ -481,7 +481,7 @@ function FeaturedMiniCard({ post, rank }: { post: BlogPost; rank: number }) {
       {post.cover_url && (
         <img
           src={post.cover_url}
-          alt=""
+          alt={post.title ? `${post.title} - 精选博文背景图` : '精选博文背景图'}
           loading="lazy"
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover opacity-[0.05] transition duration-500 group-hover:scale-105 group-hover:opacity-[0.1]"

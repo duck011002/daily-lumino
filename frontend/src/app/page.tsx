@@ -120,7 +120,7 @@ export default function Home() {
             {profile.cover_url ? (
               <img
                 src={profile.cover_url}
-                alt=""
+                alt={profile.display_name ? `${profile.display_name} 封面图` : '个人数字花园封面'}
                 fetchPriority="high"
                 decoding="async"
                 className="absolute inset-0 h-full w-full object-cover opacity-35"
@@ -279,7 +279,7 @@ export default function Home() {
                   {heroPost.cover_url ? (
                     <img
                       src={heroPost.cover_url}
-                      alt=""
+                      alt={heroPost.title ? `${heroPost.title} - 精选博文封面` : '精选博文封面'}
                       loading="lazy"
                       decoding="async"
                       className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
@@ -326,7 +326,7 @@ export default function Home() {
                     {post.cover_url && (
                       <img
                         src={post.cover_url}
-                        alt=""
+                        alt={post.title ? `${post.title} - 博文封面` : '推荐博文封面'}
                         loading="lazy"
                         decoding="async"
                         className="absolute inset-0 h-full w-full object-cover opacity-[0.075] transition duration-500 group-hover:scale-105 group-hover:opacity-[0.13]"

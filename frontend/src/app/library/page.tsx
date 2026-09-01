@@ -97,7 +97,7 @@ export default function LibraryPage() {
           {profile.cover_url ? (
             <img
               src={profile.cover_url}
-              alt=""
+              alt={profile.display_name ? `${profile.display_name} 书房空间封面` : '知识库书房空间封面'}
               fetchPriority="high"
               decoding="async"
               className="absolute inset-0 h-full w-full object-cover opacity-25"
