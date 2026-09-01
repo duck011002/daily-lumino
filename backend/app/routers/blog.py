@@ -7,6 +7,7 @@ import uuid
 import zipfile
 from datetime import UTC, datetime
 from typing import List
+from urllib.parse import unquote
 
 from fastapi import (
     APIRouter,
@@ -165,11 +166,19 @@ def build_post(
 
 
 def get_published_post_or_404(slug: str, db: Session) -> BlogPost:
+    raw_slug = slug
+    decoded_slug = unquote(slug)
+    slug_conditions = [BlogPost.slug == raw_slug, BlogPost.slug == decoded_slug]
+    if raw_slug.isdigit():
+        slug_conditions.append(BlogPost.id == int(raw_slug))
+    if decoded_slug.isdigit():
+        slug_conditions.append(BlogPost.id == int(decoded_slug))
+
     post = db.scalar(
         select(BlogPost)
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
         .where(
-            BlogPost.slug == slug,
+            or_(*slug_conditions),
             BlogPost.deleted_at.is_(None),
             BlogPost.is_public.is_(True),
             BlogPost.is_published.is_(True),
@@ -324,10 +333,18 @@ def get_public_post_by_slug(slug: str, db: Session = Depends(get_db)):
 @router.post("/api/blog/posts/{slug}/view", status_code=status.HTTP_204_NO_CONTENT)
 def record_public_post_view(slug: str, db: Session = Depends(get_db)):
     """Increment views explicitly without coupling a database write to article reads."""
+    raw_slug = slug
+    decoded_slug = unquote(slug)
+    slug_conditions = [BlogPost.slug == raw_slug, BlogPost.slug == decoded_slug]
+    if raw_slug.isdigit():
+        slug_conditions.append(BlogPost.id == int(raw_slug))
+    if decoded_slug.isdigit():
+        slug_conditions.append(BlogPost.id == int(decoded_slug))
+
     result = db.execute(
         update(BlogPost)
         .where(
-            BlogPost.slug == slug,
+            or_(*slug_conditions),
             BlogPost.deleted_at.is_(None),
             BlogPost.is_public == True,
             BlogPost.is_published == True,
