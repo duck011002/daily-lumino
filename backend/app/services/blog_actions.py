@@ -57,7 +57,11 @@ def _validate_category(db: Session, category_id: int | None) -> None:
 def get_owned_post(db: Session, user: User, post_id: int) -> BlogPost:
     ensure_writer(user)
     post = db.get(BlogPost, post_id)
-    if not post or (not user.is_root and post.author_id != user.id):
+    if (
+        not post
+        or post.deleted_at is not None
+        or (not user.is_root and post.author_id != user.id)
+    ):
         raise ValueError("博客文章不存在或不属于当前用户。")
     return post
 
@@ -153,11 +157,10 @@ def publish_post(
     return post
 
 
-def delete_post(
-    db: Session, user: User, post_id: int, *, commit: bool = True
-) -> None:
+def delete_post(db: Session, user: User, post_id: int, *, commit: bool = True) -> None:
     post = get_owned_post(db, user, post_id)
-    db.delete(post)
+    post.deleted_at = datetime.now(UTC).replace(tzinfo=None)
+    post.is_featured = False
     if commit:
         db.commit()
     else:

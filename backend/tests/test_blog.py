@@ -53,7 +53,8 @@ def blog_test_setup(client: TestClient, db):
     )
     assert normal_register.status_code == 201
     res_normal = client.post(
-        "/api/auth/login", json={"username_or_email": "normaluser", "password": "password123"}
+        "/api/auth/login",
+        json={"username_or_email": "normaluser", "password": "password123"},
     )
     normal_cookies = res_normal.cookies
 
@@ -76,7 +77,8 @@ def blog_test_setup(client: TestClient, db):
 
     # Login Admin
     res_admin = client.post(
-        "/api/auth/login", json={"username_or_email": "adminuser", "password": "password123"}
+        "/api/auth/login",
+        json={"username_or_email": "adminuser", "password": "password123"},
     )
     admin_cookies = res_admin.cookies
 
@@ -149,7 +151,9 @@ def test_mcp_can_revise_only_its_own_blog_post(db, monkeypatch):
         current_mcp_blog_identity.reset(context_token)
 
 
-def test_legacy_blog_mcp_defaults_to_publish_when_token_allows(db, user_factory, monkeypatch):
+def test_legacy_blog_mcp_defaults_to_publish_when_token_allows(
+    db, user_factory, monkeypatch
+):
     import app.mcp_blog
 
     author = user_factory("mcp-default-publish")
@@ -200,7 +204,9 @@ def test_private_preview_allows_author_or_root_without_mutating_post(
 
     anonymous_client = TestClient(app)
     try:
-        anonymous_response = anonymous_client.get(f"/api/blog/me/posts/{draft.id}/preview")
+        anonymous_response = anonymous_client.get(
+            f"/api/blog/me/posts/{draft.id}/preview"
+        )
     finally:
         anonymous_client.close()
     assert anonymous_response.status_code == 401
@@ -313,10 +319,22 @@ def test_admin_blog_crud(client: TestClient, blog_test_setup, db):
     # 5. Delete post
     del_res = client.delete(f"/api/admin/blog/posts/{post_id}", cookies=admin_cookies)
     assert del_res.status_code == 200
+    db.expire_all()
+    soft_deleted = db.get(BlogPost, post_id)
+    assert soft_deleted is not None
+    assert soft_deleted.deleted_at is not None
+    assert soft_deleted.is_featured is False
 
-    # Verify deleted in admin list
+    # Verify soft-deleted posts are hidden from admin and public reads.
     list_res2 = client.get("/api/admin/blog/posts", cookies=admin_cookies)
     assert len(list_res2.json()) == 1  # only "另一篇" remains
+    assert client.get("/api/blog/posts/updated-blog").status_code == 404
+    assert (
+        client.delete(
+            f"/api/admin/blog/posts/{post_id}", cookies=admin_cookies
+        ).status_code
+        == 404
+    )
 
 
 def test_public_blog_access(client: TestClient, blog_test_setup, db):
@@ -388,7 +406,9 @@ def test_blog_access_control(client: TestClient, blog_test_setup):
     normal_cookies = blog_test_setup["normal"]
 
     # Try listing admin posts -> 403
-    assert client.get("/api/admin/blog/posts", cookies=normal_cookies).status_code == 403
+    assert (
+        client.get("/api/admin/blog/posts", cookies=normal_cookies).status_code == 403
+    )
 
     # Try creating a post -> 403
     assert (
@@ -403,15 +423,22 @@ def test_blog_access_control(client: TestClient, blog_test_setup):
     # Try updating/deleting posts (even with fake/any id) -> 403
     assert (
         client.patch(
-            "/api/admin/blog/posts/999", json={"title": "尝试越权修改"}, cookies=normal_cookies
+            "/api/admin/blog/posts/999",
+            json={"title": "尝试越权修改"},
+            cookies=normal_cookies,
         ).status_code
         == 403
     )
 
-    assert client.delete("/api/admin/blog/posts/999", cookies=normal_cookies).status_code == 403
+    assert (
+        client.delete("/api/admin/blog/posts/999", cookies=normal_cookies).status_code
+        == 403
+    )
 
 
-def test_root_can_manage_categories_and_delegate_blog_writing(client: TestClient, blog_test_setup):
+def test_root_can_manage_categories_and_delegate_blog_writing(
+    client: TestClient, blog_test_setup
+):
     admin_cookies = blog_test_setup["admin"]
     normal_cookies = blog_test_setup["normal"]
 
@@ -633,7 +660,9 @@ def test_public_featured_endpoint_uses_slim_contract(client: TestClient, db):
     assert "content" not in response.json()[0]
 
 
-def test_public_post_detail_read_is_cacheable_and_view_write_is_explicit(client: TestClient, db):
+def test_public_post_detail_read_is_cacheable_and_view_write_is_explicit(
+    client: TestClient, db
+):
     author = User(
         username="detail-cache-writer",
         email="detail-cache-writer@example.com",

@@ -82,8 +82,14 @@ def _get_mcp_author(db) -> User:
     if not identity:
         raise ValueError("MCP blog credential was not resolved.")
     author = db.get(User, identity.author_id)
-    if not author or not author.is_active or (not author.is_root and not author.can_write_blog):
-        raise ValueError("The configured MCP blog author is unavailable or lacks blog permission.")
+    if (
+        not author
+        or not author.is_active
+        or (not author.is_root and not author.can_write_blog)
+    ):
+        raise ValueError(
+            "The configured MCP blog author is unavailable or lacks blog permission."
+        )
     return author
 
 
@@ -138,7 +144,9 @@ def _create_post(
             author_id=author.id,
             is_public=can_publish,
             is_published=can_publish,
-            published_at=datetime.now(UTC).replace(tzinfo=None) if can_publish else None,
+            published_at=(
+                datetime.now(UTC).replace(tzinfo=None) if can_publish else None
+            ),
         )
         db.add(post)
         db.commit()
@@ -163,12 +171,14 @@ def _create_post(
 
 def _get_owned_post(db, post_id: int, author_id: int) -> BlogPost:
     post = db.get(BlogPost, post_id)
-    if not post or post.author_id != author_id:
+    if not post or post.deleted_at is not None or post.author_id != author_id:
         raise ValueError("The MCP blog post was not found.")
     return post
 
 
-@blog_mcp.tool(description="List the available public-facing technical blog categories.")
+@blog_mcp.tool(
+    description="List the available public-facing technical blog categories."
+)
 def list_blog_categories() -> list[dict[str, Any]]:
     with SessionLocal() as db:
         categories = db.scalars(
@@ -194,7 +204,9 @@ async def upload_blog_image(
 ) -> dict[str, str]:
     if not content_type.startswith("image/"):
         raise ValueError("Only image uploads are supported.")
-    encoded = content_base64.split(",", 1)[-1] if "," in content_base64 else content_base64
+    encoded = (
+        content_base64.split(",", 1)[-1] if "," in content_base64 else content_base64
+    )
     try:
         content = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError) as exc:
@@ -332,7 +344,7 @@ def publish_blog_post(post_id: int) -> dict[str, str]:
     with SessionLocal() as db:
         author = _get_mcp_author(db)
         post = db.get(BlogPost, post_id)
-        if not post or post.author_id != author.id:
+        if not post or post.deleted_at is not None or post.author_id != author.id:
             raise ValueError("The MCP blog draft was not found.")
         post.is_public = True
         post.is_published = True

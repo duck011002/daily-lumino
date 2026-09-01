@@ -47,6 +47,19 @@ def test_public_blog_page_paginates_and_searches_within_category(db):
             published_at=now,
         )
     )
+    db.add(
+        BlogPost(
+            title="Deleted Dify note",
+            slug="deleted-dify-note",
+            content="Dify workflow",
+            author_id=author.id,
+            category_id=category.id,
+            is_public=True,
+            is_published=True,
+            deleted_at=now,
+            published_at=now,
+        )
+    )
     db.commit()
 
     first_page = list_public_posts_page(

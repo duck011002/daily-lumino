@@ -11,7 +11,12 @@ from app.models.ai_action import AIActionRun
 from app.models.ledger import LedgerEntry
 from app.models.todo import Todo
 from app.models.user import User
-from app.schemas.actions import ActionReceipt, ActionRequest, EntryIdArguments, TodoIdArguments
+from app.schemas.actions import (
+    ActionReceipt,
+    ActionRequest,
+    EntryIdArguments,
+    TodoIdArguments,
+)
 from app.schemas.ledger import LedgerEntryCreate, LedgerEntryOut, LedgerEntryUpdate
 from app.schemas.todo import TodoCreate, TodoOut, TodoUpdate
 from app.services import ledger as ledger_service
@@ -309,7 +314,7 @@ def _publish_blog(
 def _undo_created_blog(db: Session, user: User, run: AIActionRun) -> dict[str, Any]:
     target_id = run.target_id or 0
     blog_actions.delete_post(db, user, target_id, commit=False)
-    return {"deleted_post_id": target_id}
+    return {"soft_deleted_post_id": target_id}
 
 
 def _undo_blog_snapshot(db: Session, user: User, run: AIActionRun) -> dict[str, Any]:
@@ -345,9 +350,7 @@ def _update_library(
         arguments.model_dump(exclude_unset=True)
     )
     updated = library_actions.update_profile(db, user, payload, commit=False)
-    return ActionMutation(
-        "library_profile", 0, updated.model_dump(mode="json"), before
-    )
+    return ActionMutation("library_profile", 0, updated.model_dump(mode="json"), before)
 
 
 def _upsert_library_card(
@@ -360,9 +363,7 @@ def _upsert_library_card(
         arguments.model_dump(exclude_unset=True)
     )
     _, item = library_actions.upsert_media_card(db, user, payload, commit=False)
-    return ActionMutation(
-        "library_media_card", 0, item.model_dump(mode="json"), before
-    )
+    return ActionMutation("library_media_card", 0, item.model_dump(mode="json"), before)
 
 
 def _undo_library_snapshot(db: Session, user: User, run: AIActionRun) -> dict[str, Any]:
@@ -381,37 +382,73 @@ def _undo_library_snapshot(db: Session, user: User, run: AIActionRun) -> dict[st
 
 TOOLS: dict[str, ActionTool] = {
     "create_ledger_entry": ActionTool(
-        "create_ledger_entry", "ledger:write", LedgerEntryCreate, _create_ledger, _undo_created_ledger
+        "create_ledger_entry",
+        "ledger:write",
+        LedgerEntryCreate,
+        _create_ledger,
+        _undo_created_ledger,
     ),
     "update_ledger_entry": ActionTool(
-        "update_ledger_entry", "ledger:write", UpdateLedgerArguments, _update_ledger, _undo_updated_ledger
+        "update_ledger_entry",
+        "ledger:write",
+        UpdateLedgerArguments,
+        _update_ledger,
+        _undo_updated_ledger,
     ),
     "delete_ledger_entry": ActionTool(
-        "delete_ledger_entry", "ledger:write", EntryIdArguments, _delete_ledger, _undo_deleted_ledger
+        "delete_ledger_entry",
+        "ledger:write",
+        EntryIdArguments,
+        _delete_ledger,
+        _undo_deleted_ledger,
     ),
     "create_todo": ActionTool(
         "create_todo", "todos:write", TodoCreate, _create_todo, _undo_created_todo
     ),
     "update_todo": ActionTool(
-        "update_todo", "todos:write", UpdateTodoArguments, _update_todo, _undo_updated_todo
+        "update_todo",
+        "todos:write",
+        UpdateTodoArguments,
+        _update_todo,
+        _undo_updated_todo,
     ),
     "delete_todo": ActionTool(
         "delete_todo", "todos:write", TodoIdArguments, _delete_todo, _undo_deleted_todo
     ),
     "create_blog_post": ActionTool(
-        "create_blog_post", "blog:write", blog_actions.CreateBlogPostArguments, _create_blog, _undo_created_blog
+        "create_blog_post",
+        "blog:write",
+        blog_actions.CreateBlogPostArguments,
+        _create_blog,
+        _undo_created_blog,
     ),
     "update_blog_post": ActionTool(
-        "update_blog_post", "blog:write", blog_actions.UpdateBlogPostArguments, _update_blog, _undo_blog_snapshot
+        "update_blog_post",
+        "blog:write",
+        blog_actions.UpdateBlogPostArguments,
+        _update_blog,
+        _undo_blog_snapshot,
     ),
     "publish_blog_post": ActionTool(
-        "publish_blog_post", "blog:publish", blog_actions.PublishBlogPostArguments, _publish_blog, _undo_blog_snapshot
+        "publish_blog_post",
+        "blog:publish",
+        blog_actions.PublishBlogPostArguments,
+        _publish_blog,
+        _undo_blog_snapshot,
     ),
     "update_library_profile": ActionTool(
-        "update_library_profile", "library:write", library_actions.UpdateLibraryProfileArguments, _update_library, _undo_library_snapshot
+        "update_library_profile",
+        "library:write",
+        library_actions.UpdateLibraryProfileArguments,
+        _update_library,
+        _undo_library_snapshot,
     ),
     "upsert_library_media_card": ActionTool(
-        "upsert_library_media_card", "library:write", library_actions.UpsertLibraryMediaCardArguments, _upsert_library_card, _undo_library_snapshot
+        "upsert_library_media_card",
+        "library:write",
+        library_actions.UpsertLibraryMediaCardArguments,
+        _upsert_library_card,
+        _undo_library_snapshot,
     ),
 }
 
@@ -437,7 +474,10 @@ def execute_action(
         )
     )
     if existing:
-        if existing.tool_name != request.tool or existing.request_json != request.arguments:
+        if (
+            existing.tool_name != request.tool
+            or existing.request_json != request.arguments
+        ):
             raise ActionConflictError("该幂等键已用于其他行动。")
         return _receipt(existing)
 

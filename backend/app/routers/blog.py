@@ -79,6 +79,7 @@ def ensure_featured_capacity(db: Session, post: BlogPost) -> None:
     featured_count = (
         db.scalar(
             select(func.count(BlogPost.id)).where(
+                BlogPost.deleted_at.is_(None),
                 BlogPost.is_featured == True,
                 BlogPost.id != post.id,
                 category_filter,
@@ -98,7 +99,9 @@ def get_category_or_404(db: Session, category_id: int | None) -> BlogCategory | 
         return None
     category = db.get(BlogCategory, category_id)
     if not category:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="博客分区不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="博客分区不存在。"
+        )
     return category
 
 
@@ -143,7 +146,9 @@ def build_post(
         )
 
     get_category_or_404(db, post_in.category_id)
-    published_at = datetime.now(UTC).replace(tzinfo=None) if post_in.is_published else None
+    published_at = (
+        datetime.now(UTC).replace(tzinfo=None) if post_in.is_published else None
+    )
     return BlogPost(
         title=post_in.title,
         slug=post_in.slug,
@@ -165,12 +170,15 @@ def get_published_post_or_404(slug: str, db: Session) -> BlogPost:
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
         .where(
             BlogPost.slug == slug,
+            BlogPost.deleted_at.is_(None),
             BlogPost.is_public.is_(True),
             BlogPost.is_published.is_(True),
         )
     )
     if not post:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章未找到或未公开。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="文章未找到或未公开。"
+        )
     return post
 
 
@@ -186,15 +194,23 @@ def list_public_categories(db: Session = Depends(get_db)):
 
 
 @router.get("/api/blog/posts", response_model=List[BlogPostResponse])
-def list_public_posts(category: str | None = Query(None), db: Session = Depends(get_db)):
+def list_public_posts(
+    category: str | None = Query(None), db: Session = Depends(get_db)
+):
     statement = (
         select(BlogPost)
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
-        .where(BlogPost.is_public == True, BlogPost.is_published == True)
+        .where(
+            BlogPost.deleted_at.is_(None),
+            BlogPost.is_public == True,
+            BlogPost.is_published == True,
+        )
         .order_by(BlogPost.published_at.desc())
     )
     if category:
-        statement = statement.join(BlogPost.category).where(BlogCategory.slug == category)
+        statement = statement.join(BlogPost.category).where(
+            BlogCategory.slug == category
+        )
     posts = db.scalars(statement).all()
     return posts
 
@@ -209,6 +225,7 @@ def list_featured_posts(
         select(BlogPost)
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
         .where(
+            BlogPost.deleted_at.is_(None),
             BlogPost.is_featured == True,
             BlogPost.is_public.is_(True),
             BlogPost.is_published.is_(True),
@@ -237,6 +254,7 @@ def list_public_posts_page(
     db: Session = Depends(get_db),
 ):
     filters = [
+        BlogPost.deleted_at.is_(None),
         BlogPost.is_public == True,
         BlogPost.is_published == True,
     ]
@@ -251,7 +269,9 @@ def list_public_posts_page(
             )
         )
     else:
-        featured_ids = [post.id for post in list_featured_posts(category=category, db=db)]
+        featured_ids = [
+            post.id for post in list_featured_posts(category=category, db=db)
+        ]
         if featured_ids:
             filters.append(BlogPost.id.notin_(featured_ids))
 
@@ -265,7 +285,9 @@ def list_public_posts_page(
         count_statement = count_statement.join(BlogPost.category).where(
             BlogCategory.slug == category
         )
-        item_statement = item_statement.join(BlogPost.category).where(BlogCategory.slug == category)
+        item_statement = item_statement.join(BlogPost.category).where(
+            BlogCategory.slug == category
+        )
 
     total = db.scalar(count_statement) or 0
     pages = max(1, (total + page_size - 1) // page_size)
@@ -306,13 +328,16 @@ def record_public_post_view(slug: str, db: Session = Depends(get_db)):
         update(BlogPost)
         .where(
             BlogPost.slug == slug,
+            BlogPost.deleted_at.is_(None),
             BlogPost.is_public == True,
             BlogPost.is_published == True,
         )
         .values(view_count=BlogPost.view_count + 1)
     )
     if result.rowcount == 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章未找到或未公开。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="文章未找到或未公开。"
+        )
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -328,6 +353,7 @@ def list_my_posts(
     statement = (
         select(BlogPost)
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
+        .where(BlogPost.deleted_at.is_(None))
         .order_by(BlogPost.created_at.desc())
     )
     if not current_user.is_root:
@@ -345,16 +371,20 @@ def preview_my_post(
     post = db.scalar(
         select(BlogPost)
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
-        .where(BlogPost.id == post_id)
+        .where(BlogPost.id == post_id, BlogPost.deleted_at.is_(None))
     )
     if not post:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。"
+        )
     ensure_private_preview_owner(post, current_user)
     return post
 
 
 @router.post(
-    "/api/blog/me/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED
+    "/api/blog/me/posts",
+    response_model=BlogPostResponse,
+    status_code=status.HTTP_201_CREATED,
 )
 def create_my_post(
     post_in: BlogPostCreate,
@@ -381,14 +411,17 @@ def update_my_post(
     post = db.scalar(
         select(BlogPost)
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
-        .where(BlogPost.id == post_id)
+        .where(BlogPost.id == post_id, BlogPost.deleted_at.is_(None))
     )
     if not post:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。"
+        )
     ensure_post_manager(post, current_user)
     if "is_featured" in post_in.model_fields_set and not current_user.is_root:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="只有超级管理员可以设置精选文章。"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有超级管理员可以设置精选文章。",
         )
     return apply_post_update(post, post_in, db)
 
@@ -400,12 +433,15 @@ def delete_my_post(
     db: Session = Depends(get_db),
 ):
     post = db.get(BlogPost, post_id)
-    if not post:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
+    if not post or post.deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。"
+        )
     ensure_post_manager(post, current_user)
-    db.delete(post)
+    post.deleted_at = datetime.now(UTC).replace(tzinfo=None)
+    post.is_featured = False
     db.commit()
-    return {"status": "ok", "message": "文章已成功删除。"}
+    return {"status": "ok", "message": "文章已移入回收状态。"}
 
 
 # ========== ADMIN ROUTE ==========
@@ -430,9 +466,13 @@ def create_category(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root),
 ):
-    existing = db.scalar(select(BlogCategory).where(BlogCategory.name == category_in.name))
+    existing = db.scalar(
+        select(BlogCategory).where(BlogCategory.name == category_in.name)
+    )
     if existing:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="分区名称已存在。")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="分区名称已存在。"
+        )
     category = BlogCategory(
         **category_in.model_dump(exclude={"slug"}),
         slug=build_category_slug(db, category_in.name, category_in.slug),
@@ -443,7 +483,9 @@ def create_category(
     return category
 
 
-@router.patch("/api/admin/blog/categories/{category_id}", response_model=BlogCategoryResponse)
+@router.patch(
+    "/api/admin/blog/categories/{category_id}", response_model=BlogCategoryResponse
+)
 def update_category(
     category_id: int,
     category_in: BlogCategoryUpdate,
@@ -452,7 +494,9 @@ def update_category(
 ):
     category = db.get(BlogCategory, category_id)
     if not category:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="博客分区不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="博客分区不存在。"
+        )
     changes = category_in.model_dump(exclude_unset=True)
     if "name" in changes or "slug" in changes:
         existing = db.scalar(
@@ -483,7 +527,9 @@ def delete_category(
 ):
     category = db.get(BlogCategory, category_id)
     if not category:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="博客分区不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="博客分区不存在。"
+        )
     for post in category.posts:
         post.category_id = None
     db.delete(category)
@@ -500,13 +546,16 @@ def list_admin_posts(db: Session = Depends(get_db)):
     posts = db.scalars(
         select(BlogPost)
         .options(joinedload(BlogPost.author), joinedload(BlogPost.category))
+        .where(BlogPost.deleted_at.is_(None))
         .order_by(BlogPost.created_at.desc())
     ).all()
     return posts
 
 
 @router.post(
-    "/api/admin/blog/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED
+    "/api/admin/blog/posts",
+    response_model=BlogPostResponse,
+    status_code=status.HTTP_201_CREATED,
 )
 def create_admin_post(
     post_in: BlogPostCreate,
@@ -534,10 +583,14 @@ def update_admin_post(
     current_user: User = Depends(require_root),
 ):
     post = db.scalar(
-        select(BlogPost).options(joinedload(BlogPost.author)).where(BlogPost.id == post_id)
+        select(BlogPost)
+        .options(joinedload(BlogPost.author))
+        .where(BlogPost.id == post_id, BlogPost.deleted_at.is_(None))
     )
     if not post:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。"
+        )
 
     return apply_post_update(post, post_in, db)
 
@@ -546,7 +599,9 @@ def apply_post_update(post: BlogPost, post_in: BlogPostUpdate, db: Session) -> B
     # Check slug uniqueness if it is changing
     if post_in.slug is not None and post_in.slug != post.slug:
         existing = db.scalar(
-            select(BlogPost).where(BlogPost.slug == post_in.slug, BlogPost.id != post.id)
+            select(BlogPost).where(
+                BlogPost.slug == post_in.slug, BlogPost.id != post.id
+            )
         )
         if existing:
             raise HTTPException(
@@ -604,13 +659,18 @@ def delete_admin_post(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_root),
 ):
-    post = db.scalar(select(BlogPost).where(BlogPost.id == post_id))
+    post = db.scalar(
+        select(BlogPost).where(BlogPost.id == post_id, BlogPost.deleted_at.is_(None))
+    )
     if not post:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="文章不存在。"
+        )
 
-    db.delete(post)
+    post.deleted_at = datetime.now(UTC).replace(tzinfo=None)
+    post.is_featured = False
     db.commit()
-    return {"status": "ok", "message": "文章已成功删除。"}
+    return {"status": "ok", "message": "文章已移入回收状态。"}
 
 
 @router.post("/api/admin/blog/parse-markdown")
@@ -689,7 +749,9 @@ async def parse_markdown_blog(
                     continue
 
                 # Resolve relative path inside zip structure
-                resolved_img_path = os.path.normpath(os.path.join(md_dir, img_path_clean))
+                resolved_img_path = os.path.normpath(
+                    os.path.join(md_dir, img_path_clean)
+                )
                 # Ensure safety (stay within temp_dir)
                 if (
                     resolved_img_path.startswith(temp_dir)
@@ -705,7 +767,9 @@ async def parse_markdown_blog(
 
                     img_name = os.path.basename(resolved_img_path)
                     try:
-                        url = await upload_file_to_lsky(img_name, img_bytes, mime_type, db)
+                        url = await upload_file_to_lsky(
+                            img_name, img_bytes, mime_type, db
+                        )
                         replacements[img_path] = url
                     except Exception as e:
                         print(f"Failed to upload image {img_name} in zip: {e}")

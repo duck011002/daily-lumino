@@ -46,7 +46,9 @@ from app.schemas.user import UserResponse
 from app.utils.crypto import decrypt_value, encrypt_value
 from app.services.ai_provider_health import run_provider_health_check
 
-router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_root)])
+router = APIRouter(
+    prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_root)]
+)
 
 SENSITIVE_CONFIG_KEYS = {
     "qwen_api_key",
@@ -69,8 +71,11 @@ def hash_mcp_blog_token(token: str) -> str:
 
 def serialize_mcp_library_token(token: MCPLibraryToken) -> dict:
     return {
-        "id": token.id, "label": token.label, "is_active": token.is_active,
-        "created_at": token.created_at, "last_used_at": token.last_used_at,
+        "id": token.id,
+        "label": token.label,
+        "is_active": token.is_active,
+        "created_at": token.created_at,
+        "last_used_at": token.last_used_at,
     }
 
 
@@ -105,7 +110,9 @@ def serialize_mcp_lumino_token(token: MCPLuminoToken) -> dict:
 def get_mcp_blog_author_or_400(db: Session, author_id: int) -> User:
     author = db.get(User, author_id)
     if not author or not author.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="所选博客作者不可用。")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="所选博客作者不可用。"
+        )
     if not author.is_root and not author.can_write_blog:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -156,10 +163,11 @@ from app.models.space import SpaceMember
 from app.models.blog import BlogPost
 from sqlalchemy import func
 
+
 @router.get("/users", response_model=list[UserAdminResponse])
 def list_users(db: Session = Depends(get_db)):
     users = db.scalars(select(User).order_by(User.id.desc())).all()
-    
+
     # Bulk query token usage
     token_usage_dict = dict(
         db.execute(
@@ -171,35 +179,42 @@ def list_users(db: Session = Depends(get_db)):
     # Bulk query space count
     space_count_dict = dict(
         db.execute(
-            select(SpaceMember.user_id, func.count(SpaceMember.space_id))
-            .group_by(SpaceMember.user_id)
+            select(SpaceMember.user_id, func.count(SpaceMember.space_id)).group_by(
+                SpaceMember.user_id
+            )
         ).all()
     )
     # Bulk query blog count
     blog_count_dict = dict(
         db.execute(
             select(BlogPost.author_id, func.count(BlogPost.id))
+            .where(BlogPost.deleted_at.is_(None))
             .group_by(BlogPost.author_id)
         ).all()
     )
-    
+
     for user in users:
         user.token_usage = int(token_usage_dict.get(user.id) or 0)
         user.space_count = int(space_count_dict.get(user.id) or 0)
         user.blog_count = int(blog_count_dict.get(user.id) or 0)
-        
+
     return users
 
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
-def update_user_status(user_id: int, status_in: UserStatusUpdate, db: Session = Depends(get_db)):
+def update_user_status(
+    user_id: int, status_in: UserStatusUpdate, db: Session = Depends(get_db)
+):
     user = db.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在。"
+        )
     if status_in.is_active is not None:
         if user.is_root and not status_in.is_active:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="不能禁用超级管理员账号。"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不能禁用超级管理员账号。",
             )
         user.is_active = status_in.is_active
 
@@ -209,7 +224,8 @@ def update_user_status(user_id: int, status_in: UserStatusUpdate, db: Session = 
     if status_in.is_discipline_authorized is not None:
         if user.is_root and not status_in.is_discipline_authorized:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="不能禁用超级管理员的自律记录功能权限。"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="不能禁用超级管理员的自律记录功能权限。",
             )
         user.is_discipline_authorized = status_in.is_discipline_authorized
 
@@ -271,7 +287,9 @@ def update_config(
     config = db.scalar(select(SystemConfig).where(SystemConfig.config_key == key))
     is_new = False
     if not config:
-        config = SystemConfig(config_key=key, description=f"Dynamic configuration for {key}")
+        config = SystemConfig(
+            config_key=key, description=f"Dynamic configuration for {key}"
+        )
         db.add(config)
         is_new = True
 
@@ -285,10 +303,14 @@ def update_config(
             if not is_new and config.config_val:
                 try:
                     old_providers = json.loads(config.config_val)
-                    existing_map = {op["id"]: op.get("api_key") for op in old_providers if "id" in op}
+                    existing_map = {
+                        op["id"]: op.get("api_key")
+                        for op in old_providers
+                        if "id" in op
+                    }
                 except Exception:
                     pass
-            
+
             for np in new_providers:
                 pid = np.get("id")
                 new_key = np.get("api_key")
@@ -303,7 +325,9 @@ def update_config(
                     np["is_reachable"] = True
             val_to_save = json.dumps(new_providers, ensure_ascii=False)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"解析或处理 ai_providers 失败: {str(e)}")
+            raise HTTPException(
+                status_code=400, detail=f"解析或处理 ai_providers 失败: {str(e)}"
+            )
 
     config.config_val = val_to_save
     config.updated_by = current_user.id
@@ -338,7 +362,9 @@ def update_config(
 
 
 @router.post(
-    "/invite-codes", response_model=InviteCodeResponse, status_code=status.HTTP_201_CREATED
+    "/invite-codes",
+    response_model=InviteCodeResponse,
+    status_code=status.HTTP_201_CREATED,
 )
 def create_invite_code(
     code_in: InviteCodeCreate,
@@ -407,7 +433,9 @@ def update_mcp_blog_token(
 ):
     token = db.get(MCPBlogToken, token_id)
     if not token:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MCP 凭据不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="MCP 凭据不存在。"
+        )
     if token_in.author_id is not None:
         get_mcp_blog_author_or_400(db, token_in.author_id)
         token.author_id = token_in.author_id
@@ -422,11 +450,17 @@ def update_mcp_blog_token(
 
 @router.get("/mcp-library/tokens", response_model=list[MCPLibraryTokenResponse])
 def list_mcp_library_tokens(db: Session = Depends(get_db)):
-    tokens = db.scalars(select(MCPLibraryToken).order_by(MCPLibraryToken.id.desc())).all()
+    tokens = db.scalars(
+        select(MCPLibraryToken).order_by(MCPLibraryToken.id.desc())
+    ).all()
     return [serialize_mcp_library_token(token) for token in tokens]
 
 
-@router.post("/mcp-library/tokens", response_model=MCPLibraryTokenCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/mcp-library/tokens",
+    response_model=MCPLibraryTokenCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_mcp_library_token(
     token_in: MCPLibraryTokenCreate,
     current_user: User = Depends(require_root),
@@ -434,7 +468,8 @@ def create_mcp_library_token(
 ):
     raw_token = f"lml_mcp_{secrets.token_urlsafe(32)}"
     token = MCPLibraryToken(
-        label=token_in.label.strip(), token_hash=hash_mcp_blog_token(raw_token),
+        label=token_in.label.strip(),
+        token_hash=hash_mcp_blog_token(raw_token),
         created_by=current_user.id,
     )
     db.add(token)
@@ -451,7 +486,9 @@ def update_mcp_library_token(
 ):
     token = db.get(MCPLibraryToken, token_id)
     if not token:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="书房 MCP 凭据不存在。")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="书房 MCP 凭据不存在。"
+        )
     token.is_active = token_in.is_active
     db.commit()
     db.refresh(token)
@@ -460,9 +497,7 @@ def update_mcp_library_token(
 
 @router.get("/mcp-lumino/tokens", response_model=list[MCPLuminoTokenResponse])
 def list_mcp_lumino_tokens(db: Session = Depends(get_db)):
-    tokens = db.scalars(
-        select(MCPLuminoToken).order_by(MCPLuminoToken.id.desc())
-    ).all()
+    tokens = db.scalars(select(MCPLuminoToken).order_by(MCPLuminoToken.id.desc())).all()
     return [serialize_mcp_lumino_token(token) for token in tokens]
 
 
@@ -497,9 +532,7 @@ def create_mcp_lumino_token(
     return {**serialize_mcp_lumino_token(token), "token": raw_token}
 
 
-@router.patch(
-    "/mcp-lumino/tokens/{token_id}", response_model=MCPLuminoTokenResponse
-)
+@router.patch("/mcp-lumino/tokens/{token_id}", response_model=MCPLuminoTokenResponse)
 def update_mcp_lumino_token(
     token_id: int,
     token_in: MCPLuminoTokenUpdate,
@@ -565,8 +598,13 @@ def resolve_api_key(db: Session, provider_id: str | None, api_key: str) -> str:
         return ""
     if "****" in api_key:
         if not provider_id:
-            raise HTTPException(status_code=400, detail="检测到 API Key 已脱敏，但未提供服务商 ID 无法恢复。")
-        cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
+            raise HTTPException(
+                status_code=400,
+                detail="检测到 API Key 已脱敏，但未提供服务商 ID 无法恢复。",
+            )
+        cfg = db.scalar(
+            select(SystemConfig).where(SystemConfig.config_key == "ai_providers")
+        )
         if not cfg or not cfg.config_val:
             raise HTTPException(status_code=400, detail="未配置任何 AI 服务商。")
         try:
@@ -576,7 +614,9 @@ def resolve_api_key(db: Session, provider_id: str | None, api_key: str) -> str:
                     enc_key = p.get("api_key")
                     if enc_key:
                         return decrypt_value(enc_key)
-            raise HTTPException(status_code=400, detail=f"未找到 ID 为 {provider_id} 的服务商。")
+            raise HTTPException(
+                status_code=400, detail=f"未找到 ID 为 {provider_id} 的服务商。"
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -595,7 +635,9 @@ def test_connection(req: AITestConnectionRequest, db: Session = Depends(get_db))
     )
 
     if req.id:
-        cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
+        cfg = db.scalar(
+            select(SystemConfig).where(SystemConfig.config_key == "ai_providers")
+        )
         if cfg and cfg.config_val:
             try:
                 providers = json.loads(cfg.config_val)
@@ -633,10 +675,13 @@ def get_models(req: AIGetModelsRequest, db: Session = Depends(get_db)):
 @router.post("/ai/check-all")
 def check_all_providers(db: Session = Depends(get_db)):
     import concurrent.futures
-    cfg = db.scalar(select(SystemConfig).where(SystemConfig.config_key == "ai_providers"))
+
+    cfg = db.scalar(
+        select(SystemConfig).where(SystemConfig.config_key == "ai_providers")
+    )
     if not cfg or not cfg.config_val:
         return {"status": "success", "providers": []}
-    
+
     try:
         providers = json.loads(cfg.config_val)
     except Exception as e:
@@ -647,7 +692,7 @@ def check_all_providers(db: Session = Depends(get_db)):
         pname = p.get("name", pid)
         api_key_raw = p.get("api_key")
         base_url = p.get("base_url")
-        
+
         # Determine model to test
         models_list = p.get("models")
         test_model = "gpt-3.5-turbo"
@@ -687,7 +732,7 @@ def check_all_providers(db: Session = Depends(get_db)):
     # Save back to database
     cfg.config_val = json.dumps(providers, ensure_ascii=False)
     db.commit()
-    
+
     # Return providers with masked API keys
     masked_providers = json.loads(cfg.config_val)
     for p in masked_providers:
@@ -697,6 +742,5 @@ def check_all_providers(db: Session = Depends(get_db)):
                 p["api_key"] = mask_secret(decrypted)
             except Exception:
                 p["api_key"] = mask_secret(p["api_key"])
-                
-    return {"status": "success", "providers": masked_providers}
 
+    return {"status": "success", "providers": masked_providers}

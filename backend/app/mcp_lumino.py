@@ -134,7 +134,9 @@ def list_ledger_categories() -> list[dict[str, Any]]:
         ]
 
 
-@lumino_mcp.tool(description="List this user's ledger entries, optionally for one month.")
+@lumino_mcp.tool(
+    description="List this user's ledger entries, optionally for one month."
+)
 def list_ledger_entries(
     year: int | None = None, month: int | None = None
 ) -> list[dict[str, Any]]:
@@ -156,7 +158,9 @@ def get_ledger_month_summary(year: int, month: int) -> dict[str, Any]:
     _require_scope(identity, "ledger:read")
     with SessionLocal() as db:
         user = _user(db, identity)
-        return ledger_service.get_month_summary(db, user, year, month).model_dump(mode="json")
+        return ledger_service.get_month_summary(db, user, year, month).model_dump(
+            mode="json"
+        )
 
 
 @lumino_mcp.tool(
@@ -188,7 +192,9 @@ def create_ledger_entry(
     )
 
 
-@lumino_mcp.tool(description="Update one private ledger entry and return an undoable receipt.")
+@lumino_mcp.tool(
+    description="Update one private ledger entry and return an undoable receipt."
+)
 def update_ledger_entry(
     entry_id: int,
     entry_type: Literal["expense", "income"] | None = None,
@@ -217,15 +223,15 @@ def update_ledger_entry(
     )
 
 
-@lumino_mcp.tool(description="Delete one private ledger entry and return an undoable receipt.")
+@lumino_mcp.tool(
+    description="Delete one private ledger entry and return an undoable receipt."
+)
 def delete_ledger_entry(
     entry_id: int, idempotency_key: str | None = None
 ) -> dict[str, Any]:
     identity = _identity()
     _require_scope(identity, "ledger:write")
-    return _execute(
-        "delete_ledger_entry", {"entry_id": entry_id}, idempotency_key
-    )
+    return _execute("delete_ledger_entry", {"entry_id": entry_id}, idempotency_key)
 
 
 @lumino_mcp.tool(description="List this user's private todos.")
@@ -238,13 +244,13 @@ def list_todos(
         user = _user(db, identity)
         return [
             TodoOut.model_validate(item).model_dump(mode="json")
-            for item in todo_service.list_todos(
-                db, user, status_filter=status_filter
-            )
+            for item in todo_service.list_todos(db, user, status_filter=status_filter)
         ]
 
 
-@lumino_mcp.tool(description="Create one private todo and return an undoable action receipt.")
+@lumino_mcp.tool(
+    description="Create one private todo and return an undoable action receipt."
+)
 def create_todo(
     title: str,
     description: str | None = None,
@@ -271,7 +277,9 @@ def create_todo(
     )
 
 
-@lumino_mcp.tool(description="Update one private todo and return an undoable action receipt.")
+@lumino_mcp.tool(
+    description="Update one private todo and return an undoable action receipt."
+)
 def update_todo(
     todo_id: int,
     title: str | None = None,
@@ -302,14 +310,18 @@ def update_todo(
     )
 
 
-@lumino_mcp.tool(description="Delete one private todo and return an undoable action receipt.")
+@lumino_mcp.tool(
+    description="Delete one private todo and return an undoable action receipt."
+)
 def delete_todo(todo_id: int, idempotency_key: str | None = None) -> dict[str, Any]:
     identity = _identity()
     _require_scope(identity, "todos:write")
     return _execute("delete_todo", {"todo_id": todo_id}, idempotency_key)
 
 
-@lumino_mcp.tool(description="Undo one successful action created by this user and token scope.")
+@lumino_mcp.tool(
+    description="Undo one successful action created by this user and token scope."
+)
 def undo_action(action_id: int) -> dict[str, Any]:
     identity = _identity()
     with SessionLocal() as db:
@@ -323,14 +335,20 @@ def undo_action(action_id: int) -> dict[str, Any]:
         return receipt.model_dump(mode="json")
 
 
-@lumino_mcp.tool(description="List blog posts owned by this MCP token's user, including drafts.")
+@lumino_mcp.tool(
+    description="List blog posts owned by this MCP token's user, including drafts."
+)
 def list_blog_posts() -> list[dict[str, Any]]:
     identity = _identity()
     _require_scope(identity, "blog:read")
     with SessionLocal() as db:
         user = _user(db, identity)
         blog_actions.ensure_writer(user)
-        stmt = select(BlogPost).order_by(BlogPost.created_at.desc())
+        stmt = (
+            select(BlogPost)
+            .where(BlogPost.deleted_at.is_(None))
+            .order_by(BlogPost.created_at.desc())
+        )
         if not user.is_root:
             stmt = stmt.where(BlogPost.author_id == user.id)
         return [blog_actions.serialize_post(post) for post in db.scalars(stmt).all()]
@@ -421,7 +439,9 @@ def update_blog_post(
     )
 
 
-@lumino_mcp.tool(description="Publish an owned blog draft after explicit user approval.")
+@lumino_mcp.tool(
+    description="Publish an owned blog draft after explicit user approval."
+)
 def publish_blog_post(
     post_id: int, idempotency_key: str | None = None
 ) -> dict[str, Any]:
@@ -429,12 +449,12 @@ def publish_blog_post(
     _require_scope(identity, "blog:publish")
     if not identity.allow_auto_publish:
         raise ValueError("Auto-publish is disabled for this Lumino MCP token.")
-    return _execute(
-        "publish_blog_post", {"post_id": post_id}, idempotency_key
-    )
+    return _execute("publish_blog_post", {"post_id": post_id}, idempotency_key)
 
 
-@lumino_mcp.tool(description="Read the complete root Library profile, including hidden items.")
+@lumino_mcp.tool(
+    description="Read the complete root Library profile, including hidden items."
+)
 def get_library_profile() -> dict[str, Any]:
     identity = _identity()
     _require_scope(identity, "library:read")

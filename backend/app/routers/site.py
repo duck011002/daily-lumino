@@ -10,7 +10,6 @@ from app.models.system_config import SystemConfig
 from app.models.user import User
 from app.schemas.site import SiteProfile
 
-
 PROFILE_CONFIG_KEY = "public_site_profile"
 
 public_router = APIRouter(prefix="/api/site", tags=["site"])
@@ -99,9 +98,14 @@ def get_public_site_profile(db: Session = Depends(get_db)):
 @public_router.get("/daily-digest")
 def get_daily_digest(db: Session = Depends(get_db)):
     from app.models.blog import BlogPost
+
     posts = db.scalars(
         select(BlogPost)
-        .where(BlogPost.is_published == True)
+        .where(
+            BlogPost.deleted_at.is_(None),
+            BlogPost.is_public.is_(True),
+            BlogPost.is_published.is_(True),
+        )
         .order_by(BlogPost.published_at.desc())
         .limit(3)
     ).all()
@@ -112,14 +116,14 @@ def get_daily_digest(db: Session = Depends(get_db)):
             "tags": ["数字花园", "技术思考", "随笔"],
             "generated_at": "今日最新",
         }
-    
+
     titles = [p.title for p in posts]
     summary = f"今日精选推荐：包含了《{titles[0]}》"
     if len(titles) > 1:
         summary += f"以及《{titles[1]}》等技术与生活深度探讨。"
     else:
         summary += "的深度探讨与实践记录。"
-        
+
     return {
         "title": "Lumino AI 每日博客简报",
         "summary": summary,

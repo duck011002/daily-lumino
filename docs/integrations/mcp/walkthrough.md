@@ -24,6 +24,6 @@ codex_plugin_status: installed
 
 发布文章：`/blog/lumino-esa-edge-performance-rate-limit-rollout-20260901`。
 
-删除旧文章不属于当前 MCP 暴露工具，将使用生产数据库的精确 ID 事务执行，并单独记录删除前后计数。
+删除旧文章不属于当前 MCP 暴露工具。本次仅允许将 ID 12、25 两篇旧 ESA 文章软删除；其他文章和草稿禁止删除。生产操作使用 ID、slug、有效总数三重校验脚本，并单独记录 dry-run 与执行后的计数。
 
 项目内发布结果见 `docs/operations/2026-08-19-unified-ai-ledger-mcp-release.md`。

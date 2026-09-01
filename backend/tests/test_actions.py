@@ -14,7 +14,10 @@ from app.services.action_executor import (
     execute_action,
     undo_action,
 )
-from app.services.ai_action_planner import build_action_system_prompt, interpret_and_execute
+from app.services.ai_action_planner import (
+    build_action_system_prompt,
+    interpret_and_execute,
+)
 from app.services import library_actions
 
 
@@ -538,6 +541,27 @@ def test_blog_create_is_draft_and_publish_is_separate(db, user_factory):
     assert db.get(BlogPost, post.id).is_published is True
     undo_action(db, author, published.action_id)
     assert db.get(BlogPost, post.id).is_published is False
+
+
+def test_undo_blog_create_soft_deletes_post(db, user_factory):
+    author = user_factory("blog-action-soft-delete")
+    author.can_write_blog = True
+    created = execute_action(
+        db,
+        author,
+        ActionRequest(
+            tool="create_blog_post",
+            arguments={"title": "可撤销草稿", "content": "正文"},
+            idempotency_key="blog-create-soft-delete",
+        ),
+        source="web_ai",
+    )
+
+    undone = undo_action(db, author, created.action_id)
+    post = db.get(BlogPost, created.target_id)
+
+    assert undone.result["undo"]["soft_deleted_post_id"] == post.id
+    assert post.deleted_at is not None
 
 
 def test_root_library_action_is_undoable(db, user_factory):

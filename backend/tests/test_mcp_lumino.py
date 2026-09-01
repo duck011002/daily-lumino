@@ -1,4 +1,5 @@
 import hashlib
+from datetime import UTC, datetime
 
 import pytest
 
@@ -7,6 +8,7 @@ from app.mcp_lumino import (
     create_ledger_entry,
     create_todo,
     create_blog_post,
+    list_blog_posts,
     update_blog_post,
     publish_blog_post,
     update_library_profile,
@@ -408,5 +410,38 @@ def test_unified_mcp_blog_create_downgrades_without_publish_scope(
         assert post.is_public is False
         assert post.is_published is False
         assert "private draft" in created["notice"]
+    finally:
+        current_mcp_lumino_identity.reset(token)
+
+
+def test_unified_mcp_blog_list_hides_soft_deleted_posts(db, user_factory, monkeypatch):
+    writer = user_factory("lumino-blog-soft-delete")
+    writer.can_write_blog = True
+    active = BlogPost(
+        title="Active post",
+        slug="active-post",
+        content="正文",
+        author_id=writer.id,
+    )
+    deleted = BlogPost(
+        title="Deleted post",
+        slug="deleted-post",
+        content="正文",
+        author_id=writer.id,
+        deleted_at=datetime.now(UTC).replace(tzinfo=None),
+    )
+    db.add_all([active, deleted])
+    db.commit()
+    monkeypatch.setattr("app.mcp_lumino.SessionLocal", lambda: SessionContext(db))
+    token = current_mcp_lumino_identity.set(
+        MCPLuminoIdentity(
+            user_id=writer.id,
+            scopes=frozenset({"blog:read"}),
+            allow_auto_publish=False,
+        )
+    )
+    try:
+        posts = list_blog_posts()
+        assert [post["id"] for post in posts] == [active.id]
     finally:
         current_mcp_lumino_identity.reset(token)

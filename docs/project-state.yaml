@@ -1,7 +1,7 @@
 version: 1
 project: Lumino
 updated_at: 2026-09-01
-source_commit: cf963b187df21b64f763530dfb6bf3822390d395
+source_commit: 3a35f7d
 environment:
   production_domain: lovestory1314.fun
   origin: ECS 114.55.55.110
@@ -14,6 +14,8 @@ status_notes:
   - 线上根域名当前由 ESA 返回；动态 HTML、私有 API 和私有页面保持 DYNAMIC/no-store。
   - 匿名 /api/public/** 只读接口使用 60 秒边缘缓存；Cookie 或 Authorization 请求仍绕过缓存。
   - 用户确认 ESA 已配置单 IP 200 次/10 秒的边缘限流；未进行生产突发压测，执行动作与命中日志仍以控制台为准。
+  - 博客删除采用 deleted_at 软删除；常规公开、管理、摘要、计数和 MCP 读取隐藏软删除文章，slug 继续保留。
+  - 2026-09-01 的文章整理只允许软删除旧 ESA 文章 ID 12、25，其他文章和草稿禁止删除。
   - /icons、/_next/static、Workbox 及明确公开图片路径使用边缘缓存。
   - 页面导航、RSC、API 和用户数据不会写入 Service Worker Cache Storage。
   - 前端构建使用临时目录并在成功后原子切换，避免失败构建覆盖线上版本。

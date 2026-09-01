@@ -1,7 +1,17 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,12 +42,16 @@ class BlogPost(Base):
     id: Mapped[int] = mapped_column(BIGINT_PK, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     slug: Mapped[str] = mapped_column(String(300), unique=True, nullable=False)
-    content: Mapped[str] = mapped_column(Text().with_variant(LONGTEXT, "mysql"), nullable=False)
+    content: Mapped[str] = mapped_column(
+        Text().with_variant(LONGTEXT, "mysql"), nullable=False
+    )
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    is_featured: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, index=True
+    )
     tags: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     author_id: Mapped[int] = mapped_column(
         BIGINT_FK, ForeignKey("users.id"), nullable=False, index=True
@@ -47,6 +61,9 @@ class BlogPost(Base):
     )
     view_count: Mapped[int] = mapped_column(default=0, nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
@@ -59,5 +76,8 @@ class BlogPost(Base):
 
     __table_args__ = (
         Index("idx_blog_public_published", "is_public", "is_published"),
-        Index("idx_blog_category_published", "category_id", "is_public", "is_published"),
+        Index(
+            "idx_blog_category_published", "category_id", "is_public", "is_published"
+        ),
+        Index("idx_blog_active_published", "deleted_at", "is_public", "is_published"),
     )
