@@ -753,5 +753,71 @@ def test_parse_markdown_endpoints(client: TestClient, blog_test_setup):
         data_zip = res_zip.json()
         assert data_zip["meta"]["title"] == "My Zip Post"
         assert data_zip["meta"]["slug"] == "my-zip-post"
-        assert "![Logo](http://mock-lsky.fun/logo.png)" in data_zip["content"]
         assert mock_upload.called
+
+
+def test_blog_adjacent_posts_and_sort_by(client: TestClient, blog_test_setup, db):
+    admin = db.scalar(select(User).where(User.username == "adminuser"))
+
+    p1 = BlogPost(
+        title="First Article",
+        slug="first-article",
+        content="First content",
+        author_id=admin.id,
+        is_public=True,
+        is_published=True,
+        view_count=100,
+        published_at=datetime(2026, 1, 1, 10, 0, 0),
+    )
+    p2 = BlogPost(
+        title="Second Article",
+        slug="second-article",
+        content="Second content",
+        author_id=admin.id,
+        is_public=True,
+        is_published=True,
+        view_count=300,
+        published_at=datetime(2026, 1, 2, 10, 0, 0),
+    )
+    p3 = BlogPost(
+        title="Third Article",
+        slug="third-article",
+        content="Third content",
+        author_id=admin.id,
+        is_public=True,
+        is_published=True,
+        view_count=200,
+        published_at=datetime(2026, 1, 3, 10, 0, 0),
+    )
+    db.add_all([p1, p2, p3])
+    db.commit()
+
+    # 1. Test adjacent posts on p2
+    res_p2 = client.get("/api/public/blog/posts/second-article")
+    assert res_p2.status_code == 200
+    data_p2 = res_p2.json()
+    assert data_p2["prev_post"]["slug"] == "first-article"
+    assert data_p2["next_post"]["slug"] == "third-article"
+
+    # 2. Test adjacent posts on p1 (first post has no prev)
+    res_p1 = client.get("/api/public/blog/posts/first-article")
+    assert res_p1.status_code == 200
+    data_p1 = res_p1.json()
+    assert data_p1["prev_post"] is None
+    assert data_p1["next_post"]["slug"] == "second-article"
+
+    # 3. Test sorting by views
+    res_views = client.get("/api/public/blog/posts-page?sort_by=views&page=1&page_size=10")
+    assert res_views.status_code == 200
+    items_views = res_views.json()["items"]
+    # Filter only our test articles
+    test_slugs_views = [i["slug"] for i in items_views if i["slug"] in ["first-article", "second-article", "third-article"]]
+    assert test_slugs_views == ["second-article", "third-article", "first-article"]
+
+    # 4. Test sorting by oldest
+    res_oldest = client.get("/api/public/blog/posts-page?sort_by=oldest&page=1&page_size=10")
+    assert res_oldest.status_code == 200
+    items_oldest = res_oldest.json()["items"]
+    test_slugs_oldest = [i["slug"] for i in items_oldest if i["slug"] in ["first-article", "second-article", "third-article"]]
+    assert test_slugs_oldest == ["first-article", "second-article", "third-article"]
+

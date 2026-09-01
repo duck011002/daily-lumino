@@ -57,6 +57,17 @@ class BlogPostUpdate(BaseModel):
     category_id: Optional[int] = None
 
 
+class BlogAdjacentPost(BaseModel):
+    id: int
+    title: str
+    slug: str
+    cover_url: Optional[str] = None
+    published_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class BlogPostResponse(BaseModel):
     id: int
     title: str
@@ -75,6 +86,8 @@ class BlogPostResponse(BaseModel):
     updated_at: datetime
     author: Optional[UserResponse] = None
     category: Optional[BlogCategoryResponse] = None
+    prev_post: Optional[BlogAdjacentPost] = None
+    next_post: Optional[BlogAdjacentPost] = None
 
     class Config:
         from_attributes = True

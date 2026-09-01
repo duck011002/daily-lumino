@@ -19,7 +19,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -188,6 +188,47 @@ def get_published_post_or_404(slug: str, db: Session) -> BlogPost:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="文章未找到或未公开。"
         )
+
+    base_conditions = [
+        BlogPost.deleted_at.is_(None),
+        BlogPost.is_public.is_(True),
+        BlogPost.is_published.is_(True),
+    ]
+
+    # 上一篇（更早发布的文章）
+    prev_condition = (
+        or_(
+            BlogPost.published_at < post.published_at,
+            and_(BlogPost.published_at == post.published_at, BlogPost.id < post.id),
+        )
+        if post.published_at
+        else (BlogPost.id < post.id)
+    )
+    prev_post = db.scalar(
+        select(BlogPost)
+        .where(*base_conditions, prev_condition)
+        .order_by(BlogPost.published_at.desc(), BlogPost.id.desc())
+        .limit(1)
+    )
+
+    # 下一篇（更晚发布的文章）
+    next_condition = (
+        or_(
+            BlogPost.published_at > post.published_at,
+            and_(BlogPost.published_at == post.published_at, BlogPost.id > post.id),
+        )
+        if post.published_at
+        else (BlogPost.id > post.id)
+    )
+    next_post = db.scalar(
+        select(BlogPost)
+        .where(*base_conditions, next_condition)
+        .order_by(BlogPost.published_at.asc(), BlogPost.id.asc())
+        .limit(1)
+    )
+
+    setattr(post, "prev_post", prev_post)
+    setattr(post, "next_post", next_post)
     return post
 
 
@@ -258,6 +299,7 @@ def list_featured_posts(
 def list_public_posts_page(
     category: str | None = Query(None),
     q: str | None = Query(None, max_length=100),
+    sort_by: str = Query("latest", pattern="^(latest|views|oldest)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(9, ge=1, le=24),
     db: Session = Depends(get_db),
@@ -300,8 +342,16 @@ def list_public_posts_page(
 
     total = db.scalar(count_statement) or 0
     pages = max(1, (total + page_size - 1) // page_size)
+
+    if sort_by == "views":
+        order_clause = [BlogPost.view_count.desc(), BlogPost.published_at.desc(), BlogPost.id.desc()]
+    elif sort_by == "oldest":
+        order_clause = [BlogPost.published_at.asc(), BlogPost.id.asc()]
+    else:
+        order_clause = [BlogPost.published_at.desc(), BlogPost.id.desc()]
+
     items = db.scalars(
-        item_statement.order_by(BlogPost.published_at.desc(), BlogPost.id.desc())
+        item_statement.order_by(*order_clause)
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()

@@ -4,12 +4,15 @@ import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
+  ArrowUpDown,
   ArrowUpRight,
   BookOpen,
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   Eye,
+  Flame,
   Loader2,
   Search,
   Settings2,
@@ -81,6 +84,7 @@ function PublicBlogList() {
   const { t, formatDate } = useLanguage()
   const activeCategory = searchParams.get('category') || 'all'
   const query = (searchParams.get('q') || '').trim()
+  const sortBy = searchParams.get('sort') || 'latest'
   const rawPage = Number.parseInt(searchParams.get('page') || '1', 10)
   const currentPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
 
@@ -117,6 +121,7 @@ function PublicBlogList() {
         params: {
           category: activeCategory === 'all' ? undefined : activeCategory,
           q: query || undefined,
+          sort_by: sortBy,
           page: currentPage,
           page_size: 9,
         },
@@ -134,11 +139,11 @@ function PublicBlogList() {
       })
 
     return () => controller.abort()
-  }, [activeCategory, currentPage, query, t.common.loadFailed])
+  }, [activeCategory, currentPage, query, sortBy, t.common.loadFailed])
 
   useEffect(() => {
     const controller = new AbortController()
-    if (query || currentPage !== 1) {
+    if (query || currentPage !== 1 || sortBy !== 'latest') {
       setFeaturedPosts([])
       return
     }
@@ -153,7 +158,7 @@ function PublicBlogList() {
         if (error.code !== 'ERR_CANCELED') setFeaturedPosts([])
       })
     return () => controller.abort()
-  }, [activeCategory, currentPage, query])
+  }, [activeCategory, currentPage, query, sortBy])
 
   const categoryName =
     activeCategory === 'all'
@@ -167,10 +172,11 @@ function PublicBlogList() {
     [currentPage, pageData.pages]
   )
 
-  const updateRoute = (category: string, search: string, page: number) => {
+  const updateRoute = (category: string, search: string, sort: string, page: number) => {
     const params = new URLSearchParams()
     if (category !== 'all') params.set('category', category)
     if (search.trim()) params.set('q', search.trim())
+    if (sort !== 'latest') params.set('sort', sort)
     if (page > 1) params.set('page', String(page))
     const suffix = params.toString()
     router.push(suffix ? `/blog?${suffix}` : '/blog', { scroll: false })
@@ -178,11 +184,11 @@ function PublicBlogList() {
 
   const handleSearch = (event: FormEvent) => {
     event.preventDefault()
-    updateRoute(activeCategory, searchInput, 1)
+    updateRoute(activeCategory, searchInput, sortBy, 1)
   }
 
   const changePage = (page: number) => {
-    updateRoute(activeCategory, query, page)
+    updateRoute(activeCategory, query, sortBy, page)
     window.setTimeout(() => {
       document.getElementById('article-index')?.scrollIntoView({
         behavior: 'smooth',
@@ -226,7 +232,7 @@ function PublicBlogList() {
           <div className="flex gap-2 overflow-x-auto pb-1">
             <button
               type="button"
-              onClick={() => updateRoute('all', query, 1)}
+              onClick={() => updateRoute('all', query, sortBy, 1)}
               className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
                 activeCategory === 'all'
                   ? 'bg-[#163a2b] text-white'
@@ -239,7 +245,7 @@ function PublicBlogList() {
               <button
                 key={category.id}
                 type="button"
-                onClick={() => updateRoute(category.slug, query, 1)}
+                onClick={() => updateRoute(category.slug, query, sortBy, 1)}
                 className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
                   activeCategory === category.slug
                     ? 'bg-[#163a2b] text-white'
@@ -272,7 +278,7 @@ function PublicBlogList() {
                   type="button"
                   onClick={() => {
                     setSearchInput('')
-                    if (query) updateRoute(activeCategory, '', 1)
+                    if (query) updateRoute(activeCategory, '', sortBy, 1)
                   }}
                   className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-[#17211d]/35 hover:bg-[#17211d]/5 hover:text-[#17211d] dark:text-foreground/35"
                   title={t.blog.clearSearch}
@@ -288,11 +294,58 @@ function PublicBlogList() {
               {t.blog.searchBtn}
             </button>
           </form>
-          <p className="mt-3 text-xs text-[#17211d]/42 dark:text-foreground/42">
-            {t.blog.currentScope}
-            {categoryName}
-            {query ? t.blog.keyword.replace('{kw}', query) : t.blog.byDate}
-          </p>
+
+          {/* 筛选摘要与排序控制栏 */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#17211d]/8 pt-3.5 dark:border-darkBorder">
+            <p className="text-xs text-[#17211d]/55 dark:text-foreground/55">
+              {t.blog.currentScope}
+              <span className="font-semibold text-[#1d6347] dark:text-[#f7b84b]">{categoryName}</span>
+              {query && t.blog.keyword.replace('{kw}', query)}
+            </p>
+
+            {/* 排序胶囊切换 */}
+            <div className="flex items-center gap-1 rounded-full border border-[#17211d]/10 bg-[#f4f2ea] p-1 dark:border-darkBorder dark:bg-darkBg">
+              <button
+                type="button"
+                onClick={() => updateRoute(activeCategory, query, 'latest', 1)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  sortBy === 'latest'
+                    ? 'bg-[#163a2b] text-white shadow-sm dark:bg-[#f7b84b] dark:text-[#17211d]'
+                    : 'text-[#17211d]/65 hover:text-[#17211d] dark:text-foreground/65 dark:hover:text-foreground'
+                }`}
+              >
+                <Clock3 size={13} />
+                <span>{t.blog.sortByLatest}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => updateRoute(activeCategory, query, 'views', 1)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  sortBy === 'views'
+                    ? 'bg-[#163a2b] text-white shadow-sm dark:bg-[#f7b84b] dark:text-[#17211d]'
+                    : 'text-[#17211d]/65 hover:text-[#17211d] dark:text-foreground/65 dark:hover:text-foreground'
+                }`}
+              >
+                <Flame
+                  size={13}
+                  className={sortBy === 'views' ? 'text-[#f7b84b] dark:text-[#17211d]' : 'text-[#b56b19]'}
+                />
+                <span>{t.blog.sortByViews}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => updateRoute(activeCategory, query, 'oldest', 1)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  sortBy === 'oldest'
+                    ? 'bg-[#163a2b] text-white shadow-sm dark:bg-[#f7b84b] dark:text-[#17211d]'
+                    : 'text-[#17211d]/65 hover:text-[#17211d] dark:text-foreground/65 dark:hover:text-foreground'
+                }`}
+              >
+                <ArrowUpDown size={13} />
+                <span>{t.blog.sortByOldest}</span>
+              </button>
+            </div>
+          </div>
         </section>
 
         {!query && currentPage === 1 && heroPost && (
