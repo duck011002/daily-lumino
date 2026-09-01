@@ -265,30 +265,44 @@ export default function BlogPostClient({
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#eef1eb] text-[#17211d] dark:bg-darkBg dark:text-foreground">
-      <div
-        className="pointer-events-none fixed inset-0 opacity-70 dark:opacity-20"
-        style={{
-          backgroundImage: 'radial-gradient(rgba(22, 58, 43, 0.08) 1px, transparent 1px)',
-          backgroundSize: '18px 18px',
-        }}
-      />
-      <div className="pointer-events-none fixed -left-32 top-28 h-96 w-96 rounded-full bg-[#d5e4d8] blur-3xl dark:bg-[#163a2b]/40" />
-      <div className="pointer-events-none fixed -right-40 bottom-0 h-[30rem] w-[30rem] rounded-full bg-[#f7b84b]/15 blur-3xl" />
+    <div className="relative min-h-screen bg-[#eef1eb] text-[#17211d] dark:bg-darkBg dark:text-foreground">
+      {/* 独立背景装饰层，避免根节点 overflow-hidden 破坏 sticky 定位 */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-70 dark:opacity-20"
+          style={{
+            backgroundImage: 'radial-gradient(rgba(22, 58, 43, 0.08) 1px, transparent 1px)',
+            backgroundSize: '18px 18px',
+          }}
+        />
+        <div className="absolute -left-32 top-28 h-96 w-96 rounded-full bg-[#d5e4d8] blur-3xl dark:bg-[#163a2b]/40" />
+        <div className="absolute -right-40 bottom-0 h-[30rem] w-[30rem] rounded-full bg-[#f7b84b]/15 blur-3xl" />
+      </div>
 
       <SiteNav />
 
-      {/* 桌面端折叠状态下触发浮动按钮 */}
-      {tocItems.length > 0 && !isTocExpanded && (
-        <button
-          type="button"
-          onClick={() => setIsTocExpanded(true)}
-          className="hidden xl:flex fixed left-6 top-28 z-40 items-center gap-2 rounded-full border border-[#17211d]/10 bg-[#fffdf8]/90 px-3.5 py-2 text-xs font-semibold text-[#1d6347] shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:border-[#1d6347]/30 hover:bg-white dark:border-darkBorder dark:bg-darkCard/90 dark:text-[#f7b84b] dark:hover:bg-darkCard"
-          title={t.blog.expandToc}
-        >
-          <PanelLeftOpen size={16} />
-          <span>{t.blog.tocTitle}</span>
-        </button>
+      {/* 桌面端折叠状态下悬浮固定的返回与展开大纲控制器 */}
+      {(!isTocExpanded || tocItems.length === 0) && (
+        <div className="hidden xl:flex fixed left-6 top-24 z-40 flex-col gap-2">
+          <Link
+            href="/blog"
+            className="group flex items-center gap-1.5 rounded-full border border-[#17211d]/10 bg-[#fffdf8]/95 px-3.5 py-2 text-xs font-semibold text-[#1d6347] shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:bg-white hover:shadow-xl dark:border-darkBorder dark:bg-darkCard/95 dark:text-[#f7b84b] dark:hover:bg-darkCard"
+          >
+            <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-1" />
+            <span>{t.blog.backToBlog}</span>
+          </Link>
+          {tocItems.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsTocExpanded(true)}
+              className="flex items-center gap-1.5 rounded-full border border-[#17211d]/10 bg-[#fffdf8]/95 px-3.5 py-2 text-xs font-semibold text-[#1d6347] shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:bg-white hover:shadow-xl dark:border-darkBorder dark:bg-darkCard/95 dark:text-[#f7b84b] dark:hover:bg-darkCard"
+              title={t.blog.expandToc}
+            >
+              <PanelLeftOpen size={14} />
+              <span>{t.blog.tocTitle}</span>
+            </button>
+          )}
+        </div>
       )}
 
       {/* 移动端浮动大纲抽屉开关 */}
@@ -366,28 +380,40 @@ export default function BlogPostClient({
 
       {/* 主布局容器：Flex 居中，展开时 边栏 + 正文 作为一个整体居中；收起时 正文单栏居中 */}
       <div className="relative mx-auto flex w-full max-w-[96rem] items-start justify-center px-4 py-5 md:px-8 md:py-7">
-        {/* 左侧大纲侧边栏 (Desktop xl) */}
+        {/* 左侧大纲与快捷返回常驻侧边栏 (Desktop xl) */}
         {tocItems.length > 0 && (
           <aside
-            className={`hidden xl:block shrink-0 sticky top-24 transition-all duration-300 ease-in-out ${
+            className={`hidden xl:block shrink-0 sticky top-20 self-start z-30 transition-all duration-300 ease-in-out ${
               isTocExpanded ? 'w-64 xl:w-72 mr-8 opacity-100' : 'w-0 mr-0 opacity-0 overflow-hidden pointer-events-none'
             }`}
           >
-            <div className="rounded-2xl border border-[#17211d]/10 bg-[#fffdf8]/90 p-5 shadow-sm backdrop-blur-md dark:border-darkBorder dark:bg-darkCard/80">
+            {/* 顶部快捷返回与折叠控制栏 */}
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <Link
+                href="/blog"
+                className="group inline-flex items-center gap-1.5 rounded-full border border-[#17211d]/10 bg-[#fffdf8]/95 px-3.5 py-1.5 text-xs font-semibold text-[#1d6347] shadow-sm backdrop-blur-md transition-all hover:bg-white hover:shadow hover:text-[#b56b19] dark:border-darkBorder dark:bg-darkCard/90 dark:text-[#f7b84b] dark:hover:bg-darkCard"
+              >
+                <ArrowLeft size={13} className="transition-transform group-hover:-translate-x-1" />
+                <span>{t.blog.backToBlog}</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setIsTocExpanded(false)}
+                className="inline-flex items-center gap-1 rounded-full border border-[#17211d]/10 bg-[#fffdf8]/95 px-2.5 py-1.5 text-xs text-[#17211d]/60 shadow-sm backdrop-blur-md transition hover:bg-white hover:text-[#17211d] dark:border-darkBorder dark:bg-darkCard/90 dark:text-foreground/60 dark:hover:bg-darkCard dark:hover:text-foreground"
+                title={t.blog.collapseToc}
+              >
+                <PanelLeftClose size={13} />
+                <span className="text-[11px]">{t.blog.collapseToc}</span>
+              </button>
+            </div>
+
+            {/* 大纲卡片 */}
+            <div className="rounded-2xl border border-[#17211d]/10 bg-[#fffdf8]/95 p-5 shadow-sm backdrop-blur-md dark:border-darkBorder dark:bg-darkCard/85">
               {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-[#17211d]/10 dark:border-darkBorder">
-                <div className="flex items-center gap-2 text-sm font-bold text-[#17211d] dark:text-foreground">
-                  <ListTree size={16} className="text-[#1d6347] dark:text-[#f7b84b]" />
-                  <span>{t.blog.tocTitle}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsTocExpanded(false)}
-                  className="rounded-lg p-1.5 text-[#17211d]/50 hover:bg-[#17211d]/5 hover:text-[#17211d] dark:text-foreground/50 dark:hover:bg-white/5 dark:hover:text-foreground transition"
-                  title={t.blog.collapseToc}
-                >
-                  <PanelLeftClose size={15} />
-                </button>
+              <div className="flex items-center gap-2 pb-3 border-b border-[#17211d]/10 text-sm font-bold text-[#17211d] dark:border-darkBorder dark:text-foreground">
+                <ListTree size={16} className="text-[#1d6347] dark:text-[#f7b84b]" />
+                <span>{t.blog.tocTitle}</span>
               </div>
 
               {/* Reading Progress */}
@@ -405,7 +431,7 @@ export default function BlogPostClient({
               </div>
 
               {/* TOC List */}
-              <nav className="mt-4 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1 space-y-1 text-xs scrollbar-thin">
+              <nav className="mt-4 max-h-[calc(100vh-14rem)] overflow-y-auto pr-1 space-y-1 text-xs scrollbar-thin">
                 {tocItems.map((item) => {
                   const isActive = activeId === item.id
                   const indentClass =
@@ -439,13 +465,15 @@ export default function BlogPostClient({
 
         {/* 正文主体容器 */}
         <main className="w-full max-w-4xl shrink-0 transition-all duration-300">
-          <Link
-            href="/blog"
-            className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[#1d6347] transition hover:text-[#b56b19] dark:text-[#f7b84b]"
-          >
-            <ArrowLeft size={16} />
-            {t.blog.backToBlog}
-          </Link>
+          <div className="mb-3 flex items-center justify-between">
+            <Link
+              href="/blog"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1d6347] transition hover:text-[#b56b19] dark:text-[#f7b84b]"
+            >
+              <ArrowLeft size={15} />
+              <span>{t.blog.backToBlog}</span>
+            </Link>
+          </div>
 
           <article className="overflow-hidden rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] shadow-[0_32px_90px_-48px_rgba(23,33,29,0.6)] dark:border-darkBorder dark:bg-darkCard">
             {post.cover_url && (
