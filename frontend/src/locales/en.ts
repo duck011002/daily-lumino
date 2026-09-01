@@ -246,6 +246,7 @@ export const en: LocaleDictionary = {
     sortByLatest: 'Latest',
     sortByViews: 'Most Viewed',
     sortByOldest: 'Oldest',
+    articleDetail: 'Article Details',
   },
   courtyard: {
     badge: 'Private courtyard · Guest porch',

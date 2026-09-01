@@ -465,15 +465,17 @@ export default function BlogPostClient({
 
         {/* 正文主体容器 */}
         <main className="w-full max-w-4xl shrink-0 transition-all duration-300">
-          <div className="mb-3 flex items-center justify-between">
+          <nav className="mb-3.5 flex items-center gap-2 text-xs font-semibold text-[#17211d]/50 dark:text-foreground/50" aria-label="Breadcrumb">
             <Link
               href="/blog"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1d6347] transition hover:text-[#b56b19] dark:text-[#f7b84b]"
+              className="inline-flex items-center gap-1.5 transition-colors hover:text-[#1d6347] dark:hover:text-[#f7b84b]"
             >
-              <ArrowLeft size={15} />
-              <span>{t.blog.backToBlog}</span>
+              <ArrowLeft size={13} className="xl:hidden" />
+              <span>{t.blog.allPosts}</span>
             </Link>
-          </div>
+            <span className="text-[#17211d]/25 dark:text-foreground/25">/</span>
+            <span className="text-[#17211d]/80 dark:text-foreground/80">{t.blog.articleDetail}</span>
+          </nav>
 
           <article className="overflow-hidden rounded-[2rem] border border-[#17211d]/10 bg-[#fffdf8] shadow-[0_32px_90px_-48px_rgba(23,33,29,0.6)] dark:border-darkBorder dark:bg-darkCard">
             {post.cover_url && (

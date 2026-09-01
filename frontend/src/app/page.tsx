@@ -422,8 +422,8 @@ function FavoritePreviewCard({ item }: { item: SiteMediaCard }) {
   const creator = item.creator || item.subtitle
   const byline = [creator, item.year].filter(Boolean).join(' · ')
 
-  return (
-    <article className="group flex min-h-44 w-[82vw] max-w-[18rem] shrink-0 snap-start gap-4 overflow-hidden rounded-[1.7rem] border border-[#17211d]/10 bg-[#fffdf8] p-4 transition hover:-translate-y-0.5 hover:border-[#1d6347]/30 hover:shadow-lg dark:border-darkBorder dark:bg-darkCard sm:w-[17rem] lg:w-[calc((100%-3rem)/4)] lg:max-w-none">
+  const cardInner = (
+    <>
       <div className="h-36 w-24 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-[#e7efe8] to-[#f7edd9] dark:from-[#163a2b] dark:to-[#2e2518]">
         {item.image_url ? (
           <img
@@ -444,7 +444,7 @@ function FavoritePreviewCard({ item }: { item: SiteMediaCard }) {
           <Icon size={11} />
           {item.badge || categoryLabel}
         </p>
-        <h3 className="mt-3 line-clamp-2 font-display text-lg font-bold leading-snug">
+        <h3 className="mt-3 line-clamp-2 font-display text-lg font-bold leading-snug transition-colors group-hover:text-[#1d6347] dark:group-hover:text-[#f7b84b]">
           {item.title}
         </h3>
         {byline && (
@@ -458,6 +458,30 @@ function FavoritePreviewCard({ item }: { item: SiteMediaCard }) {
           </p>
         )}
       </div>
-    </article>
+    </>
+  )
+
+  if (item.url) {
+    return (
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noreferrer"
+        className="group flex min-h-44 w-[82vw] max-w-[18rem] shrink-0 snap-start gap-4 overflow-hidden rounded-[1.7rem] border border-[#17211d]/10 bg-[#fffdf8] p-4 transition hover:-translate-y-0.5 hover:border-[#1d6347]/30 hover:shadow-lg dark:border-darkBorder dark:bg-darkCard sm:w-[17rem] lg:w-[calc((100%-3rem)/4)] lg:max-w-none cursor-pointer"
+        aria-label={`${item.title} - ${t.library.viewExternal}`}
+      >
+        {cardInner}
+      </a>
+    )
+  }
+
+  return (
+    <Link
+      href="/library"
+      className="group flex min-h-44 w-[82vw] max-w-[18rem] shrink-0 snap-start gap-4 overflow-hidden rounded-[1.7rem] border border-[#17211d]/10 bg-[#fffdf8] p-4 transition hover:-translate-y-0.5 hover:border-[#1d6347]/30 hover:shadow-lg dark:border-darkBorder dark:bg-darkCard sm:w-[17rem] lg:w-[calc((100%-3rem)/4)] lg:max-w-none cursor-pointer"
+      aria-label={`${item.title} - ${t.home.shelvesSection.enterLibrary}`}
+    >
+      {cardInner}
+    </Link>
   )
 }

@@ -322,8 +322,8 @@ function RecommendationCard({ item }: { item: SiteMediaCard }) {
   const creator = item.creator || item.subtitle
   const byline = [creator, item.year].filter(Boolean).join(' · ')
 
-  return (
-    <article className="group overflow-hidden rounded-[2rem] border-2 border-[#244a38]/20 bg-[#fffdf8] shadow-[0_14px_42px_-40px_rgba(23,33,29,0.7)] transition hover:-translate-y-1 hover:border-[#1d6347]/40 hover:shadow-[0_24px_65px_-42px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard">
+  const cardInner = (
+    <>
       <div className="relative aspect-[2/3] overflow-hidden bg-gradient-to-br from-[#dce9df] via-[#eee8d9] to-[#f7dfb8] dark:from-[#163a2b] dark:via-[#243c32] dark:to-[#4a3820]">
         {item.image_url ? (
           <img
@@ -344,11 +344,13 @@ function RecommendationCard({ item }: { item: SiteMediaCard }) {
         </div>
       </div>
 
-      <div className="flex min-h-52 flex-col p-6">
+      <div className="flex min-h-52 flex-1 flex-col p-6">
         <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#b56b19]">
           {metaLabel}
         </p>
-        <h3 className="mt-2 font-display text-2xl font-bold leading-tight">{item.title}</h3>
+        <h3 className="mt-2 font-display text-2xl font-bold leading-tight transition-colors group-hover:text-[#1d6347] dark:group-hover:text-[#f7b84b]">
+          {item.title}
+        </h3>
         {byline && (
           <p className="mt-2 text-xs font-semibold text-[#17211d]/45 dark:text-foreground/45">
             {byline}
@@ -360,24 +362,39 @@ function RecommendationCard({ item }: { item: SiteMediaCard }) {
           </p>
         )}
         {item.url ? (
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noreferrer"
-            className="group/link mt-auto inline-flex w-fit items-center gap-2 pt-5 text-xs font-bold text-[#1d6347] dark:text-[#f7b84b]"
-          >
-            {t.library.viewExternal}
+          <div className="mt-auto inline-flex w-fit items-center gap-1.5 pt-5 text-xs font-bold text-[#1d6347] dark:text-[#f7b84b]">
+            <span>{t.library.viewExternal}</span>
             <ArrowUpRight
               size={14}
-              className="transition group-hover/link:-translate-y-0.5 group-hover/link:translate-x-0.5"
+              className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
             />
-          </a>
+          </div>
         ) : (
           <p className="mt-auto pt-5 text-[11px] text-[#17211d]/32 dark:text-foreground/32">
             {t.library.personalOnly}
           </p>
         )}
       </div>
+    </>
+  )
+
+  if (item.url) {
+    return (
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noreferrer"
+        className="group flex flex-col overflow-hidden rounded-[2rem] border-2 border-[#244a38]/20 bg-[#fffdf8] shadow-[0_14px_42px_-40px_rgba(23,33,29,0.7)] transition duration-200 hover:-translate-y-1 hover:border-[#1d6347]/40 hover:shadow-[0_24px_65px_-42px_rgba(23,33,29,0.65)] dark:border-darkBorder dark:bg-darkCard cursor-pointer"
+        aria-label={`${item.title} - ${t.library.viewExternal}`}
+      >
+        {cardInner}
+      </a>
+    )
+  }
+
+  return (
+    <article className="group flex flex-col overflow-hidden rounded-[2rem] border-2 border-[#244a38]/20 bg-[#fffdf8] shadow-[0_14px_42px_-40px_rgba(23,33,29,0.7)] dark:border-darkBorder dark:bg-darkCard">
+      {cardInner}
     </article>
   )
 }

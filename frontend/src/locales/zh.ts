@@ -244,6 +244,7 @@ export const zh = {
     sortByLatest: '最新发布',
     sortByViews: '热门浏览',
     sortByOldest: '最早发布',
+    articleDetail: '文章详情',
   },
   courtyard: {
     badge: 'Private courtyard · 游客门廊',
